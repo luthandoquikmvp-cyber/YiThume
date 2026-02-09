@@ -90,8 +90,7 @@ BUILD_TS = datetime.utcnow().isoformat() + "Z"
 app = Flask(__name__)
 CORS(app)
 
-from api.agent_routes import agent_bp
-app.register_blueprint(agent_bp)
+
 # -------------------------------------------------
 # HELPERS
 # -------------------------------------------------
