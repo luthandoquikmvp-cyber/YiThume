@@ -1,9 +1,8 @@
 {
   "version": 2,
   "routes": [
-    {
-      "src": "/api/app(.*)",
-      "dest": "/api/app.py"
-    }
+    { "src": "/", "dest": "/index.html" },
+    { "src": "/chat", "dest": "/api/app.py" },
+    { "src": "/api/(.*)", "dest": "/api/app.py" }
   ]
 }
