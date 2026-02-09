@@ -1865,36 +1865,7 @@ def ussd_entry():
     
     
     # api/agent_routes.py
-# YiThume Web Agent (single-file blueprint)
-# - GET /chat
-# - POST /api/app/agent/message
-# - Mongo session memory in db.agent_sessions
-# - Catalog lookup using db.catalog
-# - CONFIRM gate: will not create order unless user types "CONFIRM"
 
-import os
-import re
-import uuid
-from datetime import datetime, timedelta
-
-from flask import Blueprint, request, jsonify, Response
-
-# Reuse your existing app helpers for consistency
-# This assumes agent_routes.py sits next to app.py inside /api
-from api.app import (
-    get_db,
-    make_order_public_id,
-    _now_dt,
-    _now_iso,
-    wa_order_text,
-    find_available_driver,
-    rule_based_fraud_score,
-    cluster_key,
-    log_zone_demand,
-    recent_zone_demand_snapshot,
-)
-
-agent_bp = Blueprint("agent_bp", __name__)
 
 # -----------------------------
 # Config
