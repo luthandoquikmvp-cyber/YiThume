@@ -90,7 +90,8 @@ BUILD_TS = datetime.utcnow().isoformat() + "Z"
 app = Flask(__name__)
 CORS(app)
 
-
+from api.agent_routes import agent_bp
+app.register_blueprint(agent_bp)
 # -------------------------------------------------
 # HELPERS
 # -------------------------------------------------
@@ -687,6 +688,7 @@ def create_order():
 
         "delivery_photo_file_id": None,
         "delivery_photo_url": None,
+    
 
         # payout tracking expected by admin UI
         "driver_pay_status": "pending",
