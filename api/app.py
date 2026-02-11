@@ -653,10 +653,7 @@ def home():
 # -----------------------------
 @app.get("/manager/setup")
 def manager_setup():
-    # Allow opening without admin_pin; wizard has a PIN step.
-    # But if admin_pin is present and valid, user can continue instantly.
-    return render_template("manager_setup.html")
-
+    return send_from_directory(app.static_folder, "manager_setup.html")
 
 @app.post("/manager/api/setup")
 def manager_setup_submit():
