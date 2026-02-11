@@ -1,0 +1,382 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YiThume — Setup Wizard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-zinc-950 text-zinc-100">
+  <div class="min-h-screen">
+    <!-- Top bar -->
+    <div class="sticky top-0 z-20 border-b border-zinc-900 bg-zinc-950/80 backdrop-blur">
+      <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-600/15 border border-emerald-600/30 flex items-center justify-center font-bold">Y</div>
+          <div>
+            <div class="text-xs text-zinc-400">YiThume</div>
+            <div class="text-lg font-semibold leading-tight">Go live setup</div>
+          </div>
+        </div>
+        <div class="text-xs text-zinc-400">Target: <span class="text-zinc-200">30 minutes</span></div>
+      </div>
+    </div>
+
+    <div class="max-w-4xl mx-auto px-4 py-6">
+      <!-- Progress -->
+      <div class="rounded-2xl bg-zinc-900/50 border border-zinc-800 p-4">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <div class="text-sm font-semibold">Setup steps</div>
+            <div class="text-xs text-zinc-400 mt-1">Pin → Business → Channels → Catalog → Delivery → Review</div>
+          </div>
+          <div class="w-40">
+            <div class="w-full bg-zinc-800 rounded-full h-2">
+              <div id="bar" class="bg-emerald-500 h-2 rounded-full" style="width: 16%"></div>
+            </div>
+            <div id="barText" class="text-xs text-zinc-400 mt-2 text-right">Step 1 of 6</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content card -->
+      <div class="mt-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 p-5">
+        <!-- Alerts -->
+        <div id="alert" class="hidden mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200"></div>
+
+        <!-- Step containers -->
+        <div id="step1" class="step">
+          <h2 class="text-xl font-semibold">1) Admin PIN</h2>
+          <p class="text-sm text-zinc-400 mt-1">This protects your manager setup in MVP mode.</p>
+
+          <div class="mt-4">
+            <label class="text-sm text-zinc-300">PIN</label>
+            <input id="admin_pin" type="password" inputmode="numeric"
+              class="mt-1 w-full rounded-xl bg-zinc-950/50 border border-zinc-800 px-3 py-3"
+              placeholder="Enter your ADMIN_SECRET (e.g. 1234)" />
+            <div class="text-xs text-zinc-500 mt-2">
+              Tip: you can also open <code class="text-zinc-300">/manager/setup?admin_pin=1234</code> to prefill.
+            </div>
+          </div>
+        </div>
+
+        <div id="step2" class="step hidden">
+          <h2 class="text-xl font-semibold">2) Business details</h2>
+          <p class="text-sm text-zinc-400 mt-1">This becomes your workspace.</p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+            <div>
+              <label class="text-sm text-zinc-300">Store name</label>
+              <input id="store_name" class="mt-1 w-full rounded-xl bg-zinc-950/50 border border-zinc-800 px-3 py-3"
+                placeholder="e.g. Port Alfred Pharmacy" />
+            </div>
+            <div>
+              <label class="text-sm text-zinc-300">Template</label>
+              <select id="template" class="mt-1 w-full rounded-xl bg-zinc-950/50 border border-zinc-800 px-3 py-3">
+                <option value="general">General</option>
+                <option value="pharmacy">Pharmacy</option>
+                <option value="grocery">Grocery</option>
+                <option value="water">Water</option>
+                <option value="hardware">Hardware</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-sm text-zinc-300">Currency</label>
+              <select id="currency" class="mt-1 w-full rounded-xl bg-zinc-950/50 border border-zinc-800 px-3 py-3">
+                <option value="ZAR">ZAR</option>
+                <option value="USD">USD</option>
+                <option value="KES">KES</option>
+                <option value="NGN">NGN</option>
+                <option value="GHS">GHS</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-sm text-zinc-300">Theme</label>
+              <select id="theme" class="mt-1 w-full rounded-xl bg-zinc-950/50 border border-zinc-800 px-3 py-3">
+                <option value="clean">Clean</option>
+                <option value="bold">Bold</option>
+                <option value="minimal">Minimal</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="step3" class="step hidden">
+          <h2 class="text-xl font-semibold">3) Channels</h2>
+          <p class="text-sm text-zinc-400 mt-1">WhatsApp is the front door. Web is where users see the product nicely.</p>
+
+          <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <label class="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
+              <input id="channel_web" type="checkbox" checked />
+              <div>
+                <div class="font-medium">Web storefront</div>
+                <div class="text-xs text-zinc-400">Landing + product view + admin links</div>
+              </div>
+            </label>
+            <label class="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
+              <input id="needs_support" type="checkbox" checked />
+              <div>
+                <div class="font-medium">Customer service</div>
+                <div class="text-xs text-zinc-400">FAQ + status + escalation</div>
+              </div>
+            </label>
+            <label class="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
+              <input id="needs_returns" type="checkbox" />
+              <div>
+                <div class="font-medium">Returns</div>
+                <div class="text-xs text-zinc-400">Policy + intake workflow</div>
+              </div>
+            </label>
+            <label class="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
+              <input id="needs_delivery" type="checkbox" checked />
+              <div>
+                <div class="font-medium">Delivery</div>
+                <div class="text-xs text-zinc-400">Dispatch + carriers + payouts later</div>
+              </div>
+            </label>
+          </div>
+
+          <div class="mt-4 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+            <div class="text-sm font-semibold">Confirm gating (non-negotiable)</div>
+            <div class="text-sm text-zinc-400 mt-1">
+              Orders are only created when the customer sends <span class="text-zinc-200 font-semibold">CONFIRM</span>.
+            </div>
+          </div>
+        </div>
+
+        <div id="step4" class="step hidden">
+          <h2 class="text-xl font-semibold">4) Product catalog</h2>
+          <p class="text-sm text-zinc-400 mt-1">How will you load products for the agent to quote?</p>
+
+          <div class="mt-4 space-y-3">
+            <label class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4 cursor-pointer">
+              <input type="radio" name="products_mode" value="catalog_seed" checked />
+              <div>
+                <div class="font-medium">Use built-in starter catalog</div>
+                <div class="text-xs text-zinc-400">Fastest: good for demo + MVP.</div>
+              </div>
+            </label>
+            <label class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4 cursor-pointer">
+              <input type="radio" name="products_mode" value="csv_or_shopify_or_whatsapp" />
+              <div>
+                <div class="font-medium">Import later (CSV/Shopify/WhatsApp)</div>
+                <div class="text-xs text-zinc-400">Wizard creates placeholders + jobs.</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div id="step5" class="step hidden">
+          <h2 class="text-xl font-semibold">5) Delivery</h2>
+          <p class="text-sm text-zinc-400 mt-1">Choose how dispatch should work in MVP.</p>
+
+          <div class="mt-4">
+            <label class="text-sm text-zinc-300">Delivery mode</label>
+            <select id="delivery_mode" class="mt-1 w-full rounded-xl bg-zinc-950/50 border border-zinc-800 px-3 py-3">
+              <option value="manual">Manual (admin assigns driver)</option>
+              <option value="external">External carrier (later)</option>
+              <option value="yithume">YiThume network</option>
+            </select>
+          </div>
+
+          <div class="mt-4 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+            <div class="text-sm font-semibold">What happens after CONFIRM?</div>
+            <ul class="mt-2 text-sm text-zinc-400 list-disc ml-5 space-y-1">
+              <li>Create the order</li>
+              <li>Put it in Dispatch queue</li>
+              <li>Admin assigns driver (or later: auto-assign)</li>
+              <li>Close when delivered</li>
+            </ul>
+          </div>
+        </div>
+
+        <div id="step6" class="step hidden">
+          <h2 class="text-xl font-semibold">6) Review & create</h2>
+          <p class="text-sm text-zinc-400 mt-1">This will create the manager + employees + initial jobs.</p>
+
+          <div class="mt-4 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+            <div class="text-sm font-semibold">Summary</div>
+            <div id="summary" class="mt-3 text-sm text-zinc-300"></div>
+          </div>
+
+          <button id="createBtn"
+            class="mt-4 w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-3 font-semibold">
+            Create workspace + manager
+          </button>
+
+          <div id="creating" class="hidden mt-3 text-sm text-zinc-400">
+            Creating… then redirecting to dashboard.
+          </div>
+        </div>
+
+        <!-- Footer actions -->
+        <div class="mt-6 flex items-center justify-between">
+          <button id="backBtn" class="px-3 py-2 rounded-lg bg-zinc-950/60 border border-zinc-800 hover:bg-zinc-900 text-sm">
+            Back
+          </button>
+
+          <div class="flex items-center gap-2">
+            <button id="nextBtn" class="px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm font-semibold">
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-xs text-zinc-500 mt-4 px-1">
+        Tip: once you’re live, you’ll remove PIN gating and use proper auth.
+      </div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  const steps = ["step1","step2","step3","step4","step5","step6"];
+  let idx = 0;
+
+  const qs = new URLSearchParams(location.search);
+  const savedPin = localStorage.getItem("yithume_admin_pin") || "";
+  const pinFromUrl = qs.get("admin_pin") || "";
+
+  const el = (id) => document.getElementById(id);
+  const showAlert = (msg) => { const a = el("alert"); a.textContent = msg; a.classList.remove("hidden"); };
+  const clearAlert = () => el("alert").classList.add("hidden");
+
+  function setBar() {
+    const pct = Math.round(((idx + 1) / steps.length) * 100);
+    el("bar").style.width = pct + "%";
+    el("barText").textContent = `Step ${idx + 1} of ${steps.length}`;
+    el("backBtn").style.opacity = idx === 0 ? "0.5" : "1";
+    el("backBtn").disabled = idx === 0;
+    el("nextBtn").classList.toggle("hidden", idx === steps.length - 1);
+  }
+
+  function showStep(i) {
+    steps.forEach((sid, j) => el(sid).classList.toggle("hidden", j !== i));
+    idx = i;
+    setBar();
+    clearAlert();
+    if (idx === 5) renderSummary();
+  }
+
+  function getProductsMode() {
+    const r = document.querySelector('input[name="products_mode"]:checked');
+    return r ? r.value : "catalog_seed";
+  }
+
+  function getState() {
+    return {
+      admin_pin: el("admin_pin").value.trim(),
+      store_name: el("store_name").value.trim(),
+      template: el("template").value,
+      currency: el("currency").value,
+      theme: el("theme").value,
+
+      channel_web: el("channel_web").checked,
+      needs_support: el("needs_support").checked,
+      needs_returns: el("needs_returns").checked,
+      needs_delivery: el("needs_delivery").checked,
+
+      products_mode: getProductsMode(),
+      delivery_mode: el("delivery_mode").value,
+
+      autopilot_level: "assist",
+      plan: "starter",
+    };
+  }
+
+  function renderSummary() {
+    const s = getState();
+    const lines = [
+      `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">`,
+      `<div><span class="text-zinc-400">Store:</span> ${escapeHtml(s.store_name || "New Store")}</div>`,
+      `<div><span class="text-zinc-400">Template:</span> ${escapeHtml(s.template)}</div>`,
+      `<div><span class="text-zinc-400">Currency:</span> ${escapeHtml(s.currency)}</div>`,
+      `<div><span class="text-zinc-400">Delivery:</span> ${escapeHtml(s.delivery_mode)}</div>`,
+      `<div><span class="text-zinc-400">Web:</span> ${s.channel_web ? "Yes" : "No"}</div>`,
+      `<div><span class="text-zinc-400">Support:</span> ${s.needs_support ? "Yes" : "No"}</div>`,
+      `<div><span class="text-zinc-400">Returns:</span> ${s.needs_returns ? "Yes" : "No"}</div>`,
+      `<div><span class="text-zinc-400">Catalog:</span> ${escapeHtml(s.products_mode)}</div>`,
+      `</div>`
+    ];
+    el("summary").innerHTML = lines.join("");
+  }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"']/g, (m) => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
+  }
+
+  function validateStep() {
+    const s = getState();
+    if (idx === 0) {
+      if (!s.admin_pin) return "Enter your admin PIN.";
+      localStorage.setItem("yithume_admin_pin", s.admin_pin);
+    }
+    if (idx === 1) {
+      if (!s.store_name) return "Store name is required.";
+    }
+    return null;
+  }
+
+  async function createWorkspace() {
+    clearAlert();
+    const s = getState();
+    if (!s.admin_pin) { showAlert("Missing admin PIN."); return; }
+
+    el("createBtn").disabled = true;
+    el("creating").classList.remove("hidden");
+
+    // always send admin_pin in BOTH query + JSON body (works with your require_admin)
+    const url = `/manager/api/setup?admin_pin=${encodeURIComponent(s.admin_pin)}`;
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(s)
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      el("createBtn").disabled = false;
+      el("creating").classList.add("hidden");
+      showAlert(`Setup failed (${res.status}). ${text}`);
+      return;
+    }
+
+    const out = await res.json();
+    if (!out.ok) {
+      el("createBtn").disabled = false;
+      el("creating").classList.add("hidden");
+      showAlert(out.error || "Setup failed.");
+      return;
+    }
+
+    location.href = out.redirect_url || `/manager/dashboard/${out.workspace_id}?admin_pin=${encodeURIComponent(s.admin_pin)}`;
+  }
+
+  // Prefill PIN from URL/localStorage
+  el("admin_pin").value = pinFromUrl || savedPin || "";
+
+  // Buttons
+  el("backBtn").addEventListener("click", () => {
+    if (idx > 0) showStep(idx - 1);
+  });
+
+  el("nextBtn").addEventListener("click", () => {
+    const err = validateStep();
+    if (err) { showAlert(err); return; }
+    if (idx < steps.length - 1) showStep(idx + 1);
+  });
+
+  el("createBtn").addEventListener("click", createWorkspace);
+
+  // Start
+  showStep(0);
+})();
+</script>
+</body>
+</html>
