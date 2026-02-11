@@ -1873,9 +1873,6 @@ def ussd_entry():
 # MANAGER + EMPLOYEES + JOBS (drop-in)
 # Requires: from bson.objectid import ObjectId  (optional)
 # -----------------------------
-import uuid
-from datetime import datetime
-from flask import request, jsonify, redirect, url_for, render_template
 
 # ---- Config
 MANAGER_ADMIN_SECRET = os.environ.get("ADMIN_SECRET", os.environ.get("YITHUME_ADMIN_SECRET", "change-me"))
