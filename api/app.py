@@ -1869,5 +1869,532 @@ def ussd_entry():
 
     return end("Invalid option.")
 
+# -----------------------------
+# MANAGER + EMPLOYEES + JOBS (drop-in)
+# Requires: from bson.objectid import ObjectId  (optional)
+# -----------------------------
+import uuid
+from datetime import datetime
+from flask import request, jsonify, redirect, url_for, render_template
 
+# ---- Config
+MANAGER_ADMIN_SECRET = os.environ.get("ADMIN_SECRET", os.environ.get("YITHUME_ADMIN_SECRET", "change-me"))
+
+# ---- Helpers
+def _now():
+    return datetime.utcnow()
+
+def _iso(dt: datetime):
+    return dt.replace(microsecond=0).isoformat() + "Z"
+
+def _new_id(prefix=""):
+    return (prefix + "_" if prefix else "") + uuid.uuid4().hex[:12]
+
+def _require_admin(req):
+    # MVP auth: query param or header
+    s = req.args.get("admin_secret") or req.headers.get("X-Admin-Secret")
+    return bool(s) and s == MANAGER_ADMIN_SECRET
+
+def _ensure_indexes_for_manager(db):
+    try:
+        db["managers"].create_index("workspace_id", unique=True)
+        db["employees"].create_index([("workspace_id", 1), ("employee_type", 1)], unique=True)
+        db["jobs"].create_index([("workspace_id", 1), ("status", 1), ("created_at", -1)])
+        db["events"].create_index([("workspace_id", 1), ("created_at", -1)])
+        db["workspaces"].create_index("created_at")
+    except Exception:
+        pass
+
+def _log_event(db, workspace_id, kind, msg, meta=None):
+    db["events"].insert_one({
+        "_id": _new_id("evt"),
+        "workspace_id": workspace_id,
+        "kind": kind,
+        "msg": msg,
+        "meta": meta or {},
+        "created_at": _now(),
+    })
+
+def _create_workspace(db, name, template="general"):
+    ws = {
+        "_id": _new_id("ws"),
+        "name": (name or "New Store").strip(),
+        "template": template,
+        "created_at": _now(),
+    }
+    db["workspaces"].insert_one(ws)
+    return ws
+
+def _get_workspace(db, workspace_id):
+    return db["workspaces"].find_one({"_id": workspace_id})
+
+def _get_manager(db, workspace_id):
+    return db["managers"].find_one({"workspace_id": workspace_id})
+
+def _get_employees(db, workspace_id):
+    return list(db["employees"].find({"workspace_id": workspace_id}).sort("employee_type", 1))
+
+def _get_jobs(db, workspace_id, limit=30):
+    return list(db["jobs"].find({"workspace_id": workspace_id}).sort("created_at", -1).limit(limit))
+
+def _get_events(db, workspace_id, limit=15):
+    return list(db["events"].find({"workspace_id": workspace_id}).sort("created_at", -1).limit(limit))
+
+def _enqueue_job(db, workspace_id, employee_type, job_type, payload=None, priority="med"):
+    job = {
+        "_id": _new_id("job"),
+        "workspace_id": workspace_id,
+        "employee_type": employee_type,
+        "job_type": job_type,
+        "payload": payload or {},
+        "priority": priority,      # low|med|high
+        "status": "queued",        # queued|running|blocked|done|failed
+        "progress": 0,             # 0-100
+        "logs": [],
+        "created_at": _now(),
+        "updated_at": _now(),
+    }
+    db["jobs"].insert_one(job)
+    _log_event(db, workspace_id, "job.created", f"{employee_type}: {job_type}", {"job_id": job["_id"]})
+    return job
+
+def _set_job(db, job_id, status=None, progress=None, log_msg=None):
+    if log_msg:
+        db["jobs"].update_one({"_id": job_id}, {"$push": {"logs": {"ts": _iso(_now()), "msg": log_msg}}})
+    update = {"updated_at": _now()}
+    if status is not None:
+        update["status"] = status
+    if progress is not None:
+        update["progress"] = int(max(0, min(100, progress)))
+    db["jobs"].update_one({"_id": job_id}, {"$set": update})
+
+# ---- Employee registry (plugins)
+EMPLOYEE_REGISTRY = {}
+
+def register_employee(cls):
+    EMPLOYEE_REGISTRY[cls.employee_type] = cls
+    return cls
+
+class BaseEmployee:
+    employee_type = "base"
+    name = "Base"
+    description = ""
+    capabilities = []
+
+    @classmethod
+    def should_enable(cls, survey):
+        return False
+
+    @classmethod
+    def default_config(cls, survey):
+        return {}
+
+    @classmethod
+    def initial_jobs(cls, workspace, survey):
+        return []  # list of (job_type, payload)
+
+    @classmethod
+    def run_job(cls, job, workspace):
+        return {"status": "done", "progress": 100, "log": f"Completed {job['job_type']}"}
+
+@register_employee
+class StorefrontEmployee(BaseEmployee):
+    employee_type = "storefront"
+    name = "Storefront Builder"
+    description = "Creates storefront pages + checkout skeleton (web-first)."
+    capabilities = ["create_storefront", "manage_products", "publish_link"]
+
+    @classmethod
+    def should_enable(cls, survey):
+        return bool(survey.get("channel_web", True))
+
+    @classmethod
+    def default_config(cls, survey):
+        return {"theme": survey.get("theme", "clean"), "currency": survey.get("currency", "ZAR")}
+
+    @classmethod
+    def initial_jobs(cls, workspace, survey):
+        return [
+            ("CREATE_STOREFRONT", {"template": workspace.get("template", "general")}),
+            ("IMPORT_PRODUCTS", {"mode": survey.get("products_mode", "csv_or_shopify_or_whatsapp")}),
+        ]
+
+    @classmethod
+    def run_job(cls, job, workspace):
+        jt = job["job_type"]
+        if jt == "CREATE_STOREFRONT":
+            return {"status": "done", "progress": 100, "log": "Storefront scaffold created."}
+        if jt == "IMPORT_PRODUCTS":
+            return {"status": "blocked", "progress": 10, "log": "Waiting for products import."}
+        return {"status": "done", "progress": 100, "log": f"Storefront handled {jt}"}
+
+@register_employee
+class SalesEmployee(BaseEmployee):
+    employee_type = "sales"
+    name = "Sales Assistant"
+    description = "Answers product questions, builds quotes, pushes to confirmation."
+    capabilities = ["product_search", "quote", "upsell"]
+
+    @classmethod
+    def should_enable(cls, survey):
+        return True
+
+    @classmethod
+    def default_config(cls, survey):
+        return {"autopilot": survey.get("sales_autopilot", "assist")}
+
+    @classmethod
+    def initial_jobs(cls, workspace, survey):
+        return [("SETUP_SALES_PLAYBOOK", {"template": workspace.get("template", "general")})]
+
+    @classmethod
+    def run_job(cls, job, workspace):
+        if job["job_type"] == "SETUP_SALES_PLAYBOOK":
+            return {"status": "done", "progress": 100, "log": "Sales playbook configured."}
+        return {"status": "done", "progress": 100, "log": f"Sales handled {job['job_type']}"}
+
+@register_employee
+class SupportEmployee(BaseEmployee):
+    employee_type = "support"
+    name = "Customer Service"
+    description = "Tracking, changes/cancellations, FAQs, escalations."
+    capabilities = ["order_tracking", "case_opening", "faq"]
+
+    @classmethod
+    def should_enable(cls, survey):
+        return bool(survey.get("needs_support", True))
+
+    @classmethod
+    def default_config(cls, survey):
+        return {"autopilot": survey.get("support_autopilot", "assist")}
+
+    @classmethod
+    def initial_jobs(cls, workspace, survey):
+        return [("SETUP_SUPPORT_MACROS", {"template": workspace.get("template", "general")})]
+
+    @classmethod
+    def run_job(cls, job, workspace):
+        if job["job_type"] == "SETUP_SUPPORT_MACROS":
+            return {"status": "done", "progress": 100, "log": "Support macros configured."}
+        return {"status": "done", "progress": 100, "log": f"Support handled {job['job_type']}"}
+
+@register_employee
+class ReturnsEmployee(BaseEmployee):
+    employee_type = "returns"
+    name = "Returns & Refunds"
+    description = "Intakes returns/refunds and routes approvals."
+    capabilities = ["returns_intake", "refund_workflow"]
+
+    @classmethod
+    def should_enable(cls, survey):
+        return bool(survey.get("needs_returns", False))
+
+    @classmethod
+    def default_config(cls, survey):
+        return {"policy": survey.get("returns_policy", "7_days_unopened")}
+
+    @classmethod
+    def initial_jobs(cls, workspace, survey):
+        return [("SETUP_RETURNS_POLICY", {"policy": survey.get("returns_policy", "7_days_unopened")})]
+
+    @classmethod
+    def run_job(cls, job, workspace):
+        if job["job_type"] == "SETUP_RETURNS_POLICY":
+            return {"status": "done", "progress": 100, "log": "Returns policy set."}
+        return {"status": "done", "progress": 100, "log": f"Returns handled {job['job_type']}"}
+
+@register_employee
+class DeliveryEmployee(BaseEmployee):
+    employee_type = "delivery"
+    name = "Delivery Coordinator"
+    description = "Sets delivery options (manual/external/YiThume network)."
+    capabilities = ["dispatch", "carrier_select", "payouts_basic"]
+
+    @classmethod
+    def should_enable(cls, survey):
+        return bool(survey.get("needs_delivery", True))
+
+    @classmethod
+    def default_config(cls, survey):
+        return {"mode": survey.get("delivery_mode", "manual")}
+
+    @classmethod
+    def initial_jobs(cls, workspace, survey):
+        return [("SETUP_DELIVERY_MODE", {"mode": survey.get("delivery_mode", "manual")})]
+
+    @classmethod
+    def run_job(cls, job, workspace):
+        if job["job_type"] == "SETUP_DELIVERY_MODE":
+            return {"status": "done", "progress": 100, "log": f"Delivery mode set: {job['payload'].get('mode','manual')}"}
+        return {"status": "done", "progress": 100, "log": f"Delivery handled {job['job_type']}"}
+
+# ---- Manager functions (your “create manager” ask)
+def create_manager(db, workspace_id, survey):
+    m = _get_manager(db, workspace_id)
+    if m:
+        return m
+    mgr = {
+        "_id": _new_id("mgr"),
+        "workspace_id": workspace_id,
+        "autopilot_level": survey.get("autopilot_level", "assist"),
+        "plan": survey.get("plan", "starter"),
+        "employees": {},  # employee_type -> {enabled, config}
+        "created_at": _now(),
+        "updated_at": _now(),
+    }
+    db["managers"].insert_one(mgr)
+    _log_event(db, workspace_id, "manager.created", "Manager created.")
+    return mgr
+
+def create_employees_for_manager(db, workspace_id, survey):
+    ws = _get_workspace(db, workspace_id)
+    if not ws:
+        raise ValueError("workspace not found")
+
+    mgr = create_manager(db, workspace_id, survey)
+    enabled = []
+
+    for emp_type, emp_cls in EMPLOYEE_REGISTRY.items():
+        if not emp_cls.should_enable(survey):
+            continue
+
+        cfg = emp_cls.default_config(survey)
+
+        # upsert employee
+        db["employees"].update_one(
+            {"workspace_id": workspace_id, "employee_type": emp_type},
+            {"$set": {
+                "workspace_id": workspace_id,
+                "employee_type": emp_type,
+                "name": emp_cls.name,
+                "description": emp_cls.description,
+                "capabilities": emp_cls.capabilities,
+                "enabled": True,
+                "config": cfg,
+                "updated_at": _now(),
+                "created_at": _now(),
+            }},
+            upsert=True
+        )
+
+        mgr["employees"][emp_type] = {"enabled": True, "config": cfg}
+        enabled.append(emp_type)
+
+        # enqueue initial jobs
+        for job_type, payload in emp_cls.initial_jobs(ws, survey):
+            _enqueue_job(db, workspace_id, emp_type, job_type, payload=payload)
+
+    db["managers"].update_one(
+        {"workspace_id": workspace_id},
+        {"$set": {"employees": mgr["employees"], "updated_at": _now()}}
+    )
+    _log_event(db, workspace_id, "employees.created", f"Employees enabled: {', '.join(enabled) if enabled else '(none)'}")
+    return enabled
+
+def run_one_job(db, workspace_id, job_id):
+    ws = _get_workspace(db, workspace_id)
+    if not ws:
+        return False, "workspace not found"
+
+    job = db["jobs"].find_one({"_id": job_id, "workspace_id": workspace_id})
+    if not job:
+        return False, "job not found"
+
+    if job.get("status") in ("done", "running"):
+        return True, f"job already {job['status']}"
+
+    emp_type = job.get("employee_type")
+    emp_cls = EMPLOYEE_REGISTRY.get(emp_type)
+    if not emp_cls:
+        _set_job(db, job_id, status="failed", log_msg=f"No employee registered: {emp_type}")
+        _log_event(db, workspace_id, "job.failed", f"Job failed (no employee): {job_id}", {"job_id": job_id})
+        return False, "no employee registered"
+
+    _set_job(db, job_id, status="running", progress=max(job.get("progress", 0), 1), log_msg="Job started.")
+    try:
+        result = emp_cls.run_job(job, ws) or {}
+        status = result.get("status", "done")
+        progress = result.get("progress", 100 if status == "done" else job.get("progress", 0))
+        log_msg = result.get("log", f"Completed {job.get('job_type')}")
+        _set_job(db, job_id, status=status, progress=progress, log_msg=log_msg)
+        _log_event(db, workspace_id, f"job.{status}", f"{emp_type} -> {job.get('job_type')} : {status}", {"job_id": job_id})
+        return True, status
+    except Exception as e:
+        _set_job(db, job_id, status="failed", progress=0, log_msg=f"Exception: {str(e)}")
+        _log_event(db, workspace_id, "job.failed", f"Job failed: {job_id}", {"job_id": job_id, "error": str(e)})
+        return False, str(e)
+
+# ---- Routes
+# IMPORTANT: choose URL paths that won’t collide with your existing endpoints.
+# You can rename /manager/* if you prefer.
+
+@app.get("/manager/onboarding")
+def manager_onboarding_form():
+    if not _require_admin(request):
+        return "Unauthorized", 401
+    # Simple HTML can be a template too, but you only asked dashboard template in a file.
+    return """
+    <h2>Manager Onboarding</h2>
+    <form method="post">
+      <input name="store_name" placeholder="Store name" />
+      <select name="template">
+        <option value="general">General</option>
+        <option value="pharmacy">Pharmacy</option>
+        <option value="grocery">Grocery</option>
+        <option value="water">Water</option>
+        <option value="hardware">Hardware</option>
+      </select><br/><br/>
+      <label><input type="checkbox" name="channel_web" checked /> Web storefront</label><br/>
+      <label><input type="checkbox" name="needs_support" checked /> Customer service</label><br/>
+      <label><input type="checkbox" name="needs_returns" /> Returns</label><br/>
+      <label><input type="checkbox" name="needs_delivery" checked /> Delivery</label><br/><br/>
+      <select name="delivery_mode">
+        <option value="manual">Manual</option>
+        <option value="external">External (later)</option>
+        <option value="yithume">YiThume network</option>
+      </select><br/><br/>
+      <button>Create</button>
+    </form>
+    """
+
+@app.post("/manager/onboarding")
+def manager_onboarding_submit():
+    if not _require_admin(request):
+        return "Unauthorized", 401
+
+    store_name = (request.form.get("store_name") or "New Store").strip()
+    template = (request.form.get("template") or "general").strip()
+
+    survey = {
+        "channel_web": bool(request.form.get("channel_web")),
+        "needs_support": bool(request.form.get("needs_support")),
+        "needs_returns": bool(request.form.get("needs_returns")),
+        "needs_delivery": bool(request.form.get("needs_delivery")),
+        "delivery_mode": request.form.get("delivery_mode") or "manual",
+        "autopilot_level": "assist",
+        "plan": "starter",
+    }
+
+    ws = _create_workspace(db, store_name, template=template)
+    _log_event(db, ws["_id"], "workspace.created", f"Workspace created: {ws['name']}")
+
+    create_manager(db, ws["_id"], survey)
+    create_employees_for_manager(db, ws["_id"], survey)
+
+    return redirect(url_for("manager_dashboard", workspace_id=ws["_id"], admin_secret=MANAGER_ADMIN_SECRET))
+
+@app.get("/manager/dashboard/<workspace_id>")
+def manager_dashboard(workspace_id):
+    if not _require_admin(request):
+        return "Unauthorized", 401
+
+    ws = _get_workspace(db, workspace_id)
+    if not ws:
+        return "Workspace not found", 404
+
+    mgr = _get_manager(db, workspace_id) or create_manager(db, workspace_id, {"autopilot_level": "assist", "plan": "starter"})
+    employees = _get_employees(db, workspace_id)
+    jobs = _get_jobs(db, workspace_id, limit=30)
+    events = _get_events(db, workspace_id, limit=15)
+
+    # serialize for template
+    cards = []
+    for e in employees:
+        cfg = e.get("config", {})
+        cards.append({
+            "employee_type": e.get("employee_type"),
+            "name": e.get("name"),
+            "description": e.get("description"),
+            "capabilities": e.get("capabilities", []),
+            "enabled": bool(e.get("enabled", True)),
+            "config_json": jsonify(cfg).get_data(as_text=True),
+        })
+
+    def fmt_dt(x):
+        return _iso(x) if isinstance(x, datetime) else str(x)
+
+    jobs_view = []
+    for j in jobs:
+        j2 = dict(j)
+        j2["created_at"] = fmt_dt(j2.get("created_at"))
+        j2["progress"] = int(j2.get("progress", 0))
+        j2["logs"] = [{"ts": x.get("ts",""), "msg": x.get("msg","")} for x in (j2.get("logs") or [])]
+        jobs_view.append(j2)
+
+    events_view = []
+    for ev in events:
+        ev2 = dict(ev)
+        ev2["created_at"] = fmt_dt(ev2.get("created_at"))
+        events_view.append(ev2)
+
+    return render_template(
+        "manager_dashboard.html",
+        ws=ws,
+        manager=mgr,
+        employee_cards=cards,
+        jobs=jobs_view,
+        events=events_view,
+        admin_secret=MANAGER_ADMIN_SECRET
+    )
+
+@app.post("/manager/api/<workspace_id>/employees/<employee_type>/toggle")
+def manager_toggle_employee(workspace_id, employee_type):
+    if not _require_admin(request):
+        return "Unauthorized", 401
+    emp = db["employees"].find_one({"workspace_id": workspace_id, "employee_type": employee_type})
+    if not emp:
+        return "Employee not found", 404
+
+    new_enabled = not bool(emp.get("enabled", True))
+    db["employees"].update_one(
+        {"workspace_id": workspace_id, "employee_type": employee_type},
+        {"$set": {"enabled": new_enabled, "updated_at": _now()}}
+    )
+    _log_event(db, workspace_id, "employee.toggled", f"{employee_type} -> {'enabled' if new_enabled else 'disabled'}")
+    return redirect(url_for("manager_dashboard", workspace_id=workspace_id, admin_secret=MANAGER_ADMIN_SECRET))
+
+@app.post("/manager/api/<workspace_id>/employees/<employee_type>/start_setup")
+def manager_employee_start_setup(workspace_id, employee_type):
+    if not _require_admin(request):
+        return "Unauthorized", 401
+    ws = _get_workspace(db, workspace_id)
+    if not ws:
+        return "Workspace not found", 404
+    emp_cls = EMPLOYEE_REGISTRY.get(employee_type)
+    if not emp_cls:
+        return "Employee not registered", 404
+
+    # MVP: enqueue initial jobs again (you can dedupe later)
+    survey = {}
+    for job_type, payload in emp_cls.initial_jobs(ws, survey):
+        _enqueue_job(db, workspace_id, employee_type, job_type, payload=payload)
+
+    _log_event(db, workspace_id, "employee.setup", f"{employee_type} setup jobs enqueued")
+    return redirect(url_for("manager_dashboard", workspace_id=workspace_id, admin_secret=MANAGER_ADMIN_SECRET))
+
+@app.post("/manager/api/<workspace_id>/jobs/<job_id>/run")
+def manager_run_job(workspace_id, job_id):
+    if not _require_admin(request):
+        return "Unauthorized", 401
+    run_one_job(db, workspace_id, job_id)
+    return redirect(url_for("manager_dashboard", workspace_id=workspace_id, admin_secret=MANAGER_ADMIN_SECRET))
+
+@app.post("/manager/api/<workspace_id>/jobs/run_next")
+def manager_run_next_job(workspace_id):
+    if not _require_admin(request):
+        return "Unauthorized", 401
+
+    job = db["jobs"].find_one(
+        {"workspace_id": workspace_id, "status": "queued"},
+        sort=[("created_at", 1)]
+    )
+    if job:
+        run_one_job(db, workspace_id, job["_id"])
+    else:
+        _log_event(db, workspace_id, "job.none", "No queued jobs to run.")
+    return redirect(url_for("manager_dashboard", workspace_id=workspace_id, admin_secret=MANAGER_ADMIN_SECRET))
+
+
+# Call once after db exists (safe to call multiple times)
+_ensure_indexes_for_manager(db)
 # NOTE: no app.run(); importable for serverless / gunicorn
