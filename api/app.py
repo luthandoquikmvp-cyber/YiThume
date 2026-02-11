@@ -2261,29 +2261,64 @@ def manager_onboarding_form():
     if not require_admin():
         return "Unauthorized", 401
 
-    # keep this simple; your main admin UI can link here
-    return """
-    <h2>Manager Onboarding</h2>
-    <form method="post">
-      <input name="store_name" placeholder="Store name" />
-      <select name="template">
-        <option value="general">General</option>
-        <option value="pharmacy">Pharmacy</option>
-        <option value="grocery">Grocery</option>
-        <option value="water">Water</option>
-        <option value="hardware">Hardware</option>
-      </select><br/><br/>
-      <label><input type="checkbox" name="channel_web" checked /> Web storefront</label><br/>
-      <label><input type="checkbox" name="needs_support" checked /> Customer service</label><br/>
-      <label><input type="checkbox" name="needs_returns" /> Returns</label><br/>
-      <label><input type="checkbox" name="needs_delivery" checked /> Delivery</label><br/><br/>
-      <select name="delivery_mode">
-        <option value="manual">Manual</option>
-        <option value="external">External (later)</option>
-        <option value="yithume">YiThume network</option>
-      </select><br/><br/>
-      <button>Create</button>
-    </form>
+    admin_pin = request.args.get("admin_pin", "")  # <- IMPORTANT
+
+    return f"""
+    <!doctype html><html><head><meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>YiThume Manager Onboarding</title></head>
+    <body class="bg-zinc-950 text-zinc-100">
+      <div class="max-w-xl mx-auto px-4 py-10">
+        <div class="mb-6">
+          <div class="text-zinc-400 text-sm">YiThume</div>
+          <h1 class="text-2xl font-semibold">Create a Workspace</h1>
+          <p class="text-zinc-400 text-sm mt-1">Survey → Manager → Employees → Jobs → Dashboard</p>
+        </div>
+
+        <form class="space-y-4" method="post" action="/manager/onboarding?admin_pin={admin_pin}">
+          <div>
+            <label class="text-sm text-zinc-300">Store name</label>
+            <input name="store_name" class="mt-1 w-full rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2" placeholder="YiThume Store" />
+          </div>
+
+          <div>
+            <label class="text-sm text-zinc-300">Template</label>
+            <select name="template" class="mt-1 w-full rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2">
+              <option value="general">General</option>
+              <option value="pharmacy">Pharmacy</option>
+              <option value="grocery">Grocery</option>
+              <option value="water">Water</option>
+              <option value="hardware">Hardware</option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <label class="flex items-center gap-2"><input type="checkbox" name="channel_web" checked /> Web storefront</label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="needs_support" checked /> Customer service</label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="needs_returns" /> Returns</label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="needs_delivery" checked /> Delivery</label>
+          </div>
+
+          <div>
+            <label class="text-sm text-zinc-300">Delivery mode</label>
+            <select name="delivery_mode" class="mt-1 w-full rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2">
+              <option value="manual">Manual</option>
+              <option value="external">External (later)</option>
+              <option value="yithume">YiThume network</option>
+            </select>
+          </div>
+
+          <button class="w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-2 font-semibold">
+            Create manager + employees
+          </button>
+        </form>
+
+        <div class="text-xs text-zinc-500 mt-6">
+          Tip: open this page with <code class="text-zinc-300">?admin_pin=YOUR_PIN</code>.
+        </div>
+      </div>
+    </body></html>
     """
 
 @app.post("/manager/onboarding")
