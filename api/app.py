@@ -7,7 +7,7 @@ import uuid
 import hashlib
 from datetime import datetime, timedelta
 from math import radians, cos, sin, asin, sqrt
-
+from flask import render_template
 from flask import Flask, request, jsonify, send_file, abort
 from flask_cors import CORS
 from pymongo import MongoClient, ASCENDING, DESCENDING, errors as mongo_errors
@@ -618,7 +618,11 @@ except Exception:
 # ROUTES
 # -------------------------------------------------
 
+
 @app.route("/", methods=["GET"])
+def home():
+    return render_template("index.html")
+    
 @app.route("/api/app", methods=["GET"])
 def health():
     try:
