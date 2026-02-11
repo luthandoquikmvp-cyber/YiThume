@@ -619,10 +619,14 @@ except Exception:
 # -------------------------------------------------
 
 
+
 @app.route("/", methods=["GET"])
 def home():
-    return render_template("index.html")
-    
+    # Serves: api/static/index.html
+    return send_from_directory(app.static_folder, "index.html")
+
+
+@app.route("/health", methods=["GET"])     # <-- move health off "/"
 @app.route("/api/app", methods=["GET"])
 def health():
     try:
