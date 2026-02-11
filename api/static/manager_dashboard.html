@@ -18,10 +18,8 @@
         </div>
       </div>
       <div class="flex gap-2">
-        <a class="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm"
-           href="/manager/onboarding?admin_secret={{ admin_secret }}">New Workspace</a>
-        <a class="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm"
-           href="/manager/dashboard/{{ ws._id }}?admin_secret={{ admin_secret }}">Refresh</a>
+        <a class="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm" href="/manager/onboarding">New Workspace</a>
+        <a class="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm" href="/manager/dashboard/{{ ws._id }}">Refresh</a>
       </div>
     </div>
 
@@ -31,7 +29,7 @@
         <div class="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
           <div class="flex items-center justify-between">
             <div class="font-semibold">Jobs</div>
-            <form method="post" action="/manager/api/{{ ws._id }}/jobs/run_next?admin_secret={{ admin_secret }}">
+            <form method="post" action="/manager/api/{{ ws._id }}/jobs/run_next">
               <button class="text-xs px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700">Run next</button>
             </form>
           </div>
@@ -55,7 +53,7 @@
                 </div>
 
                 <div class="flex items-center gap-2 mt-2">
-                  <form method="post" action="/manager/api/{{ ws._id }}/jobs/{{ j._id }}/run?admin_secret={{ admin_secret }}">
+                  <form method="post" action="/manager/api/{{ ws._id }}/jobs/{{ j._id }}/run">
                     <button class="text-xs px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700">Run</button>
                   </form>
                 </div>
@@ -116,13 +114,13 @@
               </div>
 
               <div class="mt-4 flex items-center gap-2">
-                <form method="post" action="/manager/api/{{ ws._id }}/employees/{{ card.employee_type }}/toggle?admin_secret={{ admin_secret }}">
+                <form method="post" action="/manager/api/{{ ws._id }}/employees/{{ card.employee_type }}/toggle">
                   <button class="text-xs px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700">
                     {% if card.enabled %}Disable{% else %}Enable{% endif %}
                   </button>
                 </form>
 
-                <form method="post" action="/manager/api/{{ ws._id }}/employees/{{ card.employee_type }}/start_setup?admin_secret={{ admin_secret }}">
+                <form method="post" action="/manager/api/{{ ws._id }}/employees/{{ card.employee_type }}/start_setup">
                   <button class="text-xs px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700">Start setup</button>
                 </form>
               </div>
@@ -136,7 +134,7 @@
     </div>
 
     <div class="mt-8 text-xs text-zinc-500">
-      Tip: add <code class="text-zinc-300">?admin_secret=...</code> to URLs for MVP auth.
+      Admin auth uses your existing <code class="text-zinc-300">require_admin()</code> helper.
     </div>
   </div>
 </body>
