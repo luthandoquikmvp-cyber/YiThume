@@ -1,0 +1,373 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YiThume — Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-zinc-950 text-zinc-100">
+  <div class="sticky top-0 z-30 border-b border-zinc-900 bg-zinc-950/80 backdrop-blur">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-emerald-600/15 border border-emerald-600/30 flex items-center justify-center font-bold">Y</div>
+        <div>
+          <div class="text-xs text-zinc-400">YiThume</div>
+          <div id="title" class="text-lg font-semibold leading-tight">Dashboard</div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="newBtn" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold">
+          + Create Manager
+        </button>
+        <button id="refreshBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">
+          Refresh
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="max-w-7xl mx-auto px-4 py-6">
+    <div id="alert" class="hidden mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200"></div>
+
+    <!-- Workspace picker -->
+    <div class="rounded-3xl border border-zinc-800 bg-zinc-900/40 p-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <div class="text-lg font-semibold">Workspaces</div>
+          <div class="text-sm text-zinc-400 mt-1">Select a workspace to see the manager + employees + jobs.</div>
+        </div>
+        <div class="flex gap-2">
+          <select id="wsSelect" class="px-3 py-2 rounded-xl bg-zinc-950/50 border border-zinc-800 text-sm min-w-[220px]"></select>
+          <button id="openBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">
+            Open
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- State -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 mt-6">
+      <div class="lg:col-span-8 space-y-4">
+        <div class="rounded-3xl border border-zinc-800 bg-zinc-900/40 p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-lg font-semibold">Employees</div>
+              <div class="text-sm text-zinc-400 mt-1">Your AI ops team (cards update live).</div>
+            </div>
+          </div>
+          <div id="employees" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4"></div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-4 space-y-4">
+        <div class="rounded-3xl border border-zinc-800 bg-zinc-900/40 p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-lg font-semibold">Jobs</div>
+              <div class="text-xs text-zinc-400 mt-1">Queue → run → done/blocked.</div>
+            </div>
+            <button id="runNextBtn" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold">
+              Run next
+            </button>
+          </div>
+          <div id="jobs" class="mt-4 space-y-3"></div>
+        </div>
+
+        <div class="rounded-3xl border border-zinc-800 bg-zinc-900/40 p-4">
+          <div class="text-lg font-semibold">Activity</div>
+          <div id="events" class="mt-4 space-y-3"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wizard Modal -->
+  <div id="modal" class="hidden fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/60"></div>
+    <div class="relative max-w-2xl mx-auto mt-10 sm:mt-16 px-4">
+      <div class="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-xs text-zinc-400">Create Manager</div>
+            <div class="text-xl font-semibold mt-1">Quick setup (no auth, MVP mode)</div>
+            <div class="text-sm text-zinc-400 mt-2">Choose what you want, we’ll create the manager + employees + jobs.</div>
+          </div>
+          <button id="closeModal" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">Close</button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5">
+          <div>
+            <label class="text-sm text-zinc-300">Store name</label>
+            <input id="store_name" class="mt-1 w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-3" placeholder="e.g. Port Alfred Pharmacy" />
+          </div>
+
+          <div>
+            <label class="text-sm text-zinc-300">Template</label>
+            <select id="template" class="mt-1 w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-3">
+              <option value="general">General</option>
+              <option value="pharmacy">Pharmacy</option>
+              <option value="grocery">Grocery</option>
+              <option value="water">Water</option>
+              <option value="hardware">Hardware</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-sm text-zinc-300">Catalog mode</label>
+            <select id="products_mode" class="mt-1 w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-3">
+              <option value="catalog_seed">Use starter catalog (fast)</option>
+              <option value="csv_or_shopify_or_whatsapp">Import later (CSV/Shopify/WhatsApp)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-sm text-zinc-300">Delivery mode</label>
+            <select id="delivery_mode" class="mt-1 w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-3">
+              <option value="manual">Manual dispatch</option>
+              <option value="external">External carrier (later)</option>
+              <option value="yithume">YiThume network</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 text-sm">
+          <label class="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+            <input id="channel_web" type="checkbox" checked />
+            Web storefront
+          </label>
+          <label class="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+            <input id="needs_support" type="checkbox" checked />
+            Customer service
+          </label>
+          <label class="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+            <input id="needs_returns" type="checkbox" />
+            Returns
+          </label>
+          <label class="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+            <input id="needs_delivery" type="checkbox" checked />
+            Delivery
+          </label>
+        </div>
+
+        <div class="mt-4 rounded-2xl border border-emerald-600/30 bg-emerald-600/10 p-4">
+          <div class="text-sm font-semibold">Confirm gating stays enforced</div>
+          <div class="text-sm text-zinc-300 mt-1">Orders only created when customer sends <b>CONFIRM</b>.</div>
+        </div>
+
+        <button id="createBtn" class="mt-5 w-full px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 font-semibold">
+          Create Manager
+        </button>
+
+        <div id="creating" class="hidden mt-3 text-sm text-zinc-400">Creating…</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const el = (id) => document.getElementById(id);
+  const showAlert = (msg) => { el("alert").textContent = msg; el("alert").classList.remove("hidden"); };
+  const clearAlert = () => el("alert").classList.add("hidden");
+
+  const qs = new URLSearchParams(location.search);
+  let currentWs = qs.get("ws") || "";
+
+  function openModal() { el("modal").classList.remove("hidden"); }
+  function closeModal() { el("modal").classList.add("hidden"); }
+
+  async function fetchJSON(url, opts) {
+    const res = await fetch(url, opts || {});
+    const text = await res.text();
+    try { return { ok: res.ok, status: res.status, json: JSON.parse(text) }; }
+    catch { return { ok: res.ok, status: res.status, json: null, text }; }
+  }
+
+  function wsOption(w) {
+    const opt = document.createElement("option");
+    opt.value = w._id;
+    opt.textContent = `${w.name} (${w.template || "general"})`;
+    return opt;
+  }
+
+  async function loadWorkspaces() {
+    const out = await fetchJSON("/manager/api/workspaces");
+    if (!out.ok || !out.json || !out.json.ok) {
+      showAlert(out.json?.error || out.text || "Failed to load workspaces.");
+      return;
+    }
+    const list = out.json.workspaces || [];
+    const sel = el("wsSelect");
+    sel.innerHTML = "";
+    list.forEach(w => sel.appendChild(wsOption(w)));
+
+    if (!currentWs && list.length) currentWs = list[0]._id;
+    if (currentWs) sel.value = currentWs;
+  }
+
+  function employeeCard(e) {
+    const caps = (e.capabilities || []).slice(0, 6).map(c =>
+      `<span class="text-xs px-2 py-1 rounded-full bg-zinc-950/60 border border-zinc-800">${c}</span>`
+    ).join("");
+
+    return `
+      <div class="rounded-3xl bg-zinc-950/40 border border-zinc-800 p-4">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="font-semibold">${e.name || e.employee_type}</div>
+            <div class="text-xs text-zinc-400 mt-1">${e.employee_type}</div>
+            <div class="text-sm text-zinc-400 mt-3">${e.description || ""}</div>
+          </div>
+          <div class="text-xs px-2 py-1 rounded-full border ${e.enabled ? "border-emerald-600/40 bg-emerald-600/10 text-emerald-200" : "border-zinc-700 bg-zinc-900 text-zinc-300"}">
+            ${e.enabled ? "enabled" : "disabled"}
+          </div>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">${caps}</div>
+      </div>
+    `;
+  }
+
+  function jobCard(j, wsId) {
+    const badge = (() => {
+      if (j.status === "done") return "border-emerald-600/40 bg-emerald-600/10 text-emerald-200";
+      if (j.status === "blocked") return "border-amber-500/40 bg-amber-500/10 text-amber-200";
+      if (j.status === "failed") return "border-red-500/40 bg-red-500/10 text-red-200";
+      if (j.status === "running") return "border-blue-500/40 bg-blue-500/10 text-blue-200";
+      return "border-zinc-700 bg-zinc-950/40 text-zinc-200";
+    })();
+
+    const lastLog = (j.logs && j.logs.length) ? (j.logs[j.logs.length - 1].msg || "") : "";
+
+    return `
+      <div class="rounded-2xl bg-zinc-950/40 border border-zinc-800 p-3">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="font-medium">${j.job_type}</div>
+            <div class="text-xs text-zinc-400 mt-1">${j.employee_type} · ${j.created_at || ""}</div>
+          </div>
+          <div class="text-xs px-2 py-1 rounded-full border ${badge}">${j.status}</div>
+        </div>
+
+        <div class="mt-2 w-full bg-zinc-800 rounded-full h-2">
+          <div class="bg-emerald-500 h-2 rounded-full" style="width:${j.progress || 0}%"></div>
+        </div>
+
+        ${lastLog ? `<div class="text-xs text-zinc-400 mt-2">${lastLog}</div>` : ""}
+
+        <div class="mt-2">
+          <button class="text-xs px-2 py-1 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800"
+            onclick="window.__runJob('${wsId}','${j._id}')">Run</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function eventCard(e) {
+    return `
+      <div class="rounded-2xl bg-zinc-950/40 border border-zinc-800 p-3">
+        <div class="text-xs text-zinc-400">${e.created_at || ""}</div>
+        <div class="text-sm font-medium mt-1">${e.kind}</div>
+        <div class="text-sm text-zinc-300 mt-1">${e.msg}</div>
+      </div>
+    `;
+  }
+
+  async function loadState() {
+    clearAlert();
+    if (!currentWs) return;
+
+    const out = await fetchJSON(`/manager/api/workspace/${encodeURIComponent(currentWs)}/state`);
+    if (!out.ok || !out.json || !out.json.ok) {
+      showAlert(out.json?.error || out.text || "Failed to load workspace state.");
+      return;
+    }
+
+    const s = out.json;
+    el("title").textContent = s.workspace?.name ? `Dashboard — ${s.workspace.name}` : "Dashboard";
+
+    el("employees").innerHTML = (s.employees || []).map(employeeCard).join("");
+    el("jobs").innerHTML = (s.jobs || []).slice(0, 10).map(j => jobCard(j, currentWs)).join("");
+    el("events").innerHTML = (s.events || []).slice(0, 10).map(eventCard).join("");
+  }
+
+  window.__runJob = async (wsId, jobId) => {
+    await fetch(`/manager/api/${encodeURIComponent(wsId)}/jobs/${encodeURIComponent(jobId)}/run`, { method: "POST" });
+    await loadState();
+  };
+
+  async function runNext() {
+    if (!currentWs) return;
+    await fetch(`/manager/api/${encodeURIComponent(currentWs)}/jobs/run_next`, { method: "POST" });
+    await loadState();
+  }
+
+  async function createManager() {
+    clearAlert();
+    const payload = {
+      store_name: el("store_name").value.trim(),
+      template: el("template").value,
+      products_mode: el("products_mode").value,
+      delivery_mode: el("delivery_mode").value,
+      channel_web: el("channel_web").checked,
+      needs_support: el("needs_support").checked,
+      needs_returns: el("needs_returns").checked,
+      needs_delivery: el("needs_delivery").checked,
+      currency: "ZAR",
+      theme: "clean",
+      autopilot_level: "assist",
+      plan: "starter"
+    };
+
+    if (!payload.store_name) {
+      showAlert("Store name is required.");
+      return;
+    }
+
+    el("createBtn").disabled = true;
+    el("creating").classList.remove("hidden");
+
+    const out = await fetchJSON("/manager/api/setup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    el("createBtn").disabled = false;
+    el("creating").classList.add("hidden");
+
+    if (!out.ok || !out.json || !out.json.ok) {
+      showAlert(out.json?.error || out.text || `Setup failed (${out.status}).`);
+      return;
+    }
+
+    // Redirect back to dashboard with workspace selected
+    location.href = out.json.redirect_url || (`/dashboard?ws=${encodeURIComponent(out.json.workspace_id)}`);
+  }
+
+  // Wire up UI
+  el("newBtn").addEventListener("click", openModal);
+  el("closeModal").addEventListener("click", closeModal);
+  el("refreshBtn").addEventListener("click", loadState);
+  el("openBtn").addEventListener("click", async () => {
+    currentWs = el("wsSelect").value;
+    const u = new URL(location.href);
+    u.searchParams.set("ws", currentWs);
+    history.replaceState({}, "", u.toString());
+    await loadState();
+  });
+  el("runNextBtn").addEventListener("click", runNext);
+  el("createBtn").addEventListener("click", createManager);
+
+  // Boot
+  (async () => {
+    await loadWorkspaces();
+    await loadState();
+    // Poll every 5s so it feels alive
+    setInterval(loadState, 5000);
+  })();
+})();
+</script>
+</body>
+</html>
