@@ -7,8 +7,7 @@ import uuid
 import hashlib
 from datetime import datetime, timedelta
 from math import radians, cos, sin, asin, sqrt
-from flask import render_template
-from flask import Flask, request, jsonify, send_file, abort
+from flask import Flask, request, jsonify, send_file, abort, send_from_directory
 from flask_cors import CORS
 from pymongo import MongoClient, ASCENDING, DESCENDING, errors as mongo_errors
 from bson.objectid import ObjectId
