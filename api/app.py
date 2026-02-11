@@ -90,6 +90,30 @@ BUILD_TS = datetime.utcnow().isoformat() + "Z"
 app = Flask(__name__)
 CORS(app)
 
+# -----------------------------
+# BYPASS PATCH (serverless-safe)
+# Prevent NameError from legacy manager snippet that calls:
+#   _ensure_indexes_for_manager(db)
+# -----------------------------
+db = None  # <-- ensures "db" name exists at import time
+
+def _ensure_indexes_for_manager(_db):
+    """
+    Legacy compatibility: older snippet calls _ensure_indexes_for_manager(db).
+    On Vercel/serverless we avoid doing DB work at import time.
+    If a db is passed and it's usable, we can try to create indexes safely.
+    """
+    try:
+        if _db is None:
+            return
+        # If you defined ensure_manager_indexes() elsewhere, call it.
+        if "ensure_manager_indexes" in globals():
+            ensure_manager_indexes(_db)
+            return
+        # Otherwise: do nothing (safe no-op)
+        return
+    except Exception:
+        return
 # -------------------------------------------------
 # HELPERS
 # -------------------------------------------------
