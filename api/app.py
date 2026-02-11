@@ -1,5 +1,5 @@
 # app.py — YiThume Flask API (MongoDB-only; no local storage)
-
+from urllib.parse import quote
 import os
 import re
 import io
@@ -651,10 +651,49 @@ def home():
 # -----------------------------
 # Manager Setup Wizard (proper onboarding)
 # -----------------------------
-@app.get("/manager/setup")
-def manager_setup():
-    return send_from_directory(app.static_folder, "manager_setup.html")
 
+@app.post("/manager/api/setup")
+def manager_setup_submit():
+    """
+    Receives JSON from dashboard wizard, creates:
+      workspace -> manager -> employees -> initial jobs
+    Returns:
+      { ok: true, workspace_id: "...", redirect_url: "/dashboard?ws=..." }
+    """
+
+    if not require_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    db = manager_db()
+    data = request.get_json(silent=True) or {}
+
+    store_name = str(data.get("store_name") or "New Store").strip()
+    template = str(data.get("template") or "general").strip()
+
+    survey = {
+        "channel_web": bool(data.get("channel_web", True)),
+        "needs_support": bool(data.get("needs_support", True)),
+        "needs_returns": bool(data.get("needs_returns", False)),
+        "needs_delivery": bool(data.get("needs_delivery", True)),
+        "delivery_mode": str(data.get("delivery_mode") or "manual").strip(),
+
+        "currency": str(data.get("currency") or "ZAR").strip(),
+        "theme": str(data.get("theme") or "clean").strip(),
+        "products_mode": str(data.get("products_mode") or "catalog_seed").strip(),
+        "autopilot_level": str(data.get("autopilot_level") or "assist").strip(),
+        "plan": str(data.get("plan") or "starter").strip(),
+    }
+
+    ws = m_create_workspace(db, store_name, template=template)
+    m_log_event(db, ws["_id"], "workspace.created", f"Workspace created: {ws['name']}")
+
+    manager_create_manager(db, ws["_id"], survey)
+    manager_create_employees(db, ws["_id"], survey)
+
+    # Send user back to /dashboard with the workspace selected
+    redirect_url = f"/dashboard?ws={quote(str(ws['_id']))}"
+
+    return jsonify({"ok": True, "workspace_id": ws["_id"], "redirect_url": redirect_url})
 @app.post("/manager/api/setup")
 def manager_setup_submit():
     """
@@ -700,7 +739,88 @@ def manager_setup_submit():
         redirect_url += f"?admin_pin={admin_pin}"
 
     return jsonify({"ok": True, "workspace_id": ws["_id"], "redirect_url": redirect_url})
-    
+  
+@app.get("/manager/api/workspaces")
+def manager_list_workspaces():
+    if not require_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    db = manager_db()
+    wss = list(db.workspaces.find({}).sort("created_at", -1).limit(50))
+
+    out = []
+    for w in wss:
+        out.append({
+            "_id": w.get("_id"),
+            "name": w.get("name"),
+            "template": w.get("template"),
+            "created_at": (w.get("created_at").isoformat() + "Z") if isinstance(w.get("created_at"), datetime) else w.get("created_at"),
+        })
+    return jsonify({"ok": True, "workspaces": out})
+
+
+@app.get("/manager/api/workspace/<workspace_id>/state")
+def manager_workspace_state(workspace_id):
+    if not require_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    db = manager_db()
+
+    ws = m_get_workspace(db, workspace_id)
+    if not ws:
+        return jsonify({"ok": False, "error": "Workspace not found"}), 404
+
+    mgr = m_get_manager(db, workspace_id) or {}
+    employees = m_get_employees(db, workspace_id)
+    jobs = m_get_jobs(db, workspace_id, limit=50)
+    events = m_get_events(db, workspace_id, limit=20)
+
+    def fmt_dt(x):
+        return (x.isoformat() + "Z") if isinstance(x, datetime) else x
+
+    return jsonify({
+        "ok": True,
+        "workspace": {
+            "_id": ws.get("_id"),
+            "name": ws.get("name"),
+            "template": ws.get("template"),
+            "created_at": fmt_dt(ws.get("created_at"))
+        },
+        "manager": {
+            "autopilot_level": mgr.get("autopilot_level", "assist"),
+            "plan": mgr.get("plan", "starter"),
+            "employees": mgr.get("employees", {})
+        },
+        "employees": [
+            {
+                "employee_type": e.get("employee_type"),
+                "name": e.get("name"),
+                "description": e.get("description"),
+                "capabilities": e.get("capabilities", []),
+                "enabled": bool(e.get("enabled", True)),
+                "config": e.get("config", {})
+            } for e in employees
+        ],
+        "jobs": [
+            {
+                "_id": j.get("_id"),
+                "employee_type": j.get("employee_type"),
+                "job_type": j.get("job_type"),
+                "status": j.get("status"),
+                "progress": int(j.get("progress", 0)),
+                "created_at": fmt_dt(j.get("created_at")),
+                "logs": j.get("logs", [])[-3:]
+            } for j in jobs
+        ],
+        "events": [
+            {
+                "kind": ev.get("kind"),
+                "msg": ev.get("msg"),
+                "created_at": fmt_dt(ev.get("created_at"))
+            } for ev in events
+        ]
+    })
+  
 @app.route("/health", methods=["GET"])     # <-- move health off "/"
 @app.route("/api/app", methods=["GET"])
 def health():
