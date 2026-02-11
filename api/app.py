@@ -648,7 +648,62 @@ def home():
     # Serves: api/static/index.html
     return send_from_directory(app.static_folder, "index.html")
 
+# -----------------------------
+# Manager Setup Wizard (proper onboarding)
+# -----------------------------
+@app.get("/manager/setup")
+def manager_setup():
+    # Allow opening without admin_pin; wizard has a PIN step.
+    # But if admin_pin is present and valid, user can continue instantly.
+    return render_template("manager_setup.html")
 
+
+@app.post("/manager/api/setup")
+def manager_setup_submit():
+    """
+    Receives JSON from the wizard, creates:
+      workspace -> manager -> employees -> initial jobs
+    Returns: { ok: true, workspace_id, redirect_url }
+    """
+    # require_admin() reads header OR admin_pin in query OR JSON body
+    if not require_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    db = manager_db()
+
+    data = request.get_json(silent=True) or {}
+
+    store_name = (data.get("store_name") or "New Store").strip()
+    template = (data.get("template") or "general").strip()
+
+    survey = {
+        "channel_web": bool(data.get("channel_web", True)),
+        "needs_support": bool(data.get("needs_support", True)),
+        "needs_returns": bool(data.get("needs_returns", False)),
+        "needs_delivery": bool(data.get("needs_delivery", True)),
+        "delivery_mode": (data.get("delivery_mode") or "manual").strip(),
+
+        # optional fields captured by wizard (safe defaults)
+        "currency": (data.get("currency") or "ZAR").strip(),
+        "theme": (data.get("theme") or "clean").strip(),
+        "products_mode": (data.get("products_mode") or "csv_or_shopify_or_whatsapp").strip(),
+        "autopilot_level": (data.get("autopilot_level") or "assist").strip(),
+        "plan": (data.get("plan") or "starter").strip(),
+    }
+
+    ws = m_create_workspace(db, store_name, template=template)
+    m_log_event(db, ws["_id"], "workspace.created", f"Workspace created: {ws['name']}")
+
+    manager_create_manager(db, ws["_id"], survey)
+    manager_create_employees(db, ws["_id"], survey)
+
+    admin_pin = request.args.get("admin_pin") or (data.get("admin_pin") if isinstance(data, dict) else "")
+    redirect_url = f"/manager/dashboard/{ws['_id']}"
+    if admin_pin:
+        redirect_url += f"?admin_pin={admin_pin}"
+
+    return jsonify({"ok": True, "workspace_id": ws["_id"], "redirect_url": redirect_url})
+    
 @app.route("/health", methods=["GET"])     # <-- move health off "/"
 @app.route("/api/app", methods=["GET"])
 def health():
