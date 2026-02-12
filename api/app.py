@@ -655,7 +655,7 @@ def home():
 # Manager Setup Wizard (proper onboarding)
 # -----------------------------
 
-@app.post("/manager/api/setup")
+@app.post("/managers/api/setup")
 def manager_setup_submit():
     """
     Receives JSON from dashboard wizard, creates:
