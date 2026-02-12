@@ -656,7 +656,7 @@ def home():
 # -----------------------------
 
 @app.post("/managers/api/setup")
-def manager_setup_submit():
+def managers_setup_submit():
     """
     Receives JSON from dashboard wizard, creates:
       workspace -> manager -> employees -> initial jobs
