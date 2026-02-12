@@ -12,6 +12,9 @@ from flask_cors import CORS
 from pymongo import MongoClient, ASCENDING, DESCENDING, errors as mongo_errors
 from bson.objectid import ObjectId
 from gridfs import GridFS
+import csv
+from urllib.parse import quote
+from flask import Response
 from werkzeug.utils import secure_filename
 
 # -------------------------------------------------
@@ -2641,3 +2644,678 @@ def manager_run_next_job(workspace_id):
     else:
         m_log_event(db, workspace_id, "job.none", "No queued jobs to run.")
     return redirect(url_for("manager_dashboard", workspace_id=workspace_id))
+    
+    
+    
+# ============================================================
+# YiThume SaaS Add-on (Non-breaking, new routes + new collections)
+# Prefix: /v1/...
+# Collections: saas_stores, saas_products, saas_orders
+#
+# Requires: get_db(), _now_dt(), _now_iso(), make_order_public_id()
+# ============================================================
+
+
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def _col(db, name: str):
+    return db[name]
+
+def _safe_float(x, default=0.0):
+    try:
+        return float(str(x).strip())
+    except Exception:
+        return float(default)
+
+def _safe_int(x, default=0):
+    try:
+        return int(float(str(x).strip()))
+    except Exception:
+        return int(default)
+
+def _str(x, default=""):
+    s = str(x) if x is not None else default
+    return s.strip()
+
+def _slug(s: str):
+    s = _str(s).lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+    return s or "item"
+
+def _ensure_saas_indexes(db):
+    try:
+        _col(db, "saas_stores").create_index([("_internal_id", ASCENDING)], unique=True)
+        _col(db, "saas_stores").create_index([("created_at", DESCENDING)])
+
+        _col(db, "saas_products").create_index([("store_id", ASCENDING), ("active", ASCENDING)])
+        _col(db, "saas_products").create_index([("store_id", ASCENDING), ("sku", ASCENDING)])
+        _col(db, "saas_products").create_index([("store_id", ASCENDING), ("name", ASCENDING)])
+        _col(db, "saas_products").create_index([("store_id", ASCENDING), ("category", ASCENDING)])
+
+        _col(db, "saas_orders").create_index([("store_id", ASCENDING), ("created_at", DESCENDING)])
+        _col(db, "saas_orders").create_index([("order_id", ASCENDING)], unique=True)
+        _col(db, "saas_orders").create_index([("status", ASCENDING), ("created_at", DESCENDING)])
+    except Exception:
+        pass
+
+try:
+    _ensure_saas_indexes(get_db())
+except Exception:
+    pass
+
+def _get_store(db, store_id: str):
+    return _col(db, "saas_stores").find_one({"_internal_id": store_id})
+
+def _store_public(doc):
+    if not doc:
+        return None
+    out = dict(doc)
+    out.pop("_id", None)
+    if isinstance(out.get("created_at"), datetime):
+        out["created_at"] = out["created_at"].isoformat() + "Z"
+    return out
+
+def _product_public(p):
+    if not p:
+        return None
+    out = dict(p)
+    out.pop("_id", None)
+    if isinstance(out.get("created_at"), datetime):
+        out["created_at"] = out["created_at"].isoformat() + "Z"
+    return out
+
+def _order_public(o):
+    if not o:
+        return None
+    out = dict(o)
+    out.pop("_id", None)
+    for k in ("created_at", "confirmed_at"):
+        if isinstance(out.get(k), datetime):
+            out[k] = out[k].isoformat() + "Z"
+    return out
+
+
+# -----------------------------
+# Store creation (wizard step 1)
+# -----------------------------
+@app.post("/v1/store/create")
+def v1_store_create():
+    """
+    Creates a store with delivery + payment config.
+    Body JSON example:
+    {
+      "name":"Port Alfred Pharmacy",
+      "template":"pharmacy",
+      "currency":"ZAR",
+      "address": {"line1":"12 High St", "city":"Port Alfred", "province":"EC", "postal":"6170", "country":"ZA"},
+      "delivery": {"mode":"manual", "fee_flat": 35},
+      "payment": {"method":"eft"}  // or "payfast" later
+    }
+    """
+    db = get_db()
+    data = request.get_json(silent=True) or {}
+
+    name = _str(data.get("name"), "New Store")
+    template = _str(data.get("template"), "general")
+    currency = _str(data.get("currency"), "ZAR")
+
+    address = data.get("address") if isinstance(data.get("address"), dict) else {}
+    delivery = data.get("delivery") if isinstance(data.get("delivery"), dict) else {}
+    payment = data.get("payment") if isinstance(data.get("payment"), dict) else {}
+
+    store_id = str(uuid.uuid4())
+
+    doc = {
+        "_internal_id": store_id,
+        "name": name,
+        "template": template,
+        "currency": currency,
+        "address": {
+            "line1": _str(address.get("line1")),
+            "line2": _str(address.get("line2")),
+            "city": _str(address.get("city")),
+            "province": _str(address.get("province")),
+            "postal": _str(address.get("postal")),
+            "country": _str(address.get("country"), "ZA"),
+        },
+        "delivery": {
+            "mode": _str(delivery.get("mode"), "manual"),  # manual | external | yithume
+            "fee_flat": _safe_float(delivery.get("fee_flat"), 35.0),
+            "notes": _str(delivery.get("notes")),
+        },
+        "payment": {
+            "method": _str(payment.get("method"), "eft"),   # eft | payfast | ozow | yoco (later)
+            "notes": _str(payment.get("notes")),
+        },
+        "active": True,
+        "created_at": _now_dt(),
+    }
+
+    _col(db, "saas_stores").insert_one(doc)
+
+    return jsonify({
+        "ok": True,
+        "store": _store_public(doc),
+        "storefront_url": f"/s/{store_id}",
+        "dashboard_url": f"/dashboard?store_id={quote(store_id)}"
+    })
+
+
+# -----------------------------
+# CSV import (wizard step 2)
+# -----------------------------
+@app.post("/v1/store/<store_id>/import_csv")
+def v1_store_import_csv(store_id):
+    """
+    Multipart form-data:
+      - file: CSV
+    CSV columns required:
+      name, price
+    Optional:
+      category, sku, stock, description, image_url
+    """
+    db = get_db()
+    store = _get_store(db, store_id)
+    if not store:
+        return jsonify({"ok": False, "error": "Store not found"}), 404
+
+    if "file" not in request.files:
+        return jsonify({"ok": False, "error": "Missing file"}), 400
+
+    f = request.files["file"]
+    raw = f.read()
+    try:
+        text = raw.decode("utf-8-sig", errors="ignore")
+    except Exception:
+        text = raw.decode("latin-1", errors="ignore")
+
+    reader = csv.DictReader(io.StringIO(text))
+    inserted = 0
+    updated = 0
+    skipped = 0
+
+    for row in reader:
+        name = _str(row.get("name"))
+        price = _safe_float(row.get("price"), None)
+
+        if not name or price is None:
+            skipped += 1
+            continue
+
+        category = _str(row.get("category"), "General")
+        sku = _str(row.get("sku"))
+        stock = _safe_int(row.get("stock"), 999999)
+        desc = _str(row.get("description"))
+        image_url = _str(row.get("image_url"))
+
+        key = {"store_id": store_id, "sku": sku} if sku else {"store_id": store_id, "name": name, "category": category}
+        existing = _col(db, "saas_products").find_one(key)
+
+        base_doc = {
+            "store_id": store_id,
+            "name": name,
+            "slug": _slug(name),
+            "category": category,
+            "sku": sku or None,
+            "price": float(price),
+            "stock": int(stock),
+            "description": desc,
+            "image_url": image_url,
+            "active": True,
+            "updated_at": _now_dt(),
+        }
+
+        if existing:
+            _col(db, "saas_products").update_one({"_id": existing["_id"]}, {"$set": base_doc})
+            updated += 1
+        else:
+            base_doc["_internal_id"] = str(uuid.uuid4())
+            base_doc["created_at"] = _now_dt()
+            _col(db, "saas_products").insert_one(base_doc)
+            inserted += 1
+
+    return jsonify({
+        "ok": True,
+        "store_id": store_id,
+        "inserted": inserted,
+        "updated": updated,
+        "skipped": skipped,
+        "storefront_url": f"/s/{store_id}"
+    })
+
+
+# -----------------------------
+# Public storefront (simple + nice)
+# GET /s/<store_id>?q=panado&cat=Pain%20Relief
+# -----------------------------
+@app.get("/s/<store_id>")
+def s_storefront(store_id):
+    db = get_db()
+    store = _get_store(db, store_id)
+    if not store:
+        return Response("Store not found", status=404)
+
+    q = _str(request.args.get("q"))
+    cat = _str(request.args.get("cat"))
+
+    query = {"store_id": store_id, "active": True}
+    if cat:
+        query["category"] = cat
+
+    products = list(_col(db, "saas_products").find(query).sort("name", 1).limit(2000))
+
+    # basic search filter in python (safe MVP)
+    if q:
+        ql = q.lower()
+        products = [p for p in products if ql in _str(p.get("name")).lower() or ql in _str(p.get("category")).lower()]
+
+    # categories
+    cats = sorted(list(set([_str(p.get("category"), "General") for p in products])))
+
+    # lightweight HTML (no templates, no breakage)
+    # Checkout action = WhatsApp message (works now). Later: embedded checkout.
+    wa_text = f"Hi! I want to order from {store.get('name')}. My items: "
+    html = f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{store.get('name')} — Store</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-zinc-950 text-zinc-100">
+  <div class="sticky top-0 z-20 border-b border-zinc-900 bg-zinc-950/80 backdrop-blur">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 rounded-2xl bg-emerald-600/15 border border-emerald-600/30 flex items-center justify-center font-bold shrink-0">Y</div>
+        <div class="min-w-0">
+          <div class="text-xs text-zinc-400">YiThume Storefront</div>
+          <div class="text-lg font-semibold truncate">{store.get('name')}</div>
+          <div class="text-xs text-zinc-500 truncate">{_str(store.get('address',{}).get('line1'))} · {_str(store.get('address',{}).get('city'))}</div>
+        </div>
+      </div>
+      <a href="/dashboard?store_id={quote(store_id)}"
+         class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">Admin</a>
+    </div>
+  </div>
+
+  <div class="max-w-6xl mx-auto px-4 py-6">
+    <div class="rounded-3xl border border-zinc-800 bg-zinc-900/40 p-5">
+      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <div class="text-2xl font-semibold">Browse & order</div>
+          <div class="text-sm text-zinc-400 mt-2">Add items, then send your order for a quote. You will only be charged after you reply <b>CONFIRM</b>.</div>
+        </div>
+        <div class="flex gap-2">
+          <form class="flex gap-2" method="get" action="/s/{store_id}">
+            <input name="q" value="{q}" placeholder="Search products..."
+              class="px-3 py-2 rounded-xl bg-zinc-950/50 border border-zinc-800 text-sm w-48" />
+            <select name="cat" class="px-3 py-2 rounded-xl bg-zinc-950/50 border border-zinc-800 text-sm">
+              <option value="">All categories</option>
+              {''.join([f'<option value="{c}" {"selected" if c==cat else ""}>{c}</option>' for c in cats])}
+            </select>
+            <button class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold">Go</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 mt-6">
+      <div class="lg:col-span-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {"".join([f'''
+          <div class="rounded-3xl border border-zinc-800 bg-zinc-900/40 p-4">
+            <div class="font-semibold">{_str(p.get("name"))}</div>
+            <div class="text-xs text-zinc-400 mt-1">{_str(p.get("category"), "General")}</div>
+            <div class="text-lg font-semibold mt-3">{store.get("currency","ZAR")} {_safe_float(p.get("price"),0):.2f}</div>
+            <div class="text-sm text-zinc-400 mt-2 line-clamp-2">{_str(p.get("description"))}</div>
+            <div class="mt-3 flex items-center gap-2">
+              <input type="number" min="1" value="1" class="qty px-3 py-2 rounded-xl bg-zinc-950/50 border border-zinc-800 text-sm w-20" data-name="{_str(p.get("name"))}" />
+              <button class="add px-3 py-2 rounded-xl bg-zinc-950/60 border border-zinc-800 hover:bg-zinc-900 text-sm"
+                data-name="{_str(p.get("name"))}" data-price="{_safe_float(p.get("price"),0)}">Add</button>
+            </div>
+          </div>
+          ''' for p in products[:60]])}
+        </div>
+        <div class="text-xs text-zinc-500 mt-4">Showing {len(products[:60])} of {len(products)} products.</div>
+      </div>
+
+      <div class="lg:col-span-4">
+        <div class="sticky top-24 rounded-3xl border border-zinc-800 bg-zinc-900/40 p-4">
+          <div class="text-lg font-semibold">Your cart</div>
+          <div id="cart" class="mt-3 space-y-2 text-sm text-zinc-300"></div>
+          <div class="mt-3 border-t border-zinc-800 pt-3 flex items-center justify-between">
+            <div class="text-sm text-zinc-400">Subtotal</div>
+            <div id="subtotal" class="text-lg font-semibold">0.00</div>
+          </div>
+
+          <button id="quoteBtn" class="mt-4 w-full px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 font-semibold">
+            Get quote (requires CONFIRM)
+          </button>
+
+          <div id="quoteOut" class="mt-3 text-sm text-zinc-300"></div>
+
+          <div class="mt-4 rounded-2xl border border-emerald-600/30 bg-emerald-600/10 p-3 text-sm">
+            <b>Confirm gating:</b> we only create orders after you reply <b>CONFIRM</b>.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {{
+  const storeId = "{store_id}";
+  const cart = {{}};
+
+  function render() {{
+    const el = document.getElementById("cart");
+    el.innerHTML = "";
+    let subtotal = 0;
+
+    Object.keys(cart).forEach(name => {{
+      const it = cart[name];
+      subtotal += it.price * it.qty;
+      const row = document.createElement("div");
+      row.className = "flex items-center justify-between rounded-xl explain bg-zinc-950/40 border border-zinc-800 p-2";
+      row.innerHTML = `
+        <div class="min-w-0">
+          <div class="font-medium truncate">${{name}}</div>
+          <div class="text-xs text-zinc-400">${{it.qty}} × ${{it.price.toFixed(2)}}</div>
+        </div>
+        <button class="text-xs px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800" data-del="${{name}}">Remove</button>
+      `;
+      el.appendChild(row);
+    }});
+
+    document.getElementById("subtotal").textContent = subtotal.toFixed(2);
+
+    el.querySelectorAll("button[data-del]").forEach(b => {{
+      b.addEventListener("click", () => {{
+        delete cart[b.getAttribute("data-del")];
+        render();
+      }});
+    }});
+  }}
+
+  document.querySelectorAll("button.add").forEach(btn => {{
+    btn.addEventListener("click", () => {{
+      const name = btn.getAttribute("data-name");
+      const price = parseFloat(btn.getAttribute("data-price") || "0");
+      const qtyEl = document.querySelector('input.qty[data-name="'+name.replace(/"/g,'\\"')+'"]');
+      const qty = qtyEl ? parseInt(qtyEl.value || "1") : 1;
+      if (!cart[name]) cart[name] = {{name, price, qty: 0}};
+      cart[name].qty += Math.max(1, qty);
+      render();
+    }});
+  }});
+
+  document.getElementById("quoteBtn").addEventListener("click", async () => {{
+    const items = Object.keys(cart).map(name => ({{ name, qty: cart[name].qty }}));
+    if (!items.length) {{
+      document.getElementById("quoteOut").textContent = "Add items first.";
+      return;
+    }}
+
+    const res = await fetch("/v1/order/quote", {{
+      method: "POST",
+      headers: {{"Content-Type":"application/json"}},
+      body: JSON.stringify({{
+        store_id: storeId,
+        customer: {{}},
+        items
+      }})
+    }});
+    const out = await res.json().catch(() => null);
+
+    if (!out || !out.ok) {{
+      document.getElementById("quoteOut").textContent = out?.error || "Quote failed.";
+      return;
+    }}
+
+    document.getElementById("quoteOut").innerHTML = `
+      <div class="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-3">
+        <div class="font-semibold">Quote</div>
+        <div class="text-sm text-zinc-300 mt-2">${{out.quote_text.replace(/\\n/g,"<br>")}}</div>
+        <div class="text-xs text-zinc-400 mt-2">To place the order: send <b>CONFIRM</b> (WhatsApp) or click confirm below (web demo).</div>
+        <button id="confirmBtn" class="mt-3 w-full px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold">CONFIRM order</button>
+      </div>
+    `;
+
+    document.getElementById("confirmBtn").addEventListener("click", async () => {{
+      const res2 = await fetch("/v1/order/confirm", {{
+        method: "POST",
+        headers: {{"Content-Type":"application/json"}},
+        body: JSON.stringify({{
+          store_id: storeId,
+          confirm: "CONFIRM",
+          quote_id: out.quote_id,
+          customer: {{}}
+        }})
+      }});
+      const out2 = await res2.json().catch(() => null);
+      if (!out2 || !out2.ok) {{
+        document.getElementById("quoteOut").textContent = out2?.error || "Confirm failed.";
+        return;
+      }}
+      document.getElementById("quoteOut").innerHTML = `
+        <div class="rounded-2xl border border-emerald-600/30 bg-emerald-600/10 p-3">
+          <div class="font-semibold">Order created</div>
+          <div class="text-sm mt-2">Order ID: <b>${{out2.order_id}}</b></div>
+          <div class="text-sm mt-1">Status: ${{out2.status}}</div>
+        </div>
+      `;
+    }});
+  }});
+}})();
+</script>
+</body>
+</html>
+"""
+    return Response(html, mimetype="text/html")
+
+
+# -----------------------------
+# Quote (build preview; does NOT create order)
+# -----------------------------
+@app.post("/v1/order/quote")
+def v1_order_quote():
+    db = get_db()
+    data = request.get_json(silent=True) or {}
+
+    store_id = _str(data.get("store_id"))
+    if not store_id:
+        return jsonify({"ok": False, "error": "Missing store_id"}), 400
+    store = _get_store(db, store_id)
+    if not store:
+        return jsonify({"ok": False, "error": "Store not found"}), 404
+
+    items = data.get("items") if isinstance(data.get("items"), list) else []
+    if not items:
+        return jsonify({"ok": False, "error": "No items"}), 400
+
+    resolved = []
+    subtotal = 0.0
+
+    for it in items:
+        name = _str((it or {}).get("name"))
+        qty = _safe_int((it or {}).get("qty"), 1)
+        if not name:
+            continue
+
+        # MVP: "contains" match
+        q = {"store_id": store_id, "active": True, "name": {"$regex": re.escape(name), "$options": "i"}}
+        prod = _col(db, "saas_products").find_one(q)
+        if not prod:
+            # try looser: first token
+            token = re.split(r"\s+", name)[0]
+            q2 = {"store_id": store_id, "active": True, "name": {"$regex": re.escape(token), "$options": "i"}}
+            prod = _col(db, "saas_products").find_one(q2)
+
+        if not prod:
+            resolved.append({"name": name, "qty": qty, "found": False})
+            continue
+
+        price = float(prod.get("price", 0))
+        line = price * qty
+        subtotal += line
+        resolved.append({
+            "name": prod.get("name"),
+            "sku": prod.get("sku"),
+            "category": prod.get("category"),
+            "price": price,
+            "qty": qty,
+            "line_total": round(line, 2),
+            "found": True
+        })
+
+    delivery_fee = float((store.get("delivery") or {}).get("fee_flat", 35.0))
+    total = round(subtotal + delivery_fee, 2)
+
+    quote_id = str(uuid.uuid4())
+    quote_doc = {
+        "_internal_id": quote_id,
+        "store_id": store_id,
+        "resolved": resolved,
+        "subtotal": round(subtotal, 2),
+        "delivery_fee": round(delivery_fee, 2),
+        "total": total,
+        "created_at": _now_dt(),
+        "expires_at": _now_dt() + timedelta(minutes=30),
+        "status": "quoted"
+    }
+    # store quotes in saas_orders as "quote" (MVP) OR create separate collection; using orders keeps it simple
+    _col(db, "saas_orders").insert_one({
+        "_internal_id": str(uuid.uuid4()),
+        "order_id": f"Q-{quote_id[:8].upper()}",
+        "store_id": store_id,
+        "type": "quote",
+        "quote_id": quote_id,
+        "items": resolved,
+        "subtotal": quote_doc["subtotal"],
+        "delivery_fee": quote_doc["delivery_fee"],
+        "total": quote_doc["total"],
+        "status": "quoted",
+        "created_at": quote_doc["created_at"],
+        "expires_at": quote_doc["expires_at"]
+    })
+
+    # WhatsApp-style quote text
+    lines = []
+    lines.append(f"{store.get('name')} — Quote")
+    for r in resolved:
+        if not r.get("found"):
+            lines.append(f"- {r.get('name')} x{r.get('qty')} (not found)")
+        else:
+            lines.append(f"- {r.get('name')} x{r.get('qty')} = {store.get('currency','ZAR')} {r.get('line_total'):.2f}")
+    lines.append(f"Delivery: {store.get('currency','ZAR')} {delivery_fee:.2f}")
+    lines.append(f"Total: {store.get('currency','ZAR')} {total:.2f}")
+    lines.append("Reply CONFIRM to place the order.")
+
+    return jsonify({
+        "ok": True,
+        "quote_id": quote_id,
+        "resolved": resolved,
+        "subtotal": round(subtotal, 2),
+        "delivery_fee": round(delivery_fee, 2),
+        "total": total,
+        "quote_text": "\n".join(lines)
+    })
+
+
+# -----------------------------
+# CONFIRM gating (creates order ONLY if confirm == "CONFIRM")
+# -----------------------------
+@app.post("/v1/order/confirm")
+def v1_order_confirm():
+    db = get_db()
+    data = request.get_json(silent=True) or {}
+
+    store_id = _str(data.get("store_id"))
+    confirm = _str(data.get("confirm"))
+    quote_id = _str(data.get("quote_id"))
+
+    if not store_id:
+        return jsonify({"ok": False, "error": "Missing store_id"}), 400
+    store = _get_store(db, store_id)
+    if not store:
+        return jsonify({"ok": False, "error": "Store not found"}), 404
+
+    # HARD RULE
+    if confirm.upper() != "CONFIRM":
+        return jsonify({"ok": False, "error": "Order not created. Send CONFIRM to place order."}), 400
+
+    if not quote_id:
+        return jsonify({"ok": False, "error": "Missing quote_id"}), 400
+
+    # find latest quote record
+    qdoc = _col(db, "saas_orders").find_one({"store_id": store_id, "type": "quote", "quote_id": quote_id})
+    if not qdoc:
+        return jsonify({"ok": False, "error": "Quote not found"}), 404
+
+    exp = qdoc.get("expires_at")
+    if isinstance(exp, datetime) and exp < _now_dt():
+        return jsonify({"ok": False, "error": "Quote expired"}), 400
+
+    # create order
+    order_id = make_order_public_id()
+    customer = data.get("customer") if isinstance(data.get("customer"), dict) else {}
+
+    order_doc = {
+        "_internal_id": str(uuid.uuid4()),
+        "order_id": order_id,
+        "store_id": store_id,
+        "type": "order",
+        "items": qdoc.get("items", []),
+        "subtotal": float(qdoc.get("subtotal", 0)),
+        "delivery_fee": float(qdoc.get("delivery_fee", 0)),
+        "total": float(qdoc.get("total", 0)),
+        "currency": store.get("currency", "ZAR"),
+        "customer": {
+            "name": _str(customer.get("name")),
+            "phone": _str(customer.get("phone")),
+            "address": customer.get("address") if isinstance(customer.get("address"), dict) else {}
+        },
+        "status": "queued",   # queued -> dispatched -> delivered
+        "created_at": _now_dt(),
+        "confirmed_at": _now_dt(),
+        "source": _str(data.get("source"), "web"),
+        "payment": {"method": (store.get("payment") or {}).get("method", "eft"), "status": "unpaid"},
+        "delivery": {"mode": (store.get("delivery") or {}).get("mode", "manual"), "pickup": store.get("address")},
+    }
+
+    _col(db, "saas_orders").insert_one(order_doc)
+
+    # optionally mark the quote "converted"
+    try:
+        _col(db, "saas_orders").update_one({"_id": qdoc["_id"]}, {"$set": {"status": "converted", "converted_order_id": order_id}})
+    except Exception:
+        pass
+
+    return jsonify({
+        "ok": True,
+        "order_id": order_id,
+        "status": order_doc["status"]
+    })
+
+
+# -----------------------------
+# Orders list (dashboard JS)
+# -----------------------------
+@app.get("/v1/store/<store_id>/orders")
+def v1_store_orders(store_id):
+    db = get_db()
+    store = _get_store(db, store_id)
+    if not store:
+        return jsonify({"ok": False, "error": "Store not found"}), 404
+
+    limit = _safe_int(request.args.get("limit"), 50)
+    docs = list(_col(db, "saas_orders").find({"store_id": store_id, "type": "order"}).sort("created_at", -1).limit(max(1, min(limit, 200))))
+
+    return jsonify({
+        "ok": True,
+        "store": _store_public(store),
+        "orders": [_order_public(o) for o in docs]
+    })
