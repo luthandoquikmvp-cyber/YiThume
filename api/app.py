@@ -955,7 +955,7 @@ def dashboard():
     return send_from_directory(app.static_folder, "dashboard.html")
 @app.route("/api/app/dashboard", methods=["GET"])
 @app.route("/api/dashboard", methods=["GET"])
-def dashboard():
+def dashboards():
     """
     Combined endpoint intended for your JS admin dashboard.
     Returns stats plus active driver list and per-driver metrics.
