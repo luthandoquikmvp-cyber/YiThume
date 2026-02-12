@@ -655,48 +655,6 @@ def home():
 # Manager Setup Wizard (proper onboarding)
 # -----------------------------
 
-@app.post("/managers/api/setup")
-def managers_setup_submit():
-    """
-    Receives JSON from dashboard wizard, creates:
-      workspace -> manager -> employees -> initial jobs
-    Returns:
-      { ok: true, workspace_id: "...", redirect_url: "/dashboard?ws=..." }
-    """
-
-    if not require_admin():
-        return jsonify({"ok": False, "error": "Unauthorized"}), 401
-
-    db = manager_db()
-    data = request.get_json(silent=True) or {}
-
-    store_name = str(data.get("store_name") or "New Store").strip()
-    template = str(data.get("template") or "general").strip()
-
-    survey = {
-        "channel_web": bool(data.get("channel_web", True)),
-        "needs_support": bool(data.get("needs_support", True)),
-        "needs_returns": bool(data.get("needs_returns", False)),
-        "needs_delivery": bool(data.get("needs_delivery", True)),
-        "delivery_mode": str(data.get("delivery_mode") or "manual").strip(),
-
-        "currency": str(data.get("currency") or "ZAR").strip(),
-        "theme": str(data.get("theme") or "clean").strip(),
-        "products_mode": str(data.get("products_mode") or "catalog_seed").strip(),
-        "autopilot_level": str(data.get("autopilot_level") or "assist").strip(),
-        "plan": str(data.get("plan") or "starter").strip(),
-    }
-
-    ws = m_create_workspace(db, store_name, template=template)
-    m_log_event(db, ws["_id"], "workspace.created", f"Workspace created: {ws['name']}")
-
-    manager_create_manager(db, ws["_id"], survey)
-    manager_create_employees(db, ws["_id"], survey)
-
-    # Send user back to /dashboard with the workspace selected
-    redirect_url = f"/dashboard?ws={quote(str(ws['_id']))}"
-
-    return jsonify({"ok": True, "workspace_id": ws["_id"], "redirect_url": redirect_url})
 @app.post("/manager/api/setup")
 def manager_setup_submit():
     """
