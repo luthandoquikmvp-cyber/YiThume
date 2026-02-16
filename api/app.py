@@ -3710,7 +3710,22 @@ pre{{white-space:pre-wrap;background:#0b1220;border:1px solid #334155;border-rad
 <div style="font-weight:900;margin-bottom:6px">Recent requests</div>
 <div id="list" class="small">Loading...</div>
 </div>
+<script>
+  // --- Admin pin passthrough (FIXES Unauthorized on API calls) ---
+  const QS = new URLSearchParams(window.location.search);
+  const ADMIN_PIN = QS.get("admin_pin") || "";
 
+  function withPin(url) {
+    if (!ADMIN_PIN) return url;
+    return url.includes("?") ? `${url}&admin_pin=${encodeURIComponent(ADMIN_PIN)}`
+                             : `${url}?admin_pin=${encodeURIComponent(ADMIN_PIN)}`;
+  }
+
+  function adminHeaders() {
+    // optional: also send as header for future-proofing
+    return ADMIN_PIN ? { "X-Admin-Pin": ADMIN_PIN } : {};
+  }
+</script>
 <script>
 async function loadList(){{
   const r = await fetch('/manager/api/self_update/list');
