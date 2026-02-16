@@ -3684,7 +3684,8 @@ button{{border:0;border-radius:12px;padding:10px 12px;font-weight:900;cursor:poi
 .btn2{{background:#38bdf8;color:#082f49}}
 .small{{color:#94a3b8;font-size:13px}}
 pre{{white-space:pre-wrap;background:#0b1220;border:1px solid #334155;border-radius:12px;padding:12px;overflow:auto}}
-</style></head><script>
+</style></head>
+<script>
   // --- Admin pin passthrough (FIXES Unauthorized on API calls) ---
   const QS = new URLSearchParams(window.location.search);
   const ADMIN_PIN = QS.get("admin_pin") || "";
