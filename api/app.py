@@ -3701,6 +3701,7 @@ pre{{white-space:pre-wrap;background:#0b1220;border:1px solid #334155;border-rad
     return ADMIN_PIN ? { "X-Admin-Pin": ADMIN_PIN } : {};
   }
 </script>
+
 <body><div class="wrap">
 <h2 style="margin:6px 0">Self-updating code (Admin)</h2>
 <div class="small">Flow: draft → propose changes (GPT) → approve → create GitHub branch + commit (never merges main automatically).</div>
