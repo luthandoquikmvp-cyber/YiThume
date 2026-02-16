@@ -1629,7 +1629,16 @@ def create_store():
         "phone": data.get("phone"),
         "zone": data.get("zone"),
         "address": data.get("address"),
-        "created_at": _now_dt()
+        "created_at": _now_dt(),
+
+        # Live store publishing
+        "published": False,
+        "public_slug": None,
+        "published_at": None,
+
+        # Billing gate (Stripe payment links); if billing is disabled, stores are active by default
+        "billing_active": (str(os.environ.get("BILLING_ENABLED", "0")).strip() not in ("1","true","True","yes","YES")),
+        "billing_plan": None
     }
     try:
         db = get_db()
@@ -3279,3 +3288,701 @@ def v1_store_orders(store_id):
         "store": _store_public(store),
         "orders": [_order_public(o) for o in docs]
     })
+
+
+# =============================
+# LIVE STORE PUBLISHING (Go Live)
+# =============================
+
+def _slugify(s: str) -> str:
+    s = (s or "").strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    s = re.sub(r"-{2,}", "-", s).strip("-")
+    return s or "store"
+
+def _billing_enabled() -> bool:
+    return str(os.environ.get("BILLING_ENABLED", "0")).strip().lower() in ("1", "true", "yes")
+
+def _store_public_url(public_slug: str) -> str:
+    # Served by this same Flask app (vercel routes everything here)
+    return f"/shop/{public_slug}"
+
+@app.route("/v1/store/<store_id>/status", methods=["GET"])
+@app.route("/api/app/v1/store/<store_id>/status", methods=["GET"])
+def store_status(store_id):
+    try:
+        db = get_db()
+        s = db.stores.find_one({"_internal_id": store_id})
+        if not s:
+            return jsonify({"ok": False, "error": "store_not_found"}), 404
+        count = db.store_items.count_documents({"store_id": store_id, "active": True})
+        return jsonify({
+            "ok": True,
+            "store_id": store_id,
+            "name": s.get("name"),
+            "products_count": int(count),
+            "published": bool(s.get("published")),
+            "public_slug": s.get("public_slug"),
+            "public_url": _store_public_url(s["public_slug"]) if s.get("public_slug") else None,
+            "billing_enabled": _billing_enabled(),
+            "billing_active": bool(s.get("billing_active", not _billing_enabled())),
+            "billing_plan": s.get("billing_plan")
+        }), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
+
+@app.route("/v1/store/<store_id>/activate", methods=["POST"])
+@app.route("/api/app/v1/store/<store_id>/activate", methods=["POST"])
+def store_activate_billing(store_id):
+    # Admin-only activation (Stripe payment links use-case)
+    if not require_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    if not _billing_enabled():
+        return jsonify({"ok": True, "billing_active": True, "note": "billing_disabled"}), 200
+
+    body = request.get_json(silent=True) or {}
+    code = (body.get("activation_code") or "").strip()
+    expected = (os.environ.get("BILLING_ACTIVATION_CODE") or "").strip()
+    if not expected:
+        return jsonify({"ok": False, "error": "billing_activation_code_not_configured"}), 500
+    if code != expected:
+        return jsonify({"ok": False, "error": "invalid_activation_code"}), 403
+
+    plan = (body.get("plan") or "basic").strip().lower()
+    if plan not in ("basic", "agent", "node"):
+        plan = "basic"
+
+    try:
+        db = get_db()
+        res = db.stores.update_one(
+            {"_internal_id": store_id},
+            {"$set": {"billing_active": True, "billing_plan": plan}}
+        )
+        if res.matched_count == 0:
+            return jsonify({"ok": False, "error": "store_not_found"}), 404
+        return jsonify({"ok": True, "billing_active": True, "billing_plan": plan}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
+
+@app.route("/v1/store/<store_id>/publish", methods=["POST"])
+@app.route("/api/app/v1/store/<store_id>/publish", methods=["POST"])
+def store_publish(store_id):
+    try:
+        db = get_db()
+        s = db.stores.find_one({"_internal_id": store_id})
+        if not s:
+            return jsonify({"ok": False, "error": "store_not_found"}), 404
+
+        if _billing_enabled() and not bool(s.get("billing_active")):
+            return jsonify({
+                "ok": False,
+                "error": "payment_required",
+                "billing": {
+                    "stripe": {
+                        "basic": os.environ.get("BILLING_LINK_BASIC"),
+                        "agent": os.environ.get("BILLING_LINK_AGENT"),
+                        "node": os.environ.get("BILLING_LINK_NODE"),
+                    },
+                    "coming_soon": ["payfast", "ozow", "yoco"]
+                }
+            }), 402
+
+        if s.get("published") and s.get("public_slug"):
+            return jsonify({"ok": True, "public_url": _store_public_url(s["public_slug"]), "already_published": True}), 200
+
+        base = _slugify(s.get("name") or "store")
+        slug = f"{base}-{store_id[:6]}"
+        # Ensure uniqueness
+        i = 1
+        while db.stores.find_one({"public_slug": slug, "_internal_id": {"$ne": store_id}}):
+            i += 1
+            slug = f"{base}-{store_id[:6]}-{i}"
+
+        db.stores.update_one(
+            {"_internal_id": store_id},
+            {"$set": {"published": True, "public_slug": slug, "published_at": _now_dt()}}
+        )
+        return jsonify({"ok": True, "public_url": _store_public_url(slug), "public_slug": slug}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
+
+@app.route("/shop/<public_slug>", methods=["GET"])
+@app.route("/api/app/shop/<public_slug>", methods=["GET"])
+def shop_public_storefront(public_slug):
+    """
+    Public live storefront:
+      - Works only after store is published
+      - Simple HTML to avoid changing static files (since this lives in app.py)
+    """
+    try:
+        db = get_db()
+        s = db.stores.find_one({"public_slug": public_slug, "published": True})
+        if not s:
+            return ("Store not found or not live yet.", 404)
+
+        items = list(db.store_items.find({"store_id": s["_internal_id"], "active": True}).sort("created_at", -1).limit(500))
+        # Basic HTML storefront (mobile friendly). You can later replace with a proper static page.
+        html = []
+        html.append("<!doctype html><html><head><meta charset='utf-8'/>")
+        html.append("<meta name='viewport' content='width=device-width,initial-scale=1'/>")
+        html.append(f"<title>{(s.get('name') or 'Store')}</title>")
+        html.append("<style>body{font-family:ui-sans-serif,system-ui,Arial;margin:0;background:#f8fafc;color:#0f172a} .wrap{max-width:900px;margin:0 auto;padding:18px} .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px;margin:10px 0} .grid{display:grid;grid-template-columns:80px 1fr;gap:12px;align-items:center} img{width:80px;height:80px;object-fit:cover;border-radius:12px;background:#f1f5f9} .price{font-weight:700} .muted{color:#64748b;font-size:13px} .btn{display:inline-block;padding:10px 12px;border-radius:12px;background:#0ea5e9;color:white;text-decoration:none;font-weight:700}</style>")
+        html.append("</head><body><div class='wrap'>")
+        html.append(f"<h2 style='margin:6px 0 4px'>{s.get('name') or 'Store'}</h2>")
+        html.append("<div class='muted'>Live store</div>")
+        html.append("<div style='height:12px'></div>")
+        if not items:
+            html.append("<div class='card'>No products yet.</div>")
+        else:
+            for it in items:
+                name = (it.get("name") or "Item")
+                price = it.get("price") or 0
+                sku = it.get("sku") or ""
+                img = it.get("image_url") or ""
+                html.append("<div class='card'><div class='grid'>")
+                if img:
+                    html.append(f"<img src='{img}' alt='product'/>")
+                else:
+                    html.append("<img src='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==' alt='product'/>")
+                html.append("<div>")
+                html.append(f"<div style='font-weight:800'>{name}</div>")
+                if sku:
+                    html.append(f"<div class='muted'>SKU: {sku}</div>")
+                html.append(f"<div class='price'>R {float(price):.2f}</div>")
+                html.append("</div></div></div>")
+        html.append("<div style='height:14px'></div>")
+        html.append("<div class='card'><div style='font-weight:800;margin-bottom:6px'>Order</div><div class='muted'>Ordering & payments are being integrated. For now, contact the store.</div></div>")
+        html.append("</div></body></html>")
+        return ("".join(html), 200, {"Content-Type": "text/html; charset=utf-8"})
+    except Exception as e:
+        return (f"Server error: {e}", 500)
+
+# -----------------------------
+# Product image upload (GridFS)
+# -----------------------------
+@app.route("/v1/store/<store_id>/product/<product_id>/image", methods=["POST"])
+@app.route("/api/app/v1/store/<store_id>/product/<product_id>/image", methods=["POST"])
+def upload_product_image(store_id, product_id):
+    # Admin-only for now (avoid abuse). You can loosen later.
+    if not require_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    if "file" not in request.files:
+        return jsonify({"ok": False, "error": "file_required"}), 400
+
+    f = request.files["file"]
+    if not f or not getattr(f, "filename", ""):
+        return jsonify({"ok": False, "error": "file_required"}), 400
+
+    filename = secure_filename(f.filename)
+    content = f.read()
+    if not content:
+        return jsonify({"ok": False, "error": "empty_file"}), 400
+
+    # Basic size limit (2MB) to keep serverless happy
+    if len(content) > 2 * 1024 * 1024:
+        return jsonify({"ok": False, "error": "file_too_large"}), 413
+
+    try:
+        db = get_db()
+        if not db.stores.find_one({"_internal_id": store_id}):
+            return jsonify({"ok": False, "error": "store_not_found"}), 404
+
+        item = db.store_items.find_one({"_internal_id": product_id, "store_id": store_id})
+        if not item:
+            return jsonify({"ok": False, "error": "product_not_found"}), 404
+
+        fs = GridFS(db)
+        fid = fs.put(content, filename=filename, contentType=getattr(f, "mimetype", "application/octet-stream"))
+        image_url = f"/files/{fid}"
+        db.store_items.update_one({"_internal_id": product_id}, {"$set": {"image_url": image_url}})
+        return jsonify({"ok": True, "image_url": image_url}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
+
+
+# ==========================================================
+# SELF-UPDATING CODE WORKFLOW (Admin prompt -> PR proposal)
+# ==========================================================
+# This does NOT merge to main. It only creates a branch + commit (or PR-ready branch)
+# after explicit admin approval ("APPROVE"). This keeps production safe.
+
+def _http_json(method: str, url: str, headers: dict, body_obj=None, timeout=20):
+    import json
+    from urllib.request import Request, urlopen
+    from urllib.error import HTTPError, URLError
+
+    data = None
+    if body_obj is not None:
+        data = json.dumps(body_obj).encode("utf-8")
+        headers = dict(headers or {})
+        headers["Content-Type"] = "application/json"
+
+    req = Request(url, data=data, headers=headers or {}, method=method.upper())
+    try:
+        with urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            try:
+                return resp.getcode(), json.loads(raw) if raw else {}
+            except Exception:
+                return resp.getcode(), {"raw": raw}
+    except HTTPError as e:
+        raw = e.read().decode("utf-8", errors="replace")
+        try:
+            return e.code, json.loads(raw) if raw else {}
+        except Exception:
+            return e.code, {"raw": raw}
+    except URLError as e:
+        return 0, {"error": "network_error", "details": str(e)}
+
+def _github_headers():
+    token = (os.environ.get("GITHUB_TOKEN") or "").strip()
+    if not token:
+        return None
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "YiThume-SelfUpdater"
+    }
+
+def _github_repo_full_name():
+    return (os.environ.get("GITHUB_REPO_FULL_NAME") or "").strip()
+
+def _github_api_base():
+    return "https://api.github.com"
+
+def _github_get_ref_sha(repo_full_name: str, ref: str):
+    h = _github_headers()
+    if not h:
+        return None, "github_token_missing"
+    url = f"{_github_api_base()}/repos/{repo_full_name}/git/ref/{quote(ref)}"
+    code, js = _http_json("GET", url, h)
+    if code != 200:
+        return None, f"github_get_ref_failed:{code}"
+    return js.get("object", {}).get("sha"), None
+
+def _github_create_branch(repo_full_name: str, new_branch: str, base_sha: str):
+    h = _github_headers()
+    if not h:
+        return False, "github_token_missing"
+    url = f"{_github_api_base()}/repos/{repo_full_name}/git/refs"
+    payload = {"ref": f"refs/heads/{new_branch}", "sha": base_sha}
+    code, js = _http_json("POST", url, h, payload)
+    if code in (201, 200):
+        return True, None
+    # If it already exists, treat as ok
+    if code == 422:
+        return True, "branch_exists"
+    return False, f"github_create_branch_failed:{code}"
+
+def _github_fetch_file(repo_full_name: str, path: str, ref: str):
+    h = _github_headers()
+    if not h:
+        return None, "github_token_missing"
+    from urllib.parse import quote as q
+    url = f"{_github_api_base()}/repos/{repo_full_name}/contents/{q(path)}?ref={q(ref)}"
+    code, js = _http_json("GET", url, h)
+    if code != 200:
+        return None, f"github_fetch_file_failed:{code}"
+    if js.get("encoding") == "base64" and js.get("content"):
+        import base64
+        return base64.b64decode(js["content"]).decode("utf-8", errors="replace"), None
+    return None, "github_fetch_file_unexpected"
+
+def _openai_enabled():
+    return bool((os.environ.get("OPENAI_API_KEY") or "").strip())
+
+def _openai_chat(prompt: str, files_context: dict):
+    """
+    Returns: { files: {path: new_content}, message }
+    Uses OpenAI Responses/Chat Completions style via HTTP (no extra deps).
+    """
+    import json
+    key = (os.environ.get("OPENAI_API_KEY") or "").strip()
+    model = (os.environ.get("OPENAI_MODEL") or "gpt-4o-mini").strip()
+
+    # Keep it very constrained: produce JSON only.
+    sys = (
+        "You are a senior engineer. Output STRICT JSON only with keys: "
+        "`message` (string) and `files` (object mapping file path -> full new file content). "
+        "Do not include markdown. Only modify requested files. Preserve existing routes and behavior unless asked."
+    )
+
+    user = {
+        "instruction": prompt,
+        "files_context": files_context
+    }
+
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": sys},
+            {"role": "user", "content": json.dumps(user)}
+        ],
+        "temperature": 0.2
+    }
+    code, js = _http_json("POST", url, headers, payload, timeout=35)
+    if code != 200:
+        return None, f"openai_failed:{code}", js
+    try:
+        content = js["choices"][0]["message"]["content"]
+        out = json.loads(content)
+        if not isinstance(out, dict) or "files" not in out:
+            return None, "openai_invalid_json", {"raw": content}
+        return out, None, None
+    except Exception as e:
+        return None, f"openai_parse_error:{e}", {"raw": js}
+
+def _allowed_update_paths():
+    raw = (os.environ.get("SELF_UPDATE_ALLOWED_PATHS") or "").strip()
+    if raw:
+        return [p.strip() for p in raw.split(",") if p.strip()]
+    # Safe defaults: allow html + this python file + vercel configs (you can tighten)
+    return [
+        "api/app.py",
+        "api/static/dashboard.html",
+        "api/static/index.html",
+        "api/static/manager_dashboard.html",
+        "api/static/manager_setup.html",
+        "vercel.json",
+        "requirements.txt"
+    ]
+
+def _self_updates_col(db):
+    col = db["self_update_requests"]
+    try:
+        col.create_index("created_at")
+        col.create_index([("status", 1), ("created_at", -1)])
+    except Exception:
+        pass
+    return col
+
+@app.route("/manager/self_update", methods=["GET"])
+@app.route("/api/app/manager/self_update", methods=["GET"])
+def manager_self_update_page():
+    if not require_admin():
+        return ("Unauthorized", 401)
+
+    allowed = _allowed_update_paths()
+    html = f"""
+<!doctype html>
+<html><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>YiThume • Self Update</title>
+<style>
+body{{font-family:ui-sans-serif,system-ui,Arial;background:#0b1220;color:#e5e7eb;margin:0}}
+.wrap{{max-width:980px;margin:0 auto;padding:18px}}
+.card{{background:#111827;border:1px solid #1f2937;border-radius:16px;padding:14px;margin:12px 0}}
+label{{display:block;font-weight:800;margin:6px 0}}
+textarea,input{{width:100%;border-radius:12px;border:1px solid #334155;background:#0b1220;color:#e5e7eb;padding:12px}}
+button{{border:0;border-radius:12px;padding:10px 12px;font-weight:900;cursor:pointer}}
+.btn{{background:#22c55e;color:#052e16}}
+.btn2{{background:#38bdf8;color:#082f49}}
+.small{{color:#94a3b8;font-size:13px}}
+pre{{white-space:pre-wrap;background:#0b1220;border:1px solid #334155;border-radius:12px;padding:12px;overflow:auto}}
+</style></head>
+<body><div class="wrap">
+<h2 style="margin:6px 0">Self-updating code (Admin)</h2>
+<div class="small">Flow: draft → propose changes (GPT) → approve → create GitHub branch + commit (never merges main automatically).</div>
+
+<div class="card">
+<form method="post" action="/manager/api/self_update/create">
+<label>What do you want to update?</label>
+<textarea name="prompt" rows="6" placeholder="Example: Add a new button on dashboard to publish store; keep all existing routes unchanged."></textarea>
+<div style="height:10px"></div>
+<label>Branch name (optional)</label>
+<input name="branch" placeholder="e.g. update-dashboard-publish"/>
+<div style="height:10px"></div>
+<button class="btn" type="submit">Create request</button>
+</form>
+</div>
+
+<div class="card">
+<div style="font-weight:900;margin-bottom:6px">Allowed paths</div>
+<div class="small">{", ".join(allowed)}</div>
+</div>
+
+<div class="card">
+<div style="font-weight:900;margin-bottom:6px">Recent requests</div>
+<div id="list" class="small">Loading...</div>
+</div>
+
+<script>
+async function loadList(){{
+  const r = await fetch('/manager/api/self_update/list');
+  const j = await r.json();
+  if(!j.ok){{document.getElementById('list').innerText = 'Error loading.'; return;}}
+  if(!j.items.length){{document.getElementById('list').innerText = 'No requests yet.'; return;}}
+  let html = '';
+  j.items.forEach(it=>{{
+    html += `<div style="padding:10px 0;border-top:1px solid #1f2937">
+      <div><b>${{it.title}}</b> • <span style="color:#94a3b8">${{it.status}}</span></div>
+      <div style="color:#94a3b8;font-size:12px">ID: ${{it.id}} • Branch: ${{it.branch||'-'}} • ${{it.created_at}}</div>
+      <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
+        <button class="btn2" onclick="propose('${{it.id}}')">Propose (GPT)</button>
+        <button class="btn2" onclick="preview('${{it.id}}')">Preview</button>
+        <button class="btn2" onclick="approve('${{it.id}}')">Approve GitHub</button>
+        <button class="btn" onclick="commit('${{it.id}}')">Create branch + commit</button>
+      </div>
+    </div>`;
+  }});
+  document.getElementById('list').innerHTML = html;
+}}
+async function propose(id){{
+  const r = await fetch(`/manager/api/self_update/${{id}}/propose`, {{method:'POST'}});
+  const j = await r.json(); alert(JSON.stringify(j,null,2)); loadList();
+}}
+async function preview(id){{
+  const r = await fetch(`/manager/api/self_update/${{id}}/preview`);
+  const t = await r.text(); const w = window.open(); w.document.write(t);
+}}
+async function approve(id){{
+  const confirm = prompt('Type APPROVE to allow GitHub operations for this request:');
+  const r = await fetch(`/manager/api/self_update/${{id}}/approve_github`, {{
+    method:'POST', headers:{{'Content-Type':'application/json'}},
+    body: JSON.stringify({{confirm}})
+  }});
+  const j = await r.json(); alert(JSON.stringify(j,null,2)); loadList();
+}}
+async function commit(id){{
+  const confirm = prompt('Type COMMIT to create a branch + commit to GitHub:');
+  const r = await fetch(`/manager/api/self_update/${{id}}/github_commit`, {{
+    method:'POST', headers:{{'Content-Type':'application/json'}},
+    body: JSON.stringify({{confirm}})
+  }});
+  const j = await r.json(); alert(JSON.stringify(j,null,2)); loadList();
+}}
+loadList();
+</script>
+</div></body></html>
+"""
+    return (html, 200, {"Content-Type": "text/html; charset=utf-8"})
+
+@app.route("/manager/api/self_update/create", methods=["POST"])
+@app.route("/api/app/manager/api/self_update/create", methods=["POST"])
+def api_self_update_create():
+    if not require_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    prompt = (request.form.get("prompt") if request.form else None) or (request.get_json(silent=True) or {}).get("prompt") or ""
+    prompt = prompt.strip()
+    if not prompt:
+        return jsonify({"ok": False, "error": "prompt_required"}), 400
+
+    branch = (request.form.get("branch") if request.form else None) or (request.get_json(silent=True) or {}).get("branch") or ""
+    branch = (branch or "").strip()
+    if not branch:
+        branch = f"self-update-{uuid.uuid4().hex[:8]}"
+
+    title = prompt.splitlines()[0][:80]
+
+    db = manager_db()
+    col = _self_updates_col(db)
+    doc = {
+        "title": title,
+        "prompt": prompt,
+        "branch": branch,
+        "status": "draft",
+        "created_at": _now_dt(),
+        "approved_github": False,
+        "proposed_files": {},
+        "proposal_message": None,
+        "last_error": None
+    }
+    rid = str(col.insert_one(doc).inserted_id)
+    return redirect(f"/manager/self_update")  # keep iPad UX simple
+
+@app.route("/manager/api/self_update/list", methods=["GET"])
+@app.route("/api/app/manager/api/self_update/list", methods=["GET"])
+def api_self_update_list():
+    if not require_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+    db = manager_db()
+    col = _self_updates_col(db)
+    items = list(col.find({}).sort("created_at", -1).limit(20))
+    def _p(d):
+        return {
+            "id": str(d["_id"]),
+            "title": d.get("title"),
+            "status": d.get("status"),
+            "branch": d.get("branch"),
+            "created_at": str(d.get("created_at")),
+            "approved_github": bool(d.get("approved_github"))
+        }
+    return jsonify({"ok": True, "items": [_p(d) for d in items]}), 200
+
+@app.route("/manager/api/self_update/<rid>/propose", methods=["POST"])
+@app.route("/api/app/manager/api/self_update/<rid>/propose", methods=["POST"])
+def api_self_update_propose(rid):
+    if not require_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+    db = manager_db()
+    col = _self_updates_col(db)
+    d = col.find_one({"_id": ObjectId(rid)})
+    if not d:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+
+    if not _openai_enabled():
+        return jsonify({"ok": False, "error": "openai_not_configured", "hint": "Set OPENAI_API_KEY and optionally OPENAI_MODEL"}), 400
+
+    repo = _github_repo_full_name()
+    if not repo:
+        return jsonify({"ok": False, "error": "github_repo_not_configured", "hint": "Set GITHUB_REPO_FULL_NAME"}), 400
+
+    allowed = _allowed_update_paths()
+    # Fetch current file contents from GitHub main as context (lightweight)
+    files_context = {}
+    for p in allowed:
+        txt, err = _github_fetch_file(repo, p, "main")
+        if txt and not err:
+            files_context[p] = txt[:30000]  # cap context
+    # Ask GPT to produce full new contents for any modified files
+    out, err, details = _openai_chat(d.get("prompt", ""), files_context)
+    if err:
+        col.update_one({"_id": d["_id"]}, {"$set": {"status": "error", "last_error": {"err": err, "details": details}}})
+        return jsonify({"ok": False, "error": err, "details": details}), 500
+
+    files = out.get("files") or {}
+    # Enforce allowlist
+    safe_files = {}
+    for path, content in files.items():
+        if path in allowed and isinstance(content, str):
+            safe_files[path] = content
+
+    if not safe_files:
+        col.update_one({"_id": d["_id"]}, {"$set": {"status": "error", "last_error": "no_allowed_files_in_proposal"}})
+        return jsonify({"ok": False, "error": "no_allowed_files_in_proposal"}), 400
+
+    col.update_one({"_id": d["_id"]}, {"$set": {
+        "status": "proposed",
+        "proposal_message": out.get("message"),
+        "proposed_files": safe_files,
+        "last_error": None
+    }})
+    return jsonify({"ok": True, "status": "proposed", "files": list(safe_files.keys()), "message": out.get("message")}), 200
+
+@app.route("/manager/api/self_update/<rid>/preview", methods=["GET"])
+@app.route("/api/app/manager/api/self_update/<rid>/preview", methods=["GET"])
+def api_self_update_preview(rid):
+    if not require_admin():
+        return ("Unauthorized", 401)
+    db = manager_db()
+    col = _self_updates_col(db)
+    d = col.find_one({"_id": ObjectId(rid)})
+    if not d:
+        return ("Not found", 404)
+    files = d.get("proposed_files") or {}
+    msg = d.get("proposal_message") or ""
+    html = ["<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/>"]
+    html.append("<title>Proposal preview</title><style>body{font-family:ui-monospace,Menlo,monospace;background:#0b1220;color:#e5e7eb;margin:0} .wrap{max-width:1100px;margin:0 auto;padding:16px} .card{background:#111827;border:1px solid #1f2937;border-radius:14px;padding:12px;margin:12px 0} pre{white-space:pre-wrap}</style></head><body><div class='wrap'>")
+    html.append("<h3>GPT proposal preview</h3>")
+    html.append(f"<div class='card'><b>Message:</b><pre>{msg}</pre></div>")
+    for path, content in files.items():
+        html.append(f"<div class='card'><b>{path}</b><pre>{content[:20000]}</pre><div style='color:#94a3b8'>Preview truncated.</div></div>")
+    html.append("</div></body></html>")
+    return ("".join(html), 200, {"Content-Type": "text/html; charset=utf-8"})
+
+@app.route("/manager/api/self_update/<rid>/approve_github", methods=["POST"])
+@app.route("/api/app/manager/api/self_update/<rid>/approve_github", methods=["POST"])
+def api_self_update_approve_github(rid):
+    if not require_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    body = request.get_json(silent=True) or {}
+    confirm = (body.get("confirm") or "").strip().upper()
+    if confirm != "APPROVE":
+        return jsonify({"ok": False, "error": "type_APPROVE_to_confirm"}), 400
+
+    db = manager_db()
+    col = _self_updates_col(db)
+    d = col.find_one({"_id": ObjectId(rid)})
+    if not d:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+
+    col.update_one({"_id": d["_id"]}, {"$set": {"approved_github": True, "status": "approved"}})
+    return jsonify({"ok": True, "approved_github": True}), 200
+
+@app.route("/manager/api/self_update/<rid>/github_commit", methods=["POST"])
+@app.route("/api/app/manager/api/self_update/<rid>/github_commit", methods=["POST"])
+def api_self_update_github_commit(rid):
+    if not require_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    body = request.get_json(silent=True) or {}
+    confirm = (body.get("confirm") or "").strip().upper()
+    if confirm != "COMMIT":
+        return jsonify({"ok": False, "error": "type_COMMIT_to_confirm"}), 400
+
+    repo = _github_repo_full_name()
+    if not repo:
+        return jsonify({"ok": False, "error": "github_repo_not_configured"}), 400
+    if not _github_headers():
+        return jsonify({"ok": False, "error": "github_token_missing"}), 400
+
+    db = manager_db()
+    col = _self_updates_col(db)
+    d = col.find_one({"_id": ObjectId(rid)})
+    if not d:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+
+    if not d.get("approved_github"):
+        return jsonify({"ok": False, "error": "github_not_approved"}), 403
+
+    files = d.get("proposed_files") or {}
+    if not files:
+        return jsonify({"ok": False, "error": "no_proposed_files"}), 400
+
+    branch = (d.get("branch") or f"self-update-{uuid.uuid4().hex[:8]}").strip()
+
+    base_sha, err = _github_get_ref_sha(repo, "heads/main")
+    if err or not base_sha:
+        col.update_one({"_id": d["_id"]}, {"$set": {"status": "error", "last_error": err or "no_base_sha"}})
+        return jsonify({"ok": False, "error": err or "no_base_sha"}), 500
+
+    ok, berr = _github_create_branch(repo, branch, base_sha)
+    if not ok:
+        col.update_one({"_id": d["_id"]}, {"$set": {"status": "error", "last_error": berr}})
+        return jsonify({"ok": False, "error": berr}), 500
+
+    # Create commit via GitHub git data API
+    h = _github_headers()
+    # Get base tree
+    code, base_commit = _http_json("GET", f"{_github_api_base()}/repos/{repo}/git/commits/{base_sha}", h)
+    if code != 200:
+        return jsonify({"ok": False, "error": "github_get_base_commit_failed", "details": base_commit}), 500
+    base_tree_sha = (base_commit.get("tree") or {}).get("sha")
+    if not base_tree_sha:
+        return jsonify({"ok": False, "error": "github_base_tree_missing"}), 500
+
+    # Create blobs
+    tree_elems = []
+    for path, content in files.items():
+        code, blob = _http_json("POST", f"{_github_api_base()}/repos/{repo}/git/blobs", h, {"content": content, "encoding": "utf-8"})
+        if code not in (200, 201):
+            return jsonify({"ok": False, "error": "github_create_blob_failed", "path": path, "details": blob}), 500
+        tree_elems.append({"path": path, "mode": "100644", "type": "blob", "sha": blob.get("sha")})
+
+    # Create tree
+    code, tree = _http_json("POST", f"{_github_api_base()}/repos/{repo}/git/trees", h, {"base_tree": base_tree_sha, "tree": tree_elems})
+    if code not in (200, 201):
+        return jsonify({"ok": False, "error": "github_create_tree_failed", "details": tree}), 500
+    tree_sha = tree.get("sha")
+
+    # Create commit
+    msg = f"Self update: {d.get('title') or 'update'}"
+    code, commit = _http_json("POST", f"{_github_api_base()}/repos/{repo}/git/commits", h, {"message": msg, "tree": tree_sha, "parents": [base_sha]})
+    if code not in (200, 201):
+        return jsonify({"ok": False, "error": "github_create_commit_failed", "details": commit}), 500
+    commit_sha = commit.get("sha")
+
+    # Update branch ref
+    code, upd = _http_json("PATCH", f"{_github_api_base()}/repos/{repo}/git/refs/heads/{branch}", h, {"sha": commit_sha, "force": False})
+    if code not in (200, 201):
+        return jsonify({"ok": False, "error": "github_update_ref_failed", "details": upd}), 500
+
+    col.update_one({"_id": d["_id"]}, {"$set": {"status": "committed", "last_error": None, "commit_sha": commit_sha}})
+    return jsonify({"ok": True, "status": "committed", "branch": branch, "commit_sha": commit_sha}), 200
