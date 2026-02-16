@@ -29,6 +29,9 @@
         <button id="refreshBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">
           Refresh
         </button>
+        <button id="adminAssistantBtn" class="hidden px-3 py-2 rounded-xl border border-emerald-600/40 bg-emerald-600/10 hover:bg-emerald-600/20 text-sm font-semibold">
+          Admin Assistant
+        </button>
       </div>
     </div>
   </div>
@@ -315,6 +318,60 @@
     </div>
   </div>
 
+  <!-- Admin Assistant Modal (feedback → GPT updater) -->
+  <div id="adminModal" class="hidden fixed inset-0 z-[60]">
+    <div class="absolute inset-0 bg-black/70"></div>
+    <div class="relative max-w-3xl mx-auto mt-6 sm:mt-12 px-4">
+      <div class="rounded-3xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-xs text-zinc-400">Admin</div>
+            <div class="text-xl font-semibold mt-1">Assistant</div>
+            <div class="text-sm text-zinc-400 mt-1">Send feedback that creates a GPT update request. Nothing touches <b>main</b> — it proposes, then asks permission to create a GitHub branch.</div>
+          </div>
+          <button id="closeAdminModal" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">
+            Close
+          </button>
+        </div>
+
+        <div class="mt-4 grid lg:grid-cols-5 gap-4">
+          <div class="lg:col-span-3">
+            <div class="text-xs text-zinc-400 mb-2">Feedback / update prompt</div>
+            <textarea id="adminPrompt" rows="8"
+              class="w-full rounded-2xl bg-zinc-950/40 border border-zinc-800 px-3 py-3 text-sm"
+              placeholder="Example: Update pricing copy on index.html to show SaaS tiers, and connect Create Store CTA to /dashboard?open=create. Keep styling the same."></textarea>
+
+            <div class="mt-3 flex flex-col sm:flex-row gap-2">
+              <button id="adminSendPrompt" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-semibold text-sm">
+                Send to GPT updater
+              </button>
+              <a id="adminOpenConsole" href="/manager/self_update" class="px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm text-center">
+                Open full update console
+              </a>
+            </div>
+
+            <div class="mt-3 text-xs text-zinc-500">
+              Tip: open this dashboard with <code class="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800">?admin_pin=YOUR_PIN</code> so the assistant can authenticate.
+            </div>
+          </div>
+
+          <div class="lg:col-span-2">
+            <div class="text-xs text-zinc-400 mb-2">Assistant output</div>
+            <div id="adminOut" class="rounded-2xl bg-zinc-950/40 border border-zinc-800 p-3 text-sm text-zinc-200 min-h-[220px] whitespace-pre-wrap">Ready.</div>
+
+            <div class="mt-3 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-3">
+              <div class="text-xs text-zinc-400">GitHub permission gate</div>
+              <div class="mt-2 text-xs text-zinc-500">
+                The updater will propose changes first. When you’re happy, you approve in the console and it creates a <b>branch</b> + <b>commit</b> (PR-ready).
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
 <script>
 (() => {
   const el = (id) => document.getElementById(id);
@@ -354,6 +411,17 @@
     if (!storeId) return;
     localStorage.setItem("yithume_store_id", storeId);
     setQs("store_id", storeId);
+  }
+
+  function getAdminPin() {
+    const q = qs().get("admin_pin") || "";
+    if (q) return q;
+    return localStorage.getItem("yithume_admin_pin") || "";
+  }
+
+  function setAdminPin(pin) {
+    if (!pin) return;
+    localStorage.setItem("yithume_admin_pin", pin);
   }
 
   function storefrontUrl(storeId) {
@@ -634,7 +702,25 @@
       updateStepsUI("created");
     } else {
       updateStepsUI("none");
+    
+    // Admin pin (shows Admin Assistant)
+    const pin = getAdminPin();
+    if (pin) {
+      setAdminPin(pin);
+      const btn = el("adminAssistantBtn");
+      if (btn) btn.classList.remove("hidden");
+      const consoleLink = el("adminOpenConsole");
+      if (consoleLink) consoleLink.href = `/manager/self_update?admin_pin=${encodeURIComponent(pin)}`;
     }
+
+    // Auto-open create store modal if requested from landing page
+    const q = qs();
+    const open = (q.get("open") || "").toLowerCase();
+    const create = q.get("create") || "";
+    if (open === "create" || create === "1") {
+      setTimeout(() => { const b = el("openCreateBtn"); if (b) b.click(); }, 50);
+    }
+}
   }
 
   // Wire up buttons
@@ -686,6 +772,75 @@ Med-Lemon (6),39.99,Cold & Flu,MDL-6,50,Hot lemon drink,
 Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
     copyText(sample);
   });
+
+  // Admin Assistant modal
+  const adminModal = el("adminModal");
+  const adminBtn = el("adminAssistantBtn");
+  const closeAdmin = el("closeAdminModal");
+  const adminSend = el("adminSendPrompt");
+  const adminPrompt = el("adminPrompt");
+  const adminOut = el("adminOut");
+
+  function openAdminModal() {
+    if (!adminModal) return;
+    adminModal.classList.remove("hidden");
+  }
+  function closeAdminModalFn() {
+    if (!adminModal) return;
+    adminModal.classList.add("hidden");
+  }
+
+  if (adminBtn) adminBtn.addEventListener("click", openAdminModal);
+  if (closeAdmin) closeAdmin.addEventListener("click", closeAdminModalFn);
+
+  async function adminPost(url, body) {
+    const pin = getAdminPin();
+    if (!pin) throw new Error("Missing admin_pin. Open dashboard with ?admin_pin=YOUR_PIN");
+    const res = await fetch(url + (url.includes("?") ? "&" : "?") + "admin_pin=" + encodeURIComponent(pin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, admin_pin: pin })
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || j.ok === False) {
+      const msg = j.error || j.message || ("HTTP " + res.status);
+      throw new Error(msg);
+    }
+    return j;
+  }
+
+  if (adminSend) adminSend.addEventListener("click", async () => {
+    const prompt = (adminPrompt?.value || "").trim();
+    if (!prompt) return;
+    adminOut.textContent = "Sending…";
+    try {
+      // Create request
+      const created = await adminPost("/manager/api/self_update/create", { prompt });
+      const rid = created.request_id || created.rid || created.id || "";
+      adminOut.textContent = `Request created: ${rid || "(id not returned)"}\n\nProposing…`;
+
+      // Ask GPT to propose changes (no GitHub actions yet)
+      const proposed = await adminPost(`/manager/api/self_update/${encodeURIComponent(rid)}/propose`, {});
+      const summary = proposed.summary || proposed.message || "Proposal ready.";
+      adminOut.textContent = `✅ Proposal ready\n\n${summary}\n\nNext:\n1) Click "Open full update console"\n2) Review diff\n3) Approve GitHub → Commit branch`;
+
+      const link = el("adminOpenConsole");
+      if (link && rid) link.href = `/manager/self_update?admin_pin=${encodeURIComponent(getAdminPin())}&rid=${encodeURIComponent(rid)}`;
+    } catch (e) {
+      adminOut.textContent = "❌ " + (e?.message || String(e));
+    }
+  });
+
+  // Auto-open Create Store when coming from landing CTA
+  try {
+    const open = qs().get("open") || qs().get("create");
+    if (open === "create" || open === "1") {
+      openModal();
+      // remove the param so refresh doesn't keep opening
+      setQs("open", null);
+      setQs("create", null);
+    }
+  } catch (_) {}
 
   // Boot
   initFromUrlOrStorage();
