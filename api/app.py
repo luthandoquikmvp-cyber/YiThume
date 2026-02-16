@@ -3684,7 +3684,22 @@ button{{border:0;border-radius:12px;padding:10px 12px;font-weight:900;cursor:poi
 .btn2{{background:#38bdf8;color:#082f49}}
 .small{{color:#94a3b8;font-size:13px}}
 pre{{white-space:pre-wrap;background:#0b1220;border:1px solid #334155;border-radius:12px;padding:12px;overflow:auto}}
-</style></head>
+</style></head><script>
+  // --- Admin pin passthrough (FIXES Unauthorized on API calls) ---
+  const QS = new URLSearchParams(window.location.search);
+  const ADMIN_PIN = QS.get("admin_pin") || "";
+
+  function withPin(url) {
+    if (!ADMIN_PIN) return url;
+    return url.includes("?") ? `${url}&admin_pin=${encodeURIComponent(ADMIN_PIN)}`
+                             : `${url}?admin_pin=${encodeURIComponent(ADMIN_PIN)}`;
+  }
+
+  function adminHeaders() {
+    // optional: also send as header for future-proofing
+    return ADMIN_PIN ? { "X-Admin-Pin": ADMIN_PIN } : {};
+  }
+</script>
 <body><div class="wrap">
 <h2 style="margin:6px 0">Self-updating code (Admin)</h2>
 <div class="small">Flow: draft → propose changes (GPT) → approve → create GitHub branch + commit (never merges main automatically).</div>
