@@ -140,6 +140,31 @@
       </div>
     </div>
 
+    
+    <!-- KPIs -->
+    <div class="mt-6 grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
+        <div class="text-xs text-zinc-400">Products</div>
+        <div id="kpiProducts" class="text-2xl font-semibold mt-1">—</div>
+        <div id="kpiProductsSub" class="text-xs text-zinc-500 mt-1">Last import: —</div>
+      </div>
+      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
+        <div class="text-xs text-zinc-400">Orders (shown)</div>
+        <div id="kpiOrders" class="text-2xl font-semibold mt-1">—</div>
+        <div class="text-xs text-zinc-500 mt-1">Auto-refresh every 5s</div>
+      </div>
+      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
+        <div class="text-xs text-zinc-400">Revenue (shown)</div>
+        <div id="kpiRevenue" class="text-2xl font-semibold mt-1">—</div>
+        <div id="kpiRevenueSub" class="text-xs text-zinc-500 mt-1">Currency: —</div>
+      </div>
+      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
+        <div class="text-xs text-zinc-400">Go live</div>
+        <div id="kpiLive" class="text-2xl font-semibold mt-1">—</div>
+        <div class="text-xs text-zinc-500 mt-1">Storefront link is /s/&lt;store_id&gt;</div>
+      </div>
+    </div>
+
     <!-- Store loader (no extra API needed) -->
     <div class="mt-6 rounded-3xl border border-zinc-800 bg-zinc-900/40 p-5">
       <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
@@ -203,6 +228,42 @@
               <div class="text-sm font-semibold">3) Watch orders appear</div>
               <div class="text-xs text-zinc-400 mt-1">Confirmed orders show instantly in this dashboard.</div>
             </div>
+          </div>
+        </div>
+
+        
+        <!-- Admin chat / feedback -->
+        <div class="rounded-3xl border border-zinc-800 bg-zinc-900/40 p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-lg font-semibold">Assistant</div>
+              <div class="text-sm text-zinc-400 mt-1">Quick ops chat + feedback to trigger GPT update requests (admin only).</div>
+            </div>
+            <span class="text-xs px-2 py-1 rounded-full border border-zinc-700 bg-zinc-950/40 text-zinc-300">beta</span>
+          </div>
+
+          <div id="chatBox" class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-3 h-52 overflow-auto text-sm space-y-2">
+            <div class="text-zinc-400 text-sm">Open dashboard with <code class="px-1 py-0.5 rounded bg-zinc-900 border border-zinc-800">?admin_pin=YOUR_PIN</code> to enable sending.</div>
+          </div>
+
+          <div class="mt-3 flex gap-2">
+            <input id="chatInput" class="flex-1 px-3 py-2 rounded-xl bg-zinc-950/50 border border-zinc-800 text-sm" placeholder="Type feedback or an update request…" />
+            <button id="chatSend" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold">
+              Send
+            </button>
+          </div>
+
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <button id="chatCreateUpdate" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">
+              Create update request
+            </button>
+            <button id="chatOpenConsole2" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm" disabled>
+              Open update console
+            </button>
+          </div>
+
+          <div class="mt-3 text-xs text-zinc-500">
+            Works best when backend supports <code class="text-zinc-300">/manager/api/self_update/*</code>. If not enabled yet, this will show an error message.
           </div>
         </div>
 
@@ -547,8 +608,10 @@
     el("openStorefrontBtn2").disabled = false;
     el("copyStorefrontBtn2").disabled = false;
 
-    // Mark step1 done (we assume if storeId exists, store exists)
-    updateStepsUI("created");
+    // Step state: if we have local import stats, unlock Go Live
+    const _stats = getLocalImportStats(storeId);
+    if (_stats) updateStepsUI("imported"); else updateStepsUI("created");
+    updateKPIsFromLocal();
 
     // Load orders
     const out = await fetchJSON(`/v1/store/${encodeURIComponent(storeId)}/orders?limit=50`);
@@ -566,6 +629,9 @@
 
     // If there are orders, show them
     const orders = out.json.orders || [];
+    // KPIs
+    updateKPIsFromLocal();
+    updateKPIsFromOrders(orders);
     if (!orders.length) {
       el("orders").innerHTML = `
         <div class="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
@@ -676,8 +742,15 @@
     const skipped = out.skipped ?? 0;
 
     el("importOut").textContent = `Imported ✅ Inserted: ${inserted} · Updated: ${updated} · Skipped: ${skipped}`;
+    // Save import stats for KPIs
+    setLocalImportStats(storeId, {
+      inserted, updated, skipped,
+      total_products: (inserted + updated),
+      at: (new Date()).toISOString()
+    });
     showSuccess(`Products imported. Your storefront is live: /s/${storeId}`);
     updateStepsUI("imported");
+    updateKPIsFromLocal();
   }
 
   // Modal controls
@@ -702,8 +775,9 @@
       updateStepsUI("created");
     } else {
       updateStepsUI("none");
-    
-    // Admin pin (shows Admin Assistant)
+    }
+
+    // Admin pin (shows Admin Assistant + enables chat sending)
     const pin = getAdminPin();
     if (pin) {
       setAdminPin(pin);
@@ -711,6 +785,13 @@
       if (btn) btn.classList.remove("hidden");
       const consoleLink = el("adminOpenConsole");
       if (consoleLink) consoleLink.href = `/manager/self_update?admin_pin=${encodeURIComponent(pin)}`;
+      const consoleLink2 = el("chatOpenConsole2");
+      if (consoleLink2) {
+        consoleLink2.disabled = false;
+        consoleLink2.addEventListener("click", () => {
+          window.open(`/manager/self_update?admin_pin=${encodeURIComponent(pin)}`, "_blank");
+        });
+      }
     }
 
     // Auto-open create store modal if requested from landing page
@@ -719,8 +800,13 @@
     const create = q.get("create") || "";
     if (open === "create" || create === "1") {
       setTimeout(() => { const b = el("openCreateBtn"); if (b) b.click(); }, 50);
+      // remove the param so refresh doesn't keep opening
+      setQs("open", null);
+      setQs("create", null);
     }
-}
+
+    // Init KPIs from last import stats (local)
+    try { updateKPIsFromLocal(); } catch (_) {}
   }
 
   // Wire up buttons
@@ -830,6 +916,28 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
       adminOut.textContent = "❌ " + (e?.message || String(e));
     }
   });
+  // Chat box actions (Assistant panel)
+  const chatSend = el("chatSend");
+  const chatCreateUpdate = el("chatCreateUpdate");
+  const chatInput = el("chatInput");
+
+  if (chatSend) chatSend.addEventListener("click", sendChatFeedback);
+  if (chatInput) chatInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      sendChatFeedback();
+    }
+  });
+
+  if (chatCreateUpdate) chatCreateUpdate.addEventListener("click", () => {
+    const pin = getAdminPin();
+    if (!pin) {
+      showAlert("Open dashboard with ?admin_pin=YOUR_PIN to use the updater.");
+      return;
+    }
+    window.open(`/manager/self_update?admin_pin=${encodeURIComponent(pin)}`, "_blank");
+  });
+
 
   // Auto-open Create Store when coming from landing CTA
   try {
@@ -842,7 +950,142 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
     }
   } catch (_) {}
 
-  // Boot
+  
+  // -----------------------------
+  // KPIs (products + orders)
+  // -----------------------------
+  function getLocalImportStats(storeId) {
+    try {
+      const raw = localStorage.getItem("yithume_import_stats:" + storeId);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (_) { return null; }
+  }
+
+  function setLocalImportStats(storeId, stats) {
+    try {
+      localStorage.setItem("yithume_import_stats:" + storeId, JSON.stringify(stats));
+    } catch (_) {}
+  }
+
+  function money(cur, n) {
+    try {
+      const v = Number(n || 0);
+      if (!isFinite(v)) return `${cur} 0.00`;
+      return `${cur} ${v.toFixed(2)}`;
+    } catch (_) {
+      return `${cur} 0.00`;
+    }
+  }
+
+  function updateKPIsFromLocal() {
+    const storeId = getStoreId();
+    const prodEl = el("kpiProducts");
+    const prodSub = el("kpiProductsSub");
+    const liveEl = el("kpiLive");
+    const ordersEl = el("kpiOrders");
+    const revEl = el("kpiRevenue");
+    const revSub = el("kpiRevenueSub");
+
+    if (!prodEl || !liveEl || !ordersEl || !revEl) return;
+
+    if (!storeId) {
+      prodEl.textContent = "—";
+      prodSub.textContent = "Last import: —";
+      liveEl.textContent = "—";
+      ordersEl.textContent = "—";
+      revEl.textContent = "—";
+      revSub.textContent = "Currency: —";
+      return;
+    }
+
+    const stats = getLocalImportStats(storeId);
+    if (stats) {
+      prodEl.textContent = String(stats.total_products ?? (stats.inserted + stats.updated) ?? "—");
+      prodSub.textContent = `Last import: ${stats.at || "—"} (ins ${stats.inserted ?? 0} · upd ${stats.updated ?? 0} · skip ${stats.skipped ?? 0})`;
+      liveEl.textContent = "Ready";
+    } else {
+      prodEl.textContent = "—";
+      prodSub.textContent = "Last import: —";
+      liveEl.textContent = "Locked";
+    }
+  }
+
+  function updateKPIsFromOrders(orders) {
+    const ordersEl = el("kpiOrders");
+    const revEl = el("kpiRevenue");
+    const revSub = el("kpiRevenueSub");
+    if (!ordersEl || !revEl || !revSub) return;
+
+    const arr = Array.isArray(orders) ? orders : [];
+    ordersEl.textContent = String(arr.length);
+
+    // sum totals
+    let total = 0;
+    let cur = "ZAR";
+    for (const o of arr) {
+      if (o && o.currency) cur = o.currency;
+      const t = Number(o?.total ?? 0);
+      if (isFinite(t)) total += t;
+    }
+    revEl.textContent = money(cur, total);
+    revSub.textContent = `Currency: ${cur}`;
+  }
+
+  // -----------------------------
+  // Assistant chat (admin feedback)
+  // -----------------------------
+  function chatAdd(role, text) {
+    const box = el("chatBox");
+    if (!box) return;
+    const wrap = document.createElement("div");
+    wrap.className = "flex gap-2";
+    const badge = document.createElement("div");
+    badge.className = "shrink-0 text-[11px] px-2 py-1 rounded-full border border-zinc-800 bg-zinc-900 text-zinc-300";
+    badge.textContent = role;
+    const msg = document.createElement("div");
+    msg.className = "text-sm text-zinc-200 whitespace-pre-wrap";
+    msg.textContent = text;
+    wrap.appendChild(badge);
+    wrap.appendChild(msg);
+    box.appendChild(wrap);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  async function sendChatFeedback() {
+    const input = el("chatInput");
+    const pin = getAdminPin();
+    const prompt = (input?.value || "").trim();
+    if (!prompt) return;
+
+    chatAdd("you", prompt);
+    if (input) input.value = "";
+
+    if (!pin) {
+      chatAdd("system", "Missing admin_pin. Open dashboard with ?admin_pin=YOUR_PIN to enable sending.");
+      return;
+    }
+
+    // Try GPT update flow if backend supports it
+    try {
+      chatAdd("system", "Creating update request…");
+      const created = await adminPost("/manager/api/self_update/create", { prompt });
+      const rid = created.request_id || created.rid || created.id || "";
+      chatAdd("system", `Request created: ${rid || "(id missing)"}\nProposing…`);
+      if (!rid) return;
+
+      const proposed = await adminPost(`/manager/api/self_update/${encodeURIComponent(rid)}/propose`, {});
+      const summary = proposed.summary || proposed.message || "Proposal ready.";
+      chatAdd("assistant", `✅ Proposal ready\n\n${summary}\n\nNext: Open update console → review diff → approve GitHub → commit branch.`);
+      const consoleBtn = el("chatOpenConsole2");
+      if (consoleBtn) consoleBtn.disabled = false;
+    } catch (e) {
+      chatAdd("system", "Could not reach GPT updater endpoints. This UI is ready, but backend must include /manager/api/self_update/*");
+      chatAdd("error", e?.message || String(e));
+    }
+  }
+
+// Boot
   initFromUrlOrStorage();
   loadOrders();
   setInterval(loadOrders, 5000);
