@@ -10,7 +10,7 @@
   />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>YiThume — Health delivered. Fast.</title>
-  <meta name="description" content="YiThume delivers OTC meds to remote and hard-to-reach places. Start in the Eastern Cape — expanding nationwide. Order on the website, confirm in WhatsApp." />
+  <meta name="description" content="YiThume is a WhatsApp-first commerce + delivery OS: shoppers order OTC essentials and confirm in WhatsApp; merchants launch a live storefront + shopping agent with simple SaaS pricing." />
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -107,6 +107,11 @@
   </style>
 </head>
 <body class="min-h-screen bg-gradient-to-b from-white to-slate-50 text-slate-900">
+<!-- UI BUILD: 2026-02-16 • saas-pricing+create-link -->
+<div class="fixed bottom-4 left-4 z-[60] px-3 py-1 rounded-full text-xs bg-black/60 text-white border border-white/10 backdrop-blur">
+  UI BUILD: 2026-02-16 • saas-pricing+create-link
+</div>
+
 
 <!-- Header -->
 <header class="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-slate-200">
@@ -161,6 +166,10 @@
           class="px-3 py-2 text-sm rounded-xl border border-slate-300 hover:bg-slate-100">
           Driver sign-in / up
         </button>
+        <a href="/dashboard?open=create"
+          class="px-3 py-2 text-sm rounded-xl border border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-semibold">
+          Sell with YiThume
+        </a>
 
         <button id="adminLoginBtn"
           class="px-3 py-2 text-xs rounded-xl border border-slate-300 hover:bg-slate-100">
@@ -212,7 +221,7 @@
             Health delivered. <span class="text-emerald-600">Fast</span>.
           </h1>
           <p class="mt-4 text-slate-700 max-w-xl">
-            Order on the website, then we confirm and send a secure payment link in WhatsApp. Clear pricing, trusted local drivers.
+            For shoppers: order on the website, then we confirm and send a secure payment link in WhatsApp. For merchants: launch a live storefront + shopping agent in minutes — upload products by CSV and go live.
           </p>
         </div>
         <ul class="mt-6 grid grid-cols-2 gap-3 text-sm">
@@ -385,43 +394,110 @@
 <!-- Pricing (distance-based, no zones) -->
 <section id="pricing" class="py-12 sm:py-16 border-t border-slate-200">
   <div class="max-w-6xl mx-auto px-4 sm:px-6">
-    <h2 class="text-2xl sm:text-3xl font-bold">Pricing</h2>
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+      <div>
+        <h2 class="text-2xl sm:text-3xl font-bold">Pricing</h2>
+        <p class="mt-2 text-slate-600 text-sm">Two sides: delivery pricing for shoppers, and simple SaaS plans for merchants who want a live storefront + agent.</p>
+      </div>
+      <a href="/dashboard?open=create" class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-semibold">
+        Create a store
+      </a>
+    </div>
 
-    <div class="mt-6 grid md:grid-cols-3 gap-4">
-      <div class="rounded-2xl border bg-white p-5 shadow-sm">
-        <div class="text-sm text-slate-500">Base</div>
-        <div class="mt-1 text-2xl font-bold">R15</div>
-        <div class="mt-2 text-sm text-slate-600">Base delivery fee per order.</div>
-      </div>
-      <div class="rounded-2xl border bg-white p-5 shadow-sm">
-        <div class="text-sm text-slate-500">Distance</div>
-        <div class="mt-1 text-2xl font-bold">R8 / km</div>
-        <div class="mt-2 text-sm text-slate-600">From pickup depot to your address.</div>
-      </div>
-      <div class="rounded-2xl border bg-white p-5 shadow-sm">
-        <div class="text-sm text-slate-500">Rush (optional)</div>
-        <div class="mt-1 text-2xl font-bold">+ R30</div>
-        <div class="mt-2 text-sm text-slate-600">When available in your area.</div>
+    <!-- Shopper delivery pricing -->
+    <div class="mt-7">
+      <div class="text-sm font-semibold text-slate-800">For shoppers (delivery)</div>
+      <div class="mt-3 grid md:grid-cols-3 gap-4">
+        <div class="rounded-2xl border bg-white p-5 shadow-sm">
+          <div class="text-sm text-slate-500">Base</div>
+          <div class="mt-1 text-2xl font-bold">R15</div>
+          <div class="mt-2 text-sm text-slate-600">Base delivery fee per order.</div>
+        </div>
+        <div class="rounded-2xl border bg-white p-5 shadow-sm">
+          <div class="text-sm text-slate-500">Distance</div>
+          <div class="mt-1 text-2xl font-bold">R8 / km</div>
+          <div class="mt-2 text-sm text-slate-600">From pickup depot to your address.</div>
+        </div>
+        <div class="rounded-2xl border bg-white p-5 shadow-sm">
+          <div class="text-sm text-slate-500">Rush (optional)</div>
+          <div class="mt-1 text-2xl font-bold">+ R30</div>
+          <div class="mt-2 text-sm text-slate-600">When available in your area.</div>
+        </div>
       </div>
     </div>
 
-    <div class="mt-6 rounded-2xl border bg-white p-5 shadow-sm">
-      <div class="text-sm text-slate-500">Pickup depots (select in checkout)</div>
-      <ul class="mt-2 text-sm text-slate-700 list-disc pl-5" id="depotList">
-        <li>Port Alfred Depot</li>
-        <li>Alice Depot</li>
-        <li>Makhanda / Grahamstown</li>
-        <li>Gqeberha (Port Elizabeth)</li>
-        <li>Pretoria (Main Depot)</li>
-      </ul>
-      <div class="mt-3 text-xs text-slate-500">
-        No defaults — choose the nearest pickup depot at checkout for the most accurate quote.
+    <!-- Merchant SaaS pricing -->
+    <div class="mt-10">
+      <div class="flex items-center justify-between gap-3">
+        <div class="text-sm font-semibold text-slate-800">For merchants (SaaS)</div>
+        <div class="text-xs text-slate-500">Pay with Stripe · Other providers <span class="font-semibold">coming soon</span></div>
+      </div>
+
+      <div class="mt-3 grid md:grid-cols-4 gap-4">
+        <div class="rounded-2xl border bg-white p-5 shadow-sm">
+          <div class="text-sm text-slate-500">Starter</div>
+          <div class="mt-1 text-2xl font-bold">$0.99</div>
+          <div class="mt-1 text-xs text-slate-500">from ~R19</div>
+          <ul class="mt-3 text-sm text-slate-600 space-y-2">
+            <li>• Live storefront</li>
+            <li>• CSV product upload</li>
+            <li>• Orders + WhatsApp confirm</li>
+          </ul>
+          <a href="/dashboard?open=create" class="mt-4 inline-flex w-full items-center justify-center px-3 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 font-semibold">
+            Start
+          </a>
+        </div>
+
+        <div class="rounded-2xl border bg-white p-5 shadow-sm">
+          <div class="text-sm text-slate-500">Agent</div>
+          <div class="mt-1 text-2xl font-bold">$1.99</div>
+          <div class="mt-1 text-xs text-slate-500">from ~R39</div>
+          <ul class="mt-3 text-sm text-slate-600 space-y-2">
+            <li>• Everything in Starter</li>
+            <li>• Dedicated shopping agent</li>
+            <li>• Quote → CONFIRM → order</li>
+          </ul>
+          <a href="/dashboard?open=create" class="mt-4 inline-flex w-full items-center justify-center px-3 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-semibold">
+            Choose Agent
+          </a>
+        </div>
+
+        <div class="rounded-2xl border bg-white p-5 shadow-sm">
+          <div class="text-sm text-slate-500">Pro</div>
+          <div class="mt-1 text-2xl font-bold">$2.99</div>
+          <div class="mt-1 text-xs text-slate-500">from ~R59</div>
+          <ul class="mt-3 text-sm text-slate-600 space-y-2">
+            <li>• Faster iterations</li>
+            <li>• Basic analytics</li>
+            <li>• Priority support</li>
+          </ul>
+          <a href="/dashboard?open=create" class="mt-4 inline-flex w-full items-center justify-center px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 font-semibold">
+            Choose Pro
+          </a>
+        </div>
+
+        <div class="rounded-2xl border bg-white p-5 shadow-sm">
+          <div class="text-sm text-slate-500">Station / Node</div>
+          <div class="mt-1 text-2xl font-bold">from $499</div>
+          <div class="mt-1 text-xs text-slate-500">or $899 depending on setup</div>
+          <ul class="mt-3 text-sm text-slate-600 space-y-2">
+            <li>• Driver network + payouts</li>
+            <li>• Commission-enabled delivery ops</li>
+            <li>• Multi-store coverage</li>
+          </ul>
+          <a href="/dashboard?open=create" class="mt-4 inline-flex w-full items-center justify-center px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 font-semibold">
+            Talk to us
+          </a>
+        </div>
+      </div>
+
+      <div class="mt-4 text-xs text-slate-500">
+        * ZAR equivalents are estimates. Final pricing shown at checkout.
       </div>
     </div>
-
-    <div class="mt-4 text-xs text-slate-500">Delivery days: Wed–Sun. Windows: 08–10 • 12–14 • 16–18. If we can’t deliver, you’re refunded.</div>
   </div>
 </section>
+
 
 <!-- FAQ -->
 <section id="faq" class="py-12 sm:py-16 border-t border-slate-200">
