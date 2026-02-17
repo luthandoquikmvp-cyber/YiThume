@@ -1,0 +1,291 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YiThume — Platform Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-zinc-950 text-zinc-100">
+  <div class="sticky top-0 z-20 border-b border-zinc-900 bg-zinc-950/80 backdrop-blur">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-emerald-600/15 border border-emerald-600/30 flex items-center justify-center font-bold">Y</div>
+        <div>
+          <div class="text-xs text-zinc-400">YiThume</div>
+          <div class="text-lg font-semibold">Platform Admin (Owner)</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <input id="pin" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm w-44" placeholder="Admin PIN" />
+        <button onclick="loadAll()" class="px-3 py-2 rounded-xl bg-emerald-600 text-zinc-950 font-semibold text-sm">Load</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+    <div class="grid md:grid-cols-6 gap-3" id="kpis"></div>
+
+    <div class="grid lg:grid-cols-2 gap-6">
+      <div class="rounded-2xl border border-zinc-900 bg-zinc-950 p-5">
+        <div class="flex items-center justify-between">
+          <div class="font-semibold">Nodes</div>
+          <button onclick="openCreateNode()" class="text-sm px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800">Create Node</button>
+        </div>
+        <div class="text-xs text-zinc-500 mt-1">Your global control plane (white label).</div>
+        <div class="mt-4 overflow-auto">
+          <table class="w-full text-sm">
+            <thead class="text-zinc-400">
+              <tr>
+                <th class="text-left py-2">Name</th>
+                <th class="text-left py-2">Country</th>
+                <th class="text-left py-2">City</th>
+                <th class="text-left py-2">Commission</th>
+                <th class="text-left py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody id="nodes"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-zinc-900 bg-zinc-950 p-5">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <div class="font-semibold">Stores</div>
+            <div class="text-xs text-zinc-500">Assign stores to nodes + configure payments.</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <input id="filterNode" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm w-44" placeholder="Filter node_id" />
+            <button onclick="loadStores()" class="text-sm px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800">Refresh</button>
+          </div>
+        </div>
+
+        <div class="mt-4 overflow-auto">
+          <table class="w-full text-sm">
+            <thead class="text-zinc-400">
+              <tr>
+                <th class="text-left py-2">Store</th>
+                <th class="text-left py-2">Slug</th>
+                <th class="text-left py-2">Node</th>
+                <th class="text-left py-2">Payments</th>
+                <th class="text-left py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="stores"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-zinc-900 bg-zinc-950 p-5">
+      <div class="flex items-center justify-between">
+        <div class="font-semibold">Stripe Analytics (Platform)</div>
+        <button onclick="loadStripe()" class="text-sm px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800">Refresh</button>
+      </div>
+      <pre id="stripe" class="mt-3 text-xs text-zinc-300 whitespace-pre-wrap"></pre>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4">
+    <div class="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+      <div class="flex items-center justify-between">
+        <div class="font-semibold" id="modalTitle">Create Node</div>
+        <button onclick="closeModal()" class="text-zinc-400 hover:text-zinc-200">✕</button>
+      </div>
+      <div class="mt-4 space-y-3" id="modalBody"></div>
+      <div class="mt-5 flex justify-end gap-2">
+        <button onclick="closeModal()" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm">Cancel</button>
+        <button id="modalPrimary" class="px-3 py-2 rounded-xl bg-emerald-600 text-zinc-950 font-semibold text-sm">Save</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+function pinQ(url){
+  const p = document.getElementById('pin').value.trim();
+  if(!p) return url;
+  const u = new URL(url, location.origin);
+  u.searchParams.set('admin_pin', p);
+  return u.toString();
+}
+async function jget(url){ const r = await fetch(pinQ(url)); return await r.json(); }
+async function jpost(url, body){
+  const r = await fetch(pinQ(url), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{})});
+  return await r.json();
+}
+function card(title, value, sub){
+  return `<div class="rounded-2xl border border-zinc-900 bg-zinc-950 p-4">
+    <div class="text-xs text-zinc-500">${title}</div>
+    <div class="text-2xl font-semibold mt-1">${value ?? '-'}</div>
+    <div class="text-xs text-zinc-500 mt-1">${sub ?? ''}</div>
+  </div>`;
+}
+
+async function loadAll(){
+  await loadOverview();
+  await loadNodes();
+  await loadStores();
+  await loadStripe();
+}
+
+async function loadOverview(){
+  const d = await jget('/admin/api/analytics/overview?days=30');
+  const k = document.getElementById('kpis');
+  if(!d.ok){ k.innerHTML = card('Error', d.error || 'unknown', ''); return; }
+  const ov = d.overview;
+  k.innerHTML = [
+    card('Orders (30d)', ov.orders?.total, `Paid: ${ov.orders?.paid ?? 0}`),
+    card('GMV (est.)', ov.gmv?.total ?? '-', `Currency: ${ov.gmv?.currency ?? '-'}`),
+    card('Drivers', ov.drivers?.total, `Active: ${ov.drivers?.active_estimate ?? 0}`),
+    card('Stores', ov.stores?.total, `Nodes: ${ov.nodes?.total ?? 0}`),
+    card('Payouts (est.)', ov.payouts?.total ?? '-', `Pending: ${ov.payouts?.pending ?? '-'}`),
+    card('Stripe MRR', ov.stripe?.mrr_estimate ?? '-', ov.stripe?.enabled ? 'enabled' : (ov.stripe?.error || 'not configured'))
+  ].join('');
+}
+
+async function loadNodes(){
+  const d = await jget('/admin/api/nodes');
+  const tb = document.getElementById('nodes');
+  if(!d.ok){ tb.innerHTML = `<tr><td class="py-3 text-zinc-400" colspan="5">${d.error||'error'}</td></tr>`; return; }
+  tb.innerHTML = (d.nodes||[]).map(n => `
+    <tr class="border-t border-zinc-900">
+      <td class="py-2">${n.name}</td>
+      <td class="py-2 text-zinc-300">${n.country||''}</td>
+      <td class="py-2 text-zinc-300">${n.city||''}</td>
+      <td class="py-2 text-zinc-300">${Math.round((n.commission_pct||0)*100)}%</td>
+      <td class="py-2 text-zinc-300">${n.status||''}</td>
+    </tr>
+  `).join('') || `<tr><td class="py-3 text-zinc-400" colspan="5">No nodes yet</td></tr>`;
+}
+
+async function loadStores(){
+  const nodeId = document.getElementById('filterNode').value.trim();
+  const q = nodeId ? `?node_id=${encodeURIComponent(nodeId)}` : '';
+  const d = await jget('/admin/api/stores'+q);
+  const tb = document.getElementById('stores');
+  if(!d.ok){ tb.innerHTML = `<tr><td class="py-3 text-zinc-400" colspan="5">${d.error||'error'}</td></tr>`; return; }
+  tb.innerHTML = (d.stores||[]).map(s => {
+    const p = s.payments || {};
+    const pay = `${(p.mode||'demo')} / ${(p.provider||'demo')}`;
+    const storeId = s._internal_id;
+    const slug = s.public_slug || '';
+    const node = s.node_id || '';
+    return `
+    <tr class="border-t border-zinc-900">
+      <td class="py-2">${s.name||storeId}</td>
+      <td class="py-2 text-zinc-300">${slug}</td>
+      <td class="py-2 text-zinc-300">${node}</td>
+      <td class="py-2 text-zinc-300">${pay}</td>
+      <td class="py-2">
+        <button class="text-xs px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800" onclick="openPayments('${storeId}')">Payments</button>
+        <a class="text-xs px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 ml-1" href="/shop/${slug}" target="_blank">Shop</a>
+      </td>
+    </tr>`;
+  }).join('') || `<tr><td class="py-3 text-zinc-400" colspan="5">No stores yet</td></tr>`;
+}
+
+async function loadStripe(){
+  const d = await jget('/admin/api/analytics/stripe?days=30');
+  document.getElementById('stripe').textContent = JSON.stringify(d, null, 2);
+}
+
+function openModal(title, bodyHtml, onSave){
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = bodyHtml;
+  const btn = document.getElementById('modalPrimary');
+  btn.onclick = onSave;
+  document.getElementById('modal').classList.remove('hidden');
+  document.getElementById('modal').classList.add('flex');
+}
+function closeModal(){
+  document.getElementById('modal').classList.add('hidden');
+  document.getElementById('modal').classList.remove('flex');
+}
+
+function openCreateNode(){
+  openModal('Create Node', `
+    <label class="block text-xs text-zinc-400">Name</label>
+    <input id="n_name" class="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm" placeholder="e.g. Port Alfred Node" />
+    <div class="grid grid-cols-2 gap-2 mt-3">
+      <div>
+        <label class="block text-xs text-zinc-400">Country</label>
+        <input id="n_country" class="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm" value="ZA" />
+      </div>
+      <div>
+        <label class="block text-xs text-zinc-400">Currency</label>
+        <input id="n_currency" class="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm" value="ZAR" />
+      </div>
+    </div>
+    <label class="block text-xs text-zinc-400 mt-3">City</label>
+    <input id="n_city" class="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm" placeholder="e.g. Port Alfred" />
+    <label class="block text-xs text-zinc-400 mt-3">Commission % (node operator)</label>
+    <input id="n_comm" class="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm" value="10" />
+  `, async () => {
+    const body = {
+      name: document.getElementById('n_name').value,
+      country: document.getElementById('n_country').value,
+      currency: document.getElementById('n_currency').value,
+      city: document.getElementById('n_city').value,
+      commission_pct: (parseFloat(document.getElementById('n_comm').value||'10')/100.0)
+    };
+    const r = await jpost('/admin/api/nodes', body);
+    closeModal();
+    await loadNodes();
+    await loadOverview();
+  });
+}
+
+function openPayments(storeId){
+  openModal('Payments: '+storeId, `
+    <div class="text-xs text-zinc-400">Mode</div>
+    <select id="p_mode" class="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm mt-1">
+      <option value="demo">Demo</option>
+      <option value="live">Live</option>
+    </select>
+
+    <div class="text-xs text-zinc-400 mt-3">Provider</div>
+    <select id="p_provider" class="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm mt-1">
+      <option value="demo">Demo</option>
+      <option value="stripe_connect">Stripe (Connect)</option>
+      <option value="yoco">Yoco (placeholder)</option>
+    </select>
+
+    <div class="mt-4 flex flex-wrap gap-2">
+      <button class="text-sm px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800" onclick="stripeConnectStart('${storeId}')">Start Stripe Connect</button>
+      <button class="text-sm px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800" onclick="stripeSync('${storeId}')">Sync Products → Stripe</button>
+      <button class="text-sm px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800" onclick="stripeStatus('${storeId}')">Check Status</button>
+    </div>
+    <pre id="p_out" class="mt-3 text-xs text-zinc-300 whitespace-pre-wrap"></pre>
+  `, async () => {
+    const body = { mode: document.getElementById('p_mode').value, provider: document.getElementById('p_provider').value };
+    const r = await jpost(`/manager/api/store/${storeId}/payments`, body);
+    closeModal();
+    await loadStores();
+    await loadOverview();
+  });
+}
+
+async function stripeConnectStart(storeId){
+  const out = document.getElementById('p_out');
+  out.textContent = 'Starting Stripe Connect...';
+  const r = await jpost(`/manager/api/store/${storeId}/stripe/connect/start`, {});
+  out.textContent = JSON.stringify(r, null, 2);
+  if(r.onboarding_url){ window.open(r.onboarding_url, '_blank'); }
+}
+async function stripeSync(storeId){
+  const out = document.getElementById('p_out');
+  out.textContent = 'Syncing products...';
+  const r = await jpost(`/manager/api/store/${storeId}/stripe/sync_products`, {});
+  out.textContent = JSON.stringify(r, null, 2);
+}
+async function stripeStatus(storeId){
+  const out = document.getElementById('p_out');
+  out.textContent = 'Checking status...';
+  const r = await jget(`/manager/api/store/${storeId}/stripe/connect/status`);
+  out.textContent = JSON.stringify(r, null, 2);
+}
+</script>
+</body>
+</html>
