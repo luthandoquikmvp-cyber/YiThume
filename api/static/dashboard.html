@@ -5,6 +5,41 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>YiThume — Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Light theme overrides (simple + safe; no Tailwind rebuild) -->
+  <style>
+    body.theme-light { background: #ffffff; color: #0f172a; }
+
+    /* Backgrounds */
+    body.theme-light .bg-zinc-950 { background-color: #ffffff !important; }
+    body.theme-light .bg-zinc-950\/80 { background-color: rgba(255,255,255,0.85) !important; }
+    body.theme-light .bg-zinc-950\/50 { background-color: rgba(255,255,255,0.70) !important; }
+    body.theme-light .bg-zinc-950\/40 { background-color: rgba(248,250,252,0.95) !important; }
+    body.theme-light .bg-zinc-900 { background-color: #f1f5f9 !important; }
+    body.theme-light .bg-zinc-900\/40 { background-color: rgba(241,245,249,0.90) !important; }
+
+    /* Borders */
+    body.theme-light .border-zinc-900 { border-color: #e2e8f0 !important; }
+    body.theme-light .border-zinc-800 { border-color: #e2e8f0 !important; }
+    body.theme-light .border-zinc-700 { border-color: #cbd5e1 !important; }
+
+    /* Text colors */
+    body.theme-light .text-zinc-100 { color: #0f172a !important; }
+    body.theme-light .text-zinc-200 { color: #0f172a !important; }
+    body.theme-light .text-zinc-300 { color: #334155 !important; }
+    body.theme-light .text-zinc-400 { color: #475569 !important; }
+    body.theme-light .text-zinc-500 { color: #64748b !important; }
+
+    body.theme-light code, body.theme-light pre { color: #0f172a !important; }
+
+    /* Modals overlay */
+    body.theme-light #modal .absolute.inset-0,
+    body.theme-light #adminModal .absolute.inset-0,
+    body.theme-light #storefrontModal .absolute.inset-0,
+    body.theme-light #liveModal .absolute.inset-0 {
+      background: rgba(2, 6, 23, 0.45) !important;
+    }
+  </style>
 </head>
 
 <body class="bg-zinc-950 text-zinc-100">
@@ -26,9 +61,26 @@
         <button id="newStoreBtn" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold">
           + New Store
         </button>
+
         <button id="refreshBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">
           Refresh
         </button>
+
+        <!-- NEW: Demo/Live toggle -->
+        <button id="modeToggleBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">
+          Mode: Demo
+        </button>
+
+        <!-- NEW: Upload custom storefront HTML -->
+        <button id="storefrontUploadBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">
+          Storefront HTML
+        </button>
+
+        <!-- NEW: Theme toggle -->
+        <button id="themeToggleBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">
+          Theme: Dark
+        </button>
+
         <button id="adminAssistantBtn" class="hidden px-3 py-2 rounded-xl border border-emerald-600/40 bg-emerald-600/10 hover:bg-emerald-600/20 text-sm font-semibold">
           Admin Assistant
         </button>
@@ -140,7 +192,6 @@
       </div>
     </div>
 
-    
     <!-- KPIs -->
     <div class="mt-6 grid grid-cols-1 md:grid-cols-4 gap-3">
       <div class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
@@ -231,7 +282,6 @@
           </div>
         </div>
 
-        
         <!-- Admin chat / feedback -->
         <div class="rounded-3xl border border-zinc-800 bg-zinc-900/40 p-5">
           <div class="flex items-start justify-between gap-3">
@@ -335,6 +385,7 @@
             <label class="text-sm text-zinc-300">Payment method</label>
             <select id="paymentMethod" class="mt-1 w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-3">
               <option value="eft" selected>EFT (MVP fastest)</option>
+              <option value="stripe">Stripe (Live mode)</option>
               <option value="payfast">PayFast (later)</option>
               <option value="ozow">Ozow (later)</option>
               <option value="yoco">Yoco (later)</option>
@@ -375,6 +426,132 @@
         </button>
 
         <div id="creatingOut" class="hidden mt-3 text-sm text-zinc-400">Creating…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW: Storefront HTML Modal -->
+  <div id="storefrontModal" class="hidden fixed inset-0 z-[55]">
+    <div class="absolute inset-0 bg-black/70"></div>
+    <div class="relative max-w-4xl mx-auto mt-6 sm:mt-12 px-4">
+      <div class="rounded-3xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-xs text-zinc-400">Storefront</div>
+            <div class="text-xl font-semibold mt-1">Upload custom storefront HTML</div>
+            <div class="text-sm text-zinc-400 mt-1">
+              This uploads an HTML template for <code class="text-zinc-200">/s/&lt;store_id&gt;</code>.
+              Safe mode: backend should sanitize + store it and render server-side.
+            </div>
+          </div>
+          <button id="closeStorefrontModal" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">
+            Close
+          </button>
+        </div>
+
+        <div class="mt-4 grid lg:grid-cols-5 gap-4">
+          <div class="lg:col-span-3">
+            <div class="text-xs text-zinc-400 mb-2">Upload file (.html) OR paste HTML</div>
+
+            <input id="storefrontHtmlFile" type="file" accept=".html,.htm,text/html"
+              class="block w-full text-sm text-zinc-300
+              file:mr-4 file:py-2 file:px-3 file:rounded-xl file:border-0
+              file:bg-zinc-900 file:text-zinc-200 hover:file:bg-zinc-800
+              border border-zinc-800 rounded-2xl bg-zinc-950/40 p-2" />
+
+            <textarea id="storefrontHtmlText" rows="12"
+              class="mt-3 w-full rounded-2xl bg-zinc-950/40 border border-zinc-800 px-3 py-3 text-sm"
+              placeholder="Paste your full storefront HTML here (optional). If both file + paste exist, paste wins."></textarea>
+
+            <div class="mt-3 flex flex-col sm:flex-row gap-2">
+              <button id="uploadStorefrontHtmlBtn" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-semibold text-sm">
+                Upload storefront HTML
+              </button>
+              <button id="openStorefrontPreviewBtn" class="px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">
+                Open storefront
+              </button>
+            </div>
+
+            <div class="mt-3 text-xs text-zinc-500">
+              Backend endpoint expected:
+              <code class="text-zinc-300">POST /v1/store/&lt;store_id&gt;/storefront_html</code>
+              (multipart/form-data: <code class="text-zinc-300">html</code>).
+            </div>
+          </div>
+
+          <div class="lg:col-span-2">
+            <div class="text-xs text-zinc-400 mb-2">Output</div>
+            <div id="storefrontOut" class="rounded-2xl bg-zinc-950/40 border border-zinc-800 p-3 text-sm text-zinc-200 min-h-[220px] whitespace-pre-wrap">
+              Ready.
+            </div>
+
+            <div class="mt-3 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-3">
+              <div class="text-xs text-zinc-400">Security note</div>
+              <div class="mt-2 text-xs text-zinc-500">
+                Do <b>not</b> put Stripe secret keys in HTML.
+                Live mode should use server-created Stripe Checkout sessions (redirect URL returned by backend).
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW: Live mode (Stripe) Modal -->
+  <div id="liveModal" class="hidden fixed inset-0 z-[56]">
+    <div class="absolute inset-0 bg-black/70"></div>
+    <div class="relative max-w-3xl mx-auto mt-6 sm:mt-12 px-4">
+      <div class="rounded-3xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-xs text-zinc-400">Mode</div>
+            <div class="text-xl font-semibold mt-1">Switch to Live (Stripe)</div>
+            <div class="text-sm text-zinc-400 mt-1">
+              Live mode enables Stripe Checkout on the storefront. Safer pattern: the backend creates Checkout sessions.
+            </div>
+          </div>
+          <button id="closeLiveModal" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">
+            Close
+          </button>
+        </div>
+
+        <div class="mt-4 rounded-2xl border border-emerald-600/30 bg-emerald-600/10 p-3 text-sm">
+          <b>Safe Stripe rule:</b> No secret keys in the browser. The storefront calls your backend, backend calls Stripe, backend returns a checkout URL.
+        </div>
+
+        <div class="mt-4">
+          <div class="text-sm font-semibold">Stripe settings (stored server-side)</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <input id="stripePublicKey" class="rounded-xl bg-zinc-950/40 border border-zinc-800 px-3 py-3 text-sm"
+              placeholder="Stripe Publishable Key (pk_live_...)" />
+            <input id="stripeSuccessUrl" class="rounded-xl bg-zinc-950/40 border border-zinc-800 px-3 py-3 text-sm"
+              placeholder="Success URL (leave blank for default)" />
+            <input id="stripeCancelUrl" class="rounded-xl bg-zinc-950/40 border border-zinc-800 px-3 py-3 text-sm"
+              placeholder="Cancel URL (leave blank for default)" />
+            <input id="stripeWebhookNote" class="rounded-xl bg-zinc-950/40 border border-zinc-800 px-3 py-3 text-sm"
+              placeholder="(Optional) Note/tag for your records" />
+          </div>
+
+          <div class="mt-3 text-xs text-zinc-500">
+            Backend endpoint expected:
+            <code class="text-zinc-300">POST /v1/store/&lt;store_id&gt;/mode</code>
+            with JSON like:
+            <code class="text-zinc-300">{ mode: "live", stripe: { publishable_key, success_url, cancel_url } }</code>
+          </div>
+        </div>
+
+        <div class="mt-4 flex gap-2">
+          <button id="confirmLiveBtn" class="flex-1 px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 font-semibold">
+            Enable Live mode
+          </button>
+          <button id="setDemoBtn" class="px-4 py-3 rounded-2xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 font-semibold">
+            Keep Demo
+          </button>
+        </div>
+
+        <div id="liveOut" class="mt-3 text-sm text-zinc-300 whitespace-pre-wrap"></div>
       </div>
     </div>
   </div>
@@ -489,6 +666,144 @@
     return `/s/${encodeURIComponent(storeId)}`;
   }
 
+  // -----------------------------
+  // Theme (Dark/Light)
+  // -----------------------------
+  function getSavedTheme() { return localStorage.getItem("yithume_theme") || "dark"; }
+  function setSavedTheme(v) { localStorage.setItem("yithume_theme", v); }
+  function applyTheme(themeName) {
+    const btn = el("themeToggleBtn");
+    if (themeName === "light") {
+      document.body.classList.add("theme-light");
+      if (btn) btn.textContent = "Theme: Light";
+    } else {
+      document.body.classList.remove("theme-light");
+      if (btn) btn.textContent = "Theme: Dark";
+    }
+  }
+  function initTheme() { applyTheme(getSavedTheme()); }
+  function toggleTheme() {
+    const next = document.body.classList.contains("theme-light") ? "dark" : "light";
+    setSavedTheme(next);
+    applyTheme(next);
+  }
+
+  // -----------------------------
+  // Demo vs Live mode (stored locally + optional backend persist)
+  // -----------------------------
+  function modeKey(storeId) { return "yithume_store_mode:" + (storeId || ""); }
+  function getMode(storeId) {
+    if (!storeId) return "demo";
+    return localStorage.getItem(modeKey(storeId)) || "demo";
+  }
+  function setModeLocal(storeId, mode) {
+    if (!storeId) return;
+    localStorage.setItem(modeKey(storeId), mode);
+  }
+  function applyModeUI(mode) {
+    const btn = el("modeToggleBtn");
+    const sub = el("navSub");
+    if (!btn) return;
+
+    if (mode === "live") {
+      btn.textContent = "Mode: Live";
+      btn.className = "px-3 py-2 rounded-xl border border-emerald-600/40 bg-emerald-600/10 hover:bg-emerald-600/20 text-sm font-semibold";
+      if (sub) sub.textContent = "LIVE: storefront uses Stripe Checkout (server-created sessions) + CONFIRM gating";
+    } else {
+      btn.textContent = "Mode: Demo";
+      btn.className = "px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm";
+      if (sub) sub.textContent = "DEMO: storefront runs without payments + CONFIRM gating";
+    }
+  }
+
+  async function fetchJSON(url, opts) {
+    const res = await fetch(url, opts || {});
+    const text = await res.text();
+    try {
+      return { ok: res.ok, status: res.status, json: JSON.parse(text) };
+    } catch (e) {
+      return { ok: res.ok, status: res.status, json: null, text };
+    }
+  }
+
+  async function persistModeToBackend(storeId, mode, stripe) {
+    // Optional: backend endpoint to persist store mode + stripe settings.
+    // If missing, dashboard still works (local only).
+    const out = await fetchJSON(`/v1/store/${encodeURIComponent(storeId)}/mode`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode, stripe: stripe || null })
+    });
+    if (!out.ok || !out.json || !out.json.ok) {
+      throw new Error(out.json?.error || out.text || `Mode update failed (${out.status}).`);
+    }
+    return out.json;
+  }
+
+  // -----------------------------
+  // Storefront HTML upload (calls backend)
+  // -----------------------------
+  async function uploadStorefrontHtml() {
+    clearMsgs();
+    const storeId = getStoreId();
+    if (!storeId) { showAlert("Load or create a store first."); return; }
+
+    const outBox = el("storefrontOut");
+    const fileEl = el("storefrontHtmlFile");
+    const textEl = el("storefrontHtmlText");
+    if (outBox) outBox.textContent = "Uploading…";
+
+    let html = (textEl?.value || "").trim();
+
+    if (!html) {
+      const f = fileEl?.files && fileEl.files[0];
+      if (!f) {
+        if (outBox) outBox.textContent = "❌ Provide a file or paste HTML.";
+        showAlert("Provide a file or paste HTML.");
+        return;
+      }
+      html = await f.text();
+    }
+
+    if (!html || html.length < 50) {
+      if (outBox) outBox.textContent = "❌ HTML looks too short.";
+      showAlert("HTML looks too short.");
+      return;
+    }
+
+    // Hard safety guard: prevent obvious secrets
+    if (/sk_live_|sk_test_/i.test(html)) {
+      if (outBox) outBox.textContent = "❌ Blocked: never paste Stripe secret keys into HTML.";
+      showAlert("Blocked: never paste Stripe secret keys into HTML.");
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append("html", html);
+
+    const res = await fetch(`/v1/store/${encodeURIComponent(storeId)}/storefront_html`, {
+      method: "POST",
+      body: fd
+    });
+
+    const text = await res.text();
+    let j = null;
+    try { j = JSON.parse(text); } catch (_) {}
+
+    if (!res.ok || !j || !j.ok) {
+      const msg = (j?.error || text || `Upload failed (${res.status}).`);
+      if (outBox) outBox.textContent = "❌ " + msg;
+      showAlert(msg);
+      return;
+    }
+
+    if (outBox) outBox.textContent = `✅ Uploaded.\n\nStorefront: ${location.origin}/s/${storeId}`;
+    showSuccess("Storefront HTML uploaded.");
+  }
+
+  // -----------------------------
+  // Steps UI
+  // -----------------------------
   function updateStepsUI(state) {
     // state: "none" | "created" | "imported"
     const step1Badge = el("step1Badge");
@@ -547,16 +862,6 @@
     }
   }
 
-  async function fetchJSON(url, opts) {
-    const res = await fetch(url, opts || {});
-    const text = await res.text();
-    try {
-      return { ok: res.ok, status: res.status, json: JSON.parse(text) };
-    } catch (e) {
-      return { ok: res.ok, status: res.status, json: null, text };
-    }
-  }
-
   function orderRow(o) {
     const items = (o.items || []).slice(0, 4).map(it => `${it.name} x${it.qty}`).join(", ");
     const status = o.status || "queued";
@@ -595,11 +900,15 @@
       el("storeBadge").textContent = "None";
       el("navTitle").textContent = "Dashboard";
       updateStepsUI("none");
+      applyModeUI("demo");
       return;
     }
 
     el("storeBadge").textContent = storeId;
     el("navTitle").textContent = `Dashboard — ${storeId}`;
+
+    // Apply mode UI from local storage
+    applyModeUI(getMode(storeId));
 
     // Enable storefront buttons
     const sf = storefrontUrl(storeId);
@@ -616,20 +925,16 @@
     // Load orders
     const out = await fetchJSON(`/v1/store/${encodeURIComponent(storeId)}/orders?limit=50`);
     if (!out.ok || !out.json || !out.json.ok) {
-      // If store doesn't exist, reset store id
       showAlert(out.json?.error || out.text || `Failed to load orders (${out.status}).`);
       return;
     }
 
-    // If we can load orders, store exists
     const store = out.json.store || {};
     const storeName = store.name || storeId;
     el("navTitle").textContent = `Dashboard — ${storeName}`;
-    el("navSub").textContent = `Storefront: ${sf}`;
 
     // If there are orders, show them
     const orders = out.json.orders || [];
-    // KPIs
     updateKPIsFromLocal();
     updateKPIsFromOrders(orders);
     if (!orders.length) {
@@ -698,6 +1003,9 @@
     }
 
     setStoreId(storeId);
+    setModeLocal(storeId, "demo"); // default demo
+    applyModeUI("demo");
+
     el("storeIdInput").value = storeId;
     closeModal();
 
@@ -742,7 +1050,6 @@
     const skipped = out.skipped ?? 0;
 
     el("importOut").textContent = `Imported ✅ Inserted: ${inserted} · Updated: ${updated} · Skipped: ${skipped}`;
-    // Save import stats for KPIs
     setLocalImportStats(storeId, {
       inserted, updated, skipped,
       total_products: (inserted + updated),
@@ -756,6 +1063,12 @@
   // Modal controls
   function openModal() { el("modal").classList.remove("hidden"); }
   function closeModal() { el("modal").classList.add("hidden"); }
+
+  function openStorefrontModal() { el("storefrontModal").classList.remove("hidden"); }
+  function closeStorefrontModal() { el("storefrontModal").classList.add("hidden"); }
+
+  function openLiveModal() { el("liveModal").classList.remove("hidden"); }
+  function closeLiveModal() { el("liveModal").classList.add("hidden"); }
 
   // Copy helpers
   async function copyText(t) {
@@ -773,8 +1086,10 @@
       el("storeIdInput").value = storeId;
       setQs("store_id", storeId);
       updateStepsUI("created");
+      applyModeUI(getMode(storeId));
     } else {
       updateStepsUI("none");
+      applyModeUI("demo");
     }
 
     // Admin pin (shows Admin Assistant + enables chat sending)
@@ -800,12 +1115,10 @@
     const create = q.get("create") || "";
     if (open === "create" || create === "1") {
       setTimeout(() => { const b = el("openCreateBtn"); if (b) b.click(); }, 50);
-      // remove the param so refresh doesn't keep opening
       setQs("open", null);
       setQs("create", null);
     }
 
-    // Init KPIs from last import stats (local)
     try { updateKPIsFromLocal(); } catch (_) {}
   }
 
@@ -820,6 +1133,9 @@
     const v = el("storeIdInput").value.trim();
     if (!v) { showAlert("Paste a store_id first."); return; }
     setStoreId(v);
+    // ensure mode exists
+    if (!localStorage.getItem(modeKey(v))) setModeLocal(v, "demo");
+    applyModeUI(getMode(v));
     showSuccess("Store loaded.");
     await loadOrders();
   });
@@ -859,6 +1175,96 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
     copyText(sample);
   });
 
+  // Theme toggle
+  const themeToggleBtn = el("themeToggleBtn");
+  if (themeToggleBtn) themeToggleBtn.addEventListener("click", toggleTheme);
+
+  // Storefront HTML upload modal
+  const storefrontUploadBtn = el("storefrontUploadBtn");
+  if (storefrontUploadBtn) storefrontUploadBtn.addEventListener("click", () => {
+    const storeId = getStoreId();
+    if (!storeId) { showAlert("Load or create a store first."); return; }
+    openStorefrontModal();
+    const out = el("storefrontOut");
+    if (out) out.textContent = `Store: ${storeId}\nStorefront: ${location.origin}/s/${storeId}\n\nReady.`;
+  });
+  const closeStorefrontBtn = el("closeStorefrontModal");
+  if (closeStorefrontBtn) closeStorefrontBtn.addEventListener("click", closeStorefrontModal);
+  const uploadBtn = el("uploadStorefrontHtmlBtn");
+  if (uploadBtn) uploadBtn.addEventListener("click", uploadStorefrontHtml);
+  const openPreviewBtn = el("openStorefrontPreviewBtn");
+  if (openPreviewBtn) openPreviewBtn.addEventListener("click", () => {
+    const storeId = getStoreId();
+    if (!storeId) return;
+    window.open(`/s/${storeId}`, "_blank");
+  });
+
+  // Demo/Live toggle
+  const modeToggleBtn = el("modeToggleBtn");
+  if (modeToggleBtn) modeToggleBtn.addEventListener("click", () => {
+    const storeId = getStoreId();
+    if (!storeId) { showAlert("Load or create a store first."); return; }
+    const mode = getMode(storeId);
+    if (mode === "demo") {
+      // switching to live requires confirmation + optional stripe settings
+      openLiveModal();
+      const out = el("liveOut");
+      if (out) out.textContent = "";
+    } else {
+      // back to demo (local + optional backend)
+      setModeLocal(storeId, "demo");
+      applyModeUI("demo");
+      showSuccess("Mode set to Demo.");
+      // try persist (optional)
+      persistModeToBackend(storeId, "demo", null).catch(() => {});
+    }
+  });
+
+  // Live modal actions
+  const closeLiveBtn = el("closeLiveModal");
+  if (closeLiveBtn) closeLiveBtn.addEventListener("click", closeLiveModal);
+  const setDemoBtn = el("setDemoBtn");
+  if (setDemoBtn) setDemoBtn.addEventListener("click", () => { closeLiveModal(); });
+
+  const confirmLiveBtn = el("confirmLiveBtn");
+  if (confirmLiveBtn) confirmLiveBtn.addEventListener("click", async () => {
+    clearMsgs();
+    const storeId = getStoreId();
+    if (!storeId) { showAlert("Load or create a store first."); return; }
+
+    const out = el("liveOut");
+    if (out) out.textContent = "Enabling Live…";
+
+    // Require admin_pin for Live (extra safety)
+    const pin = getAdminPin();
+    if (!pin) {
+      if (out) out.textContent = "❌ Missing admin_pin. Open dashboard with ?admin_pin=YOUR_PIN to enable Live mode.";
+      showAlert("Missing admin_pin for Live mode.");
+      return;
+    }
+
+    const stripe = {
+      publishable_key: (el("stripePublicKey")?.value || "").trim() || null,
+      success_url: (el("stripeSuccessUrl")?.value || "").trim() || null,
+      cancel_url: (el("stripeCancelUrl")?.value || "").trim() || null,
+      note: (el("stripeWebhookNote")?.value || "").trim() || null,
+    };
+
+    try {
+      // Persist live mode (optional backend endpoint)
+      await persistModeToBackend(storeId, "live", stripe);
+      setModeLocal(storeId, "live");
+      applyModeUI("live");
+      if (out) out.textContent = "✅ Live mode enabled.\nStorefront will use Stripe Checkout (server-created sessions).";
+      showSuccess("Mode set to Live.");
+      closeLiveModal();
+    } catch (e) {
+      // Still allow local switch if you want (but keep it strict)
+      if (out) out.textContent = "❌ " + (e?.message || String(e)) + "\n\n(Backend endpoint missing or error. Add /v1/store/<id>/mode.)";
+      showAlert(e?.message || String(e));
+    }
+  });
+
   // Admin Assistant modal
   const adminModal = el("adminModal");
   const adminBtn = el("adminAssistantBtn");
@@ -888,7 +1294,8 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
       body: JSON.stringify({ ...body, admin_pin: pin })
     });
     const j = await res.json().catch(() => ({}));
-    if (!res.ok || j.ok === False) {
+    // FIX: JS boolean is 'false', not 'False'
+    if (!res.ok || j.ok === false) {
       const msg = j.error || j.message || ("HTTP " + res.status);
       throw new Error(msg);
     }
@@ -900,12 +1307,10 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
     if (!prompt) return;
     adminOut.textContent = "Sending…";
     try {
-      // Create request
       const created = await adminPost("/manager/api/self_update/create", { prompt });
       const rid = created.request_id || created.rid || created.id || "";
       adminOut.textContent = `Request created: ${rid || "(id not returned)"}\n\nProposing…`;
 
-      // Ask GPT to propose changes (no GitHub actions yet)
       const proposed = await adminPost(`/manager/api/self_update/${encodeURIComponent(rid)}/propose`, {});
       const summary = proposed.summary || proposed.message || "Proposal ready.";
       adminOut.textContent = `✅ Proposal ready\n\n${summary}\n\nNext:\n1) Click "Open full update console"\n2) Review diff\n3) Approve GitHub → Commit branch`;
@@ -916,6 +1321,7 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
       adminOut.textContent = "❌ " + (e?.message || String(e));
     }
   });
+
   // Chat box actions (Assistant panel)
   const chatSend = el("chatSend");
   const chatCreateUpdate = el("chatCreateUpdate");
@@ -938,19 +1344,16 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
     window.open(`/manager/self_update?admin_pin=${encodeURIComponent(pin)}`, "_blank");
   });
 
-
   // Auto-open Create Store when coming from landing CTA
   try {
     const open = qs().get("open") || qs().get("create");
     if (open === "create" || open === "1") {
       openModal();
-      // remove the param so refresh doesn't keep opening
       setQs("open", null);
       setQs("create", null);
     }
   } catch (_) {}
 
-  
   // -----------------------------
   // KPIs (products + orders)
   // -----------------------------
@@ -1003,7 +1406,7 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
     if (stats) {
       prodEl.textContent = String(stats.total_products ?? (stats.inserted + stats.updated) ?? "—");
       prodSub.textContent = `Last import: ${stats.at || "—"} (ins ${stats.inserted ?? 0} · upd ${stats.updated ?? 0} · skip ${stats.skipped ?? 0})`;
-      liveEl.textContent = "Ready";
+      liveEl.textContent = (getMode(storeId) === "live") ? "Live" : "Ready";
     } else {
       prodEl.textContent = "—";
       prodSub.textContent = "Last import: —";
@@ -1020,7 +1423,6 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
     const arr = Array.isArray(orders) ? orders : [];
     ordersEl.textContent = String(arr.length);
 
-    // sum totals
     let total = 0;
     let cur = "ZAR";
     for (const o of arr) {
@@ -1066,7 +1468,6 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
       return;
     }
 
-    // Try GPT update flow if backend supports it
     try {
       chatAdd("system", "Creating update request…");
       const created = await adminPost("/manager/api/self_update/create", { prompt });
@@ -1085,11 +1486,12 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
     }
   }
 
-// Boot
+  // Boot
+  initTheme();
   initFromUrlOrStorage();
   loadOrders();
   setInterval(loadOrders, 5000);
 })();
 </script>
 </body>
-</html> 
+</html>
