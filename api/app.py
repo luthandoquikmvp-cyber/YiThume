@@ -489,6 +489,744 @@ def require_admin():
     return _pin_or_header_ok()
 
 
+
+# -------- Platform Admin Analytics (Owner / White-label KPI dashboard) --------
+# These endpoints are for YOU (platform owner) — not for node operators / stores.
+
+# -----------------------------
+# Platform owner: Nodes / Stores registry (white-label control plane)
+# -----------------------------
+@app.route("/admin/api/nodes", methods=["GET", "POST"])
+@app.route("/api/app/admin/api/nodes", methods=["GET", "POST"])
+def admin_nodes():
+    if not require_admin():
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    db = get_db()
+
+    if request.method == "POST":
+        body = request.get_json(silent=True) or {}
+        node_id = str(uuid.uuid4())
+        doc = {
+            "_internal_id": node_id,
+            "name": (body.get("name") or "").strip() or f"Node {node_id[:8]}",
+            "country": (body.get("country") or "ZA").strip().upper(),
+            "city": (body.get("city") or "").strip(),
+            "currency": (body.get("currency") or "ZAR").strip().upper(),
+            "commission_pct": float(body.get("commission_pct") or 0.10),  # node operator commission
+            "status": (body.get("status") or "active").strip().lower(),
+            "created_at": _now_dt()
+        }
+        db.nodes.insert_one(doc)
+        return jsonify({"ok": True, "node": {"id": node_id, "name": doc["name"]}}), 201
+
+    rows = list(db.nodes.find({}, {"_id": 0}).sort("created_at", DESCENDING).limit(500))
+    return jsonify({"ok": True, "nodes": rows}), 200
+
+
+@app.route("/admin/api/stores", methods=["GET"])
+@app.route("/api/app/admin/api/stores", methods=["GET"])
+def admin_stores_list():
+    if not require_admin():
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    db = get_db()
+    node_id = request.args.get("node_id")
+    q = {}
+    if node_id:
+        q["node_id"] = node_id
+    rows = list(db.stores.find(q, {"_id": 0}).sort("created_at", DESCENDING).limit(1000))
+    return jsonify({"ok": True, "stores": rows}), 200
+
+
+@app.route("/admin/api/store/<store_id>/assign_node", methods=["POST"])
+@app.route("/api/app/admin/api/store/<store_id>/assign_node", methods=["POST"])
+def admin_assign_store_node(store_id):
+    if not require_admin():
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    db = get_db()
+    s = db.stores.find_one({"_internal_id": store_id})
+    if not s:
+        return jsonify({"ok": False, "error": "store_not_found"}), 404
+    body = request.get_json(silent=True) or {}
+    node_id = (body.get("node_id") or "").strip()
+    if node_id and not db.nodes.find_one({"_internal_id": node_id}):
+        return jsonify({"ok": False, "error": "node_not_found"}), 404
+    db.stores.update_one({"_internal_id": store_id}, {"$set": {"node_id": node_id or None}})
+    return jsonify({"ok": True, "store_id": store_id, "node_id": node_id or None}), 200
+
+# They require ADMIN_SECRET via header `X-Admin-Secret` or query `admin_pin`.
+
+ANALYTICS_CACHE_TTL_SECONDS = int(os.environ.get("ANALYTICS_CACHE_TTL_SECONDS", "300"))
+
+def _parse_int(v, default, lo=None, hi=None):
+    try:
+        n = int(v)
+        if lo is not None and n < lo:
+            n = lo
+        if hi is not None and n > hi:
+            n = hi
+        return n
+    except Exception:
+        return default
+
+def _now_utc():
+    return datetime.utcnow()
+
+def _dt_range_days(days: int):
+    end = _now_utc()
+    start = end - timedelta(days=days)
+    return start, end
+
+def _cache_col(db):
+    col = db["admin_analytics_cache"]
+    try:
+        col.create_index("expires_at", expireAfterSeconds=0)
+        col.create_index([("key", 1), ("scope", 1), ("days", 1)], unique=True)
+    except Exception:
+        pass
+    return col
+
+def _cache_get(db, key: str, scope: str, days: int):
+    doc = _cache_col(db).find_one({"key": key, "scope": scope, "days": days})
+    if not doc:
+        return None
+    if doc.get("expires_at") and doc["expires_at"] < _now_utc():
+        return None
+    return doc.get("value")
+
+def _cache_set(db, key: str, scope: str, days: int, value):
+    _cache_col(db).update_one(
+        {"key": key, "scope": scope, "days": days},
+        {"$set": {"value": value, "expires_at": _now_utc() + timedelta(seconds=ANALYTICS_CACHE_TTL_SECONDS)}},
+        upsert=True
+    )
+
+from typing import Optional
+
+def _scope_filter(node_id: Optional[str], store_id: Optional[str]):
+    f = {}
+    if node_id:
+        f["node_id"] = node_id
+    if store_id:
+        f["store_id"] = store_id
+    return f
+
+def _orders_match(base_filter: dict, start_dt: datetime, end_dt: datetime):
+    f = dict(base_filter or {})
+    # Try common time fields; keep compatibility with older docs
+    # We'll match by created_at OR created OR ts.
+    f["$or"] = [
+        {"created_at": {"$gte": start_dt, "$lt": end_dt}},
+        {"created": {"$gte": start_dt, "$lt": end_dt}},
+        {"ts": {"$gte": start_dt, "$lt": end_dt}},
+    ]
+    return f
+
+def _sum_money_safe(vals):
+    total = 0.0
+    for v in vals:
+        try:
+            total += float(v or 0)
+        except Exception:
+            pass
+    return total
+
+def _money_from_order(o: dict):
+    """
+    Best-effort: order totals can vary by schema.
+    We'll try: totals.total, quote.total, payment.amount, meta.total, etc.
+    """
+    for path in [
+        ("totals", "total"),
+        ("totals", "amount"),
+        ("quote", "total"),
+        ("quote", "amount"),
+        ("payment", "amount"),
+        ("meta", "total"),
+        ("meta", "amount"),
+        ("total",),
+        ("amount",),
+    ]:
+        cur = o
+        ok = True
+        for k in path:
+            if isinstance(cur, dict) and k in cur:
+                cur = cur[k]
+            else:
+                ok = False
+                break
+        if ok:
+            try:
+                return float(cur or 0)
+            except Exception:
+                continue
+    return 0.0
+
+def _order_status(o: dict):
+    for k in ["status", "state", "order_status"]:
+        v = o.get(k)
+        if v:
+            return str(v).lower()
+    return "unknown"
+
+def _driver_is_online(d: dict):
+    # best-effort flags
+    for k in ["online", "is_online", "available", "is_available"]:
+        if k in d:
+            try:
+                return bool(d.get(k))
+            except Exception:
+                pass
+    # last_seen heuristic
+    ls = d.get("last_seen_at") or d.get("last_seen") or d.get("last_ping")
+    if isinstance(ls, datetime):
+        return (ls > (_now_utc() - timedelta(minutes=10)))
+    return False
+
+def _require_admin_or_403():
+    if not require_admin():
+        abort(403)
+
+
+def _store_payment_cfg(store_doc: dict) -> dict:
+    p = (store_doc or {}).get("payments") or {}
+    # defaults
+    mode = (p.get("mode") or "demo").lower()  # demo | live
+    provider = (p.get("provider") or ("stripe_connect" if mode == "live" else "demo")).lower()
+    p.setdefault("mode", mode)
+    p.setdefault("provider", provider)
+    p.setdefault("stripe", p.get("stripe") or {})
+    p.setdefault("yoco", p.get("yoco") or {})
+    return p
+
+def _store_is_live(store_doc: dict) -> bool:
+    return (_store_payment_cfg(store_doc).get("mode") or "demo").lower() == "live"
+
+def _stripe_platform_ready() -> bool:
+    return bool(stripe) and bool(STRIPE_PLATFORM_SECRET_KEY)
+
+def _stripe_platform_init() -> bool:
+    if not stripe:
+        return False
+    if not STRIPE_PLATFORM_SECRET_KEY:
+        return False
+    try:
+        stripe.api_key = STRIPE_PLATFORM_SECRET_KEY
+        return True
+    except Exception:
+        return False
+
+def _stripe_fee_amount_cents(total_amount: float) -> int:
+    try:
+        fee = float(total_amount) * float(PLATFORM_FEE_PCT)
+        return max(0, int(round(fee * 100)))
+    except Exception:
+        return 0
+
+def _stripe_connect_account_id(store_doc: dict) -> str | None:
+    p = _store_payment_cfg(store_doc)
+    acct = ((p.get("stripe") or {}).get("account_id") or "").strip()
+    return acct or None
+
+def _stripe_available():
+    return bool(stripe) and bool(os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY"))
+
+def _stripe_init():
+    if not stripe:
+        return False
+    key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY")
+    if not key:
+        return False
+    try:
+        stripe.api_key = key
+        return True
+    except Exception:
+        return False
+
+def _stripe_mrr_from_subscriptions(subs):
+    """
+    Compute Monthly Recurring Revenue from active subscriptions.
+    This is best-effort and depends on price recurring interval.
+    """
+    mrr = 0.0
+    active = 0
+    for s in subs:
+        try:
+            if (s.get("status") or "").lower() not in ("active", "trialing", "past_due"):
+                continue
+            active += 1
+            items = (s.get("items") or {}).get("data") or []
+            for it in items:
+                price = (it.get("price") or {})
+                unit_amount = price.get("unit_amount") or 0
+                qty = it.get("quantity") or 1
+                recurring = price.get("recurring") or {}
+                interval = (recurring.get("interval") or "month").lower()
+                interval_count = int(recurring.get("interval_count") or 1)
+
+                amount = (float(unit_amount) / 100.0) * float(qty)
+
+                # Normalize to monthly
+                if interval == "month":
+                    mrr += amount / interval_count
+                elif interval == "year":
+                    mrr += (amount / 12.0) / interval_count
+                elif interval == "week":
+                    mrr += (amount * 4.345) / interval_count
+                elif interval == "day":
+                    mrr += (amount * 30.437) / interval_count
+                else:
+                    mrr += amount
+        except Exception:
+            continue
+    return {"mrr": round(mrr, 2), "active_subscriptions": active}
+
+@app.route("/admin/api/analytics/overview", methods=["GET"])
+def admin_analytics_overview():
+    """
+    Platform KPI overview for your admin admin.
+    Query params:
+      - days (default 30, max 365)
+      - node_id (optional)
+      - store_id (optional)
+    """
+    _require_admin_or_403()
+    db = get_db()
+
+    days = _parse_int(request.args.get("days"), 30, lo=1, hi=365)
+    node_id = (request.args.get("node_id") or "").strip() or None
+    store_id = (request.args.get("store_id") or "").strip() or None
+    scope = f"node:{node_id or 'ALL'}|store:{store_id or 'ALL'}"
+
+    cached = _cache_get(db, "overview", scope, days)
+    if cached:
+        return jsonify({"ok": True, "cached": True, **cached})
+
+    start_dt, end_dt = _dt_range_days(days)
+    base = _scope_filter(node_id, store_id)
+
+    # Orders KPIs
+    match = _orders_match(base, start_dt, end_dt)
+    orders = list(db.orders.find(match, {"_id": 0}))
+    orders_total = len(orders)
+    by_status = {}
+    gmv = 0.0
+    for o in orders:
+        st = _order_status(o)
+        by_status[st] = by_status.get(st, 0) + 1
+        gmv += _money_from_order(o)
+
+    # Drivers KPIs
+    d_filter = dict(base)
+    drivers_total = db.drivers.count_documents(d_filter)
+    drivers_online = 0
+    drivers_active_30d = 0
+    cutoff_30d = _now_utc() - timedelta(days=30)
+    for d in db.drivers.find(d_filter, {"_id": 0}):
+        if _driver_is_online(d):
+            drivers_online += 1
+        ls = d.get("last_seen_at") or d.get("last_seen") or d.get("last_ping")
+        if isinstance(ls, datetime) and ls >= cutoff_30d:
+            drivers_active_30d += 1
+
+    # Stores / Nodes
+    stores_total = db.stores.count_documents(_scope_filter(node_id, None))
+    nodes_total = db.nodes.count_documents({}) if not node_id else (1 if db.nodes.find_one({"_internal_id": node_id}) else 0)
+
+    # Payout ledger (best effort: if you have payouts collection)
+    payouts_total = 0.0
+    try:
+        payout_match = dict(base)
+        payout_match["created_at"] = {"$gte": start_dt, "$lt": end_dt}
+        payouts = list(db.payouts.find(payout_match, {"_id": 0, "amount": 1}))
+        payouts_total = _sum_money_safe([p.get("amount") for p in payouts])
+    except Exception:
+        payouts_total = 0.0
+
+    stripe_summary = {"enabled": False}
+    if _stripe_available() and _stripe_init():
+        try:
+            # Small, safe summary (avoid heavy list calls)
+            subs = stripe.Subscription.list(status="all", limit=100, expand=["data.items.data.price"])
+            sub_data = subs.get("data") or []
+            mrr_info = _stripe_mrr_from_subscriptions(sub_data)
+
+            # Revenue in period from paid invoices
+            invoices = stripe.Invoice.list(limit=100, created={"gte": int(start_dt.timestamp()), "lt": int(end_dt.timestamp())})
+            inv = invoices.get("data") or []
+            revenue = 0.0
+            paid = 0
+            for i in inv:
+                if i.get("paid"):
+                    paid += 1
+                    revenue += float(i.get("amount_paid") or 0) / 100.0
+
+            stripe_summary = {
+                "enabled": True,
+                "mrr": mrr_info["mrr"],
+                "active_subscriptions": mrr_info["active_subscriptions"],
+                "paid_invoices": paid,
+                "revenue_period": round(revenue, 2),
+            }
+        except Exception as e:
+            stripe_summary = {"enabled": True, "error": str(e)}
+
+    result = {
+        "range": {"days": days, "start": start_dt.isoformat() + "Z", "end": end_dt.isoformat() + "Z"},
+        "scope": {"node_id": node_id, "store_id": store_id},
+        "orders": {
+            "total": orders_total,
+            "by_status": by_status,
+            "gmv_estimate": round(gmv, 2),
+        },
+        "drivers": {
+            "total": drivers_total,
+            "online_estimate": drivers_online,
+            "active_30d_estimate": drivers_active_30d,
+        },
+        "stores": {"total": stores_total},
+        "nodes": {"total": nodes_total},
+        "payouts": {"driver_payouts_estimate": round(payouts_total, 2)},
+        "stripe": stripe_summary,
+    }
+
+    _cache_set(db, "overview", scope, days, result)
+    return jsonify({"ok": True, "cached": False, **result})
+
+@app.route("/admin/api/analytics/orders_timeseries", methods=["GET"])
+def admin_orders_timeseries():
+    """
+    Daily time series for orders + GMV estimate.
+    Query params:
+      - days (default 30)
+      - node_id (optional)
+      - store_id (optional)
+    """
+    _require_admin_or_403()
+    db = get_db()
+
+    days = _parse_int(request.args.get("days"), 30, lo=1, hi=365)
+    node_id = (request.args.get("node_id") or "").strip() or None
+    store_id = (request.args.get("store_id") or "").strip() or None
+    scope = f"node:{node_id or 'ALL'}|store:{store_id or 'ALL'}"
+
+    cached = _cache_get(db, "orders_timeseries", scope, days)
+    if cached:
+        return jsonify({"ok": True, "cached": True, "days": days, "series": cached})
+
+    start_dt, end_dt = _dt_range_days(days)
+    base = _scope_filter(node_id, store_id)
+    match = _orders_match(base, start_dt, end_dt)
+
+    # Group by day (UTC)
+    pipeline = [
+        {"$match": match},
+        {"$addFields": {
+            "_ts": {"$ifNull": ["$created_at", {"$ifNull": ["$created", "$ts"]}]}
+        }},
+        {"$group": {
+            "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$_ts"}},
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"_id": 1}}
+    ]
+
+    series = []
+    try:
+        rows = list(db.orders.aggregate(pipeline))
+        # Build lookup for counts
+        by_day = {r["_id"]: int(r.get("count") or 0) for r in rows}
+        # Also compute GMV with a lightweight scan (schema varies, so avoid complex pipeline)
+        orders = list(db.orders.find(match, {"_id": 0}))
+        gmv_by_day = {}
+        for o in orders:
+            ts = o.get("created_at") or o.get("created") or o.get("ts") or _now_utc()
+            if not isinstance(ts, datetime):
+                ts = _now_utc()
+            day = ts.strftime("%Y-%m-%d")
+            gmv_by_day[day] = gmv_by_day.get(day, 0.0) + _money_from_order(o)
+
+        # Fill every day
+        cur = start_dt.date()
+        end_date = end_dt.date()
+        while cur <= end_date:
+            dstr = cur.strftime("%Y-%m-%d")
+            series.append({
+                "day": dstr,
+                "orders": by_day.get(dstr, 0),
+                "gmv_estimate": round(gmv_by_day.get(dstr, 0.0), 2),
+            })
+            cur = cur + timedelta(days=1)
+    except Exception:
+        # Fallback: no aggregation support
+        cur = start_dt.date()
+        end_date = end_dt.date()
+        while cur <= end_date:
+            series.append({"day": cur.strftime("%Y-%m-%d"), "orders": 0, "gmv_estimate": 0.0})
+            cur = cur + timedelta(days=1)
+
+    _cache_set(db, "orders_timeseries", scope, days, series)
+    return jsonify({"ok": True, "cached": False, "days": days, "series": series})
+
+@app.route("/admin/api/analytics/drivers", methods=["GET"])
+def admin_drivers_snapshot():
+    """
+    Driver snapshot for platform owner.
+    Query params:
+      - node_id (optional)
+    """
+    _require_admin_or_403()
+    db = get_db()
+    node_id = (request.args.get("node_id") or "").strip() or None
+    base = _scope_filter(node_id, None)
+
+    drivers = []
+    for d in db.drivers.find(base, {"_id": 0, "name": 1, "phone": 1, "_internal_id": 1, "node_id": 1, "zone": 1, "online": 1, "available": 1, "last_seen_at": 1, "last_seen": 1, "last_ping": 1}):
+        drivers.append({
+            "driver_id": d.get("_internal_id"),
+            "node_id": d.get("node_id"),
+            "name": d.get("name"),
+            "phone": d.get("phone"),
+            "zone": d.get("zone"),
+            "online_estimate": _driver_is_online(d),
+            "last_seen": (d.get("last_seen_at") or d.get("last_seen") or d.get("last_ping")),
+        })
+
+    return jsonify({"ok": True, "count": len(drivers), "drivers": drivers})
+
+@app.route("/admin/api/analytics/stripe", methods=["GET"])
+def admin_stripe_snapshot():
+    """
+    Stripe snapshot for platform owner. Requires Stripe env vars + dependency.
+    """
+    _require_admin_or_403()
+    if not _stripe_available() or not _stripe_init():
+        return jsonify({"ok": False, "error": "stripe_not_configured"}), 400
+
+    days = _parse_int(request.args.get("days"), 30, lo=1, hi=365)
+    start_dt, end_dt = _dt_range_days(days)
+
+    try:
+        subs = stripe.Subscription.list(status="all", limit=100, expand=["data.items.data.price"])
+        mrr_info = _stripe_mrr_from_subscriptions(subs.get("data") or [])
+
+        invoices = stripe.Invoice.list(limit=100, created={"gte": int(start_dt.timestamp()), "lt": int(end_dt.timestamp())})
+        inv = invoices.get("data") or []
+        revenue = 0.0
+        paid = 0
+        for i in inv:
+            if i.get("paid"):
+                paid += 1
+                revenue += float(i.get("amount_paid") or 0) / 100.0
+
+        customers = stripe.Customer.list(limit=100)
+        return jsonify({
+            "ok": True,
+            "range": {"days": days, "start": start_dt.isoformat() + "Z", "end": end_dt.isoformat() + "Z"},
+            "customers_estimate": len(customers.get("data") or []),
+            "active_subscriptions_estimate": mrr_info["active_subscriptions"],
+            "mrr": mrr_info["mrr"],
+            "paid_invoices": paid,
+            "revenue_period": round(revenue, 2),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": "stripe_fetch_failed", "details": str(e)}), 500
+
+@app.route("/admin", methods=["GET"])
+def platform_admin_home():
+    """
+    Minimal owner dashboard page (white-label KPI admin).
+    Uses the analytics endpoints above.
+    """
+    _require_admin_or_403()
+
+    # NOTE: Avoid f-strings here; keep JS template literals safe.
+    html = """
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YiThume Platform Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900">
+  <header class="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="font-semibold">Platform Admin • KPIs</div>
+      <div class="text-sm text-slate-600">Use ?admin_pin=XXXX or header X-Admin-Secret</div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <div class="flex flex-wrap gap-3 items-end">
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Days</label>
+        <input id="days" type="number" value="30" min="1" max="365"
+               class="w-28 px-3 py-2 border border-slate-300 rounded-lg bg-white" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Node ID (optional)</label>
+        <input id="node_id" type="text" placeholder="node_..."
+               class="w-64 px-3 py-2 border border-slate-300 rounded-lg bg-white" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">Store ID (optional)</label>
+        <input id="store_id" type="text" placeholder="store_..."
+               class="w-64 px-3 py-2 border border-slate-300 rounded-lg bg-white" />
+      </div>
+      <button id="refresh"
+              class="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
+        Refresh
+      </button>
+    </div>
+
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="cards"></section>
+
+    <section class="bg-white border border-slate-200 rounded-xl p-4">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold">Orders (daily)</h2>
+        <div class="text-xs text-slate-500" id="range"></div>
+      </div>
+      <div class="mt-3 overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="text-slate-600">
+            <tr>
+              <th class="text-left py-2 pr-4">Day</th>
+              <th class="text-left py-2 pr-4">Orders</th>
+              <th class="text-left py-2 pr-4">GMV (est.)</th>
+            </tr>
+          </thead>
+          <tbody id="series"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="bg-white border border-slate-200 rounded-xl p-4">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold">Drivers (snapshot)</h2>
+        <div class="text-xs text-slate-500" id="driversCount"></div>
+      </div>
+      <div class="mt-3 overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="text-slate-600">
+            <tr>
+              <th class="text-left py-2 pr-4">Driver</th>
+              <th class="text-left py-2 pr-4">Node</th>
+              <th class="text-left py-2 pr-4">Zone</th>
+              <th class="text-left py-2 pr-4">Online</th>
+              <th class="text-left py-2 pr-4">Last seen</th>
+            </tr>
+          </thead>
+          <tbody id="drivers"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+<script>
+  const qs = new URLSearchParams(window.location.search);
+  const adminPin = qs.get('admin_pin') || '';
+
+  function withPin(url) {
+    if (!adminPin) return url;
+    const u = new URL(url, window.location.origin);
+    u.searchParams.set('admin_pin', adminPin);
+    return u.toString();
+  }
+
+  function fmtMoney(n) {
+    try { return new Intl.NumberFormat(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(n); }
+    catch(e){ return (n || 0).toFixed(2); }
+  }
+
+  function card(title, value, sub) {
+    return `
+      <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <div class="text-xs text-slate-500">${title}</div>
+        <div class="text-2xl font-semibold mt-1">${value}</div>
+        ${sub ? `<div class="text-xs text-slate-500 mt-1">${sub}</div>` : ``}
+      </div>
+    `;
+  }
+
+  async function load() {
+    const days = document.getElementById('days').value || '30';
+    const nodeId = document.getElementById('node_id').value.trim();
+    const storeId = document.getElementById('store_id').value.trim();
+
+    const baseParams = new URLSearchParams();
+    baseParams.set('days', days);
+    if (nodeId) baseParams.set('node_id', nodeId);
+    if (storeId) baseParams.set('store_id', storeId);
+
+    const overviewUrl = withPin(`/admin/api/analytics/overview?${baseParams.toString()}`);
+    const seriesUrl = withPin(`/admin/api/analytics/orders_timeseries?${baseParams.toString()}`);
+    const driversUrl = withPin(`/admin/api/analytics/drivers${nodeId ? `?node_id=${encodeURIComponent(nodeId)}${adminPin ? `&admin_pin=${encodeURIComponent(adminPin)}` : ``}` : (adminPin ? `?admin_pin=${encodeURIComponent(adminPin)}` : ``)}`);
+
+    const [ovRes, tsRes, drRes] = await Promise.all([
+      fetch(overviewUrl),
+      fetch(seriesUrl),
+      fetch(driversUrl),
+    ]);
+
+    const ov = await ovRes.json();
+    const ts = await tsRes.json();
+    const dr = await drRes.json();
+
+    if (!ov.ok) {
+      alert(`Admin auth or error: ${ov.error || 'unknown'}`);
+      return;
+    }
+
+    document.getElementById('range').textContent = `${ov.range.start} → ${ov.range.end}`;
+
+    const cards = [];
+    cards.push(card('Orders', ov.orders.total, `By status: ${Object.entries(ov.orders.by_status || {}).map(([k,v]) => `${k}:${v}`).join(', ')}`));
+    cards.push(card('GMV (est.)', fmtMoney(ov.orders.gmv_estimate)));
+    cards.push(card('Drivers', ov.drivers.total, `Online est: ${ov.drivers.online_estimate} • Active 30d est: ${ov.drivers.active_30d_estimate}`));
+    cards.push(card('Stores', ov.stores.total, `Nodes: ${ov.nodes.total}`));
+    cards.push(card('Driver payouts (est.)', fmtMoney(ov.payouts.driver_payouts_estimate)));
+    if (ov.stripe && ov.stripe.enabled) {
+      cards.push(card('Stripe MRR', fmtMoney(ov.stripe.mrr || 0), `Active subs: ${ov.stripe.active_subscriptions || 0}`));
+      cards.push(card('Stripe revenue (period)', fmtMoney(ov.stripe.revenue_period || 0), `Paid invoices: ${ov.stripe.paid_invoices || 0}`));
+    } else {
+      cards.push(card('Stripe', 'Not configured', 'Set STRIPE_SECRET_KEY to enable'));
+    }
+    document.getElementById('cards').innerHTML = cards.join('');
+
+    // timeseries
+    const rows = (ts.series || []).map(r => `
+      <tr class="border-t border-slate-100">
+        <td class="py-2 pr-4">${r.day}</td>
+        <td class="py-2 pr-4">${r.orders}</td>
+        <td class="py-2 pr-4">${fmtMoney(r.gmv_estimate || 0)}</td>
+      </tr>
+    `).join('');
+    document.getElementById('series').innerHTML = rows;
+
+    // drivers
+    document.getElementById('driversCount').textContent = `${dr.count || 0} drivers`;
+    const drows = (dr.drivers || []).slice(0, 200).map(d => `
+      <tr class="border-t border-slate-100">
+        <td class="py-2 pr-4">${(d.name || '').replaceAll('<','&lt;')}</td>
+        <td class="py-2 pr-4">${d.node_id || ''}</td>
+        <td class="py-2 pr-4">${d.zone || ''}</td>
+        <td class="py-2 pr-4">${d.online_estimate ? 'Yes' : 'No'}</td>
+        <td class="py-2 pr-4">${d.last_seen || ''}</td>
+      </tr>
+    `).join('');
+    document.getElementById('drivers').innerHTML = drows;
+  }
+
+  document.getElementById('refresh').addEventListener('click', load);
+  load();
+</script>
+</body>
+</html>
+"""
+    return html
+
 # -------- NEW: Security helpers (IP/HMAC, rate limit, idempotency) --------
 def client_ip():
     # Works behind most proxies
@@ -1638,7 +2376,22 @@ def create_store():
 
         # Billing gate (Stripe payment links); if billing is disabled, stores are active by default
         "billing_active": (str(os.environ.get("BILLING_ENABLED", "0")).strip() not in ("1","true","True","yes","YES")),
-        "billing_plan": None
+        "billing_plan": None,
+
+        # Payments config per store
+        "payments": {
+            "mode": "demo",              # demo | live
+            "provider": "demo",          # demo | stripe_connect | stripe_key | yoco
+            "stripe": {
+                "account_id": None,
+                "onboarded": False,
+                "last_sync_at": None
+            },
+            "yoco": {
+                "public_key": None,
+                "mode": None
+            }
+        }
     }
     try:
         db = get_db()
@@ -1648,6 +2401,220 @@ def create_store():
         return jsonify({"ok": False, "error": "db_write_failed", "details": str(e)}), 500
     except Exception as e:
         return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
+
+
+
+# ---------------- STORE PAYMENTS (MANAGER) --------------
+@app.route("/manager/api/store/<store_id>/payments", methods=["POST"])
+@app.route("/api/app/manager/api/store/<store_id>/payments", methods=["POST"])
+def manager_set_store_payments(store_id):
+    """
+    Configure store payment provider + mode.
+    Body:
+      { mode: "demo"|"live", provider: "demo"|"stripe_connect"|"stripe_key"|"yoco" }
+    Notes:
+      - We strongly recommend stripe_connect so you do NOT store any merchant API keys.
+      - For yoco, we only store public key (client-side). Server-side charging requires secret key (not implemented here).
+    """
+    if not require_admin():
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    db = get_db()
+    s = db.stores.find_one({"_internal_id": store_id})
+    if not s:
+        return jsonify({"ok": False, "error": "store_not_found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    mode = (body.get("mode") or "demo").lower().strip()
+    provider = (body.get("provider") or ("stripe_connect" if mode == "live" else "demo")).lower().strip()
+
+    if mode not in ("demo", "live"):
+        return jsonify({"ok": False, "error": "bad_mode"}), 400
+    if provider not in ("demo", "stripe_connect", "stripe_key", "yoco"):
+        return jsonify({"ok": False, "error": "bad_provider"}), 400
+
+    p = _store_payment_cfg(s)
+    p["mode"] = mode
+    p["provider"] = provider
+
+    # If switching away from demo, keep stripe connect flags but don't auto-onboard
+    if provider != "stripe_connect":
+        # Keep stripe block but mark not onboarded unless they come back
+        p.setdefault("stripe", {})
+        if provider == "stripe_key":
+            # We do NOT store merchant keys. Provide instructions to use Connect instead.
+            p["stripe"].setdefault("note", "Use Stripe Connect onboarding; do not paste API keys into this app.")
+        if provider == "yoco":
+            p.setdefault("yoco", {})
+            p["yoco"]["public_key"] = (body.get("yoco_public_key") or p["yoco"].get("public_key"))
+
+    db.stores.update_one({"_internal_id": store_id}, {"$set": {"payments": p}})
+    return jsonify({"ok": True, "store_id": store_id, "payments": p}), 200
+
+
+@app.route("/manager/api/store/<store_id>/stripe/connect/start", methods=["POST"])
+@app.route("/api/app/manager/api/store/<store_id>/stripe/connect/start", methods=["POST"])
+def manager_stripe_connect_start(store_id):
+    """
+    Starts Stripe Connect onboarding for this store.
+    Returns an onboarding URL (Stripe Account Link).
+    Requires STRIPE_PLATFORM_SECRET_KEY set.
+    """
+    if not require_admin():
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    if not stripe:
+        return jsonify({"ok": False, "error": "stripe_not_installed"}), 400
+    if not _stripe_platform_ready() or not _stripe_platform_init():
+        return jsonify({"ok": False, "error": "stripe_platform_not_configured"}), 400
+
+    db = get_db()
+    s = db.stores.find_one({"_internal_id": store_id})
+    if not s:
+        return jsonify({"ok": False, "error": "store_not_found"}), 404
+
+    p = _store_payment_cfg(s)
+    p["mode"] = "live"
+    p["provider"] = "stripe_connect"
+    p.setdefault("stripe", {})
+
+    acct = p["stripe"].get("account_id")
+    if not acct:
+        # Express account is simplest for operators
+        acct_obj = stripe.Account.create(
+            type="express",
+            country=(s.get("country") or "ZA"),
+            business_type="individual",
+            capabilities={
+                "card_payments": {"requested": True},
+                "transfers": {"requested": True}
+            },
+            metadata={"store_id": store_id}
+        )
+        acct = acct_obj.get("id")
+        p["stripe"]["account_id"] = acct
+        p["stripe"]["onboarded"] = False
+        db.stores.update_one({"_internal_id": store_id}, {"$set": {"payments": p}})
+
+    refresh_url = STRIPE_CONNECT_REFRESH_URL or (request.url_root.rstrip("/") + "/manager_setup.html")
+    return_url  = STRIPE_CONNECT_RETURN_URL  or (request.url_root.rstrip("/") + "/manager_dashboard.html")
+
+    link = stripe.AccountLink.create(
+        account=acct,
+        refresh_url=refresh_url,
+        return_url=return_url,
+        type="account_onboarding"
+    )
+    return jsonify({"ok": True, "account_id": acct, "onboarding_url": link.get("url")}), 200
+
+
+@app.route("/manager/api/store/<store_id>/stripe/connect/status", methods=["GET"])
+@app.route("/api/app/manager/api/store/<store_id>/stripe/connect/status", methods=["GET"])
+def manager_stripe_connect_status(store_id):
+    if not require_admin():
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    if not stripe or not _stripe_platform_ready() or not _stripe_platform_init():
+        return jsonify({"ok": False, "error": "stripe_platform_not_configured"}), 400
+
+    db = get_db()
+    s = db.stores.find_one({"_internal_id": store_id})
+    if not s:
+        return jsonify({"ok": False, "error": "store_not_found"}), 404
+    acct = _stripe_connect_account_id(s)
+    if not acct:
+        return jsonify({"ok": True, "connected": False}), 200
+
+    try:
+        acct_obj = stripe.Account.retrieve(acct)
+        details_submitted = bool(acct_obj.get("details_submitted"))
+        charges_enabled = bool(acct_obj.get("charges_enabled"))
+        payouts_enabled = bool(acct_obj.get("payouts_enabled"))
+        onboarded = bool(details_submitted and charges_enabled)
+
+        p = _store_payment_cfg(s)
+        p.setdefault("stripe", {})
+        p["stripe"]["onboarded"] = onboarded
+        db.stores.update_one({"_internal_id": store_id}, {"$set": {"payments": p}})
+
+        return jsonify({"ok": True, "connected": True, "account_id": acct,
+                        "details_submitted": details_submitted,
+                        "charges_enabled": charges_enabled,
+                        "payouts_enabled": payouts_enabled,
+                        "onboarded": onboarded}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": "stripe_error", "details": str(e)}), 400
+
+
+@app.route("/manager/api/store/<store_id>/stripe/sync_products", methods=["POST"])
+@app.route("/api/app/manager/api/store/<store_id>/stripe/sync_products", methods=["POST"])
+def manager_stripe_sync_products(store_id):
+    """
+    Sync store_items -> Stripe Products/Prices (on the CONNECTED account).
+    Stores stripe_product_id and stripe_price_id on each store item.
+    Requires store payments provider stripe_connect and live mode.
+    """
+    if not require_admin():
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    if not stripe or not _stripe_platform_ready() or not _stripe_platform_init():
+        return jsonify({"ok": False, "error": "stripe_platform_not_configured"}), 400
+
+    db = get_db()
+    s = db.stores.find_one({"_internal_id": store_id})
+    if not s:
+        return jsonify({"ok": False, "error": "store_not_found"}), 404
+
+    p = _store_payment_cfg(s)
+    if (p.get("provider") or "").lower() != "stripe_connect" or (p.get("mode") or "").lower() != "live":
+        return jsonify({"ok": False, "error": "store_not_in_stripe_connect_live"}), 400
+
+    acct = _stripe_connect_account_id(s)
+    if not acct:
+        return jsonify({"ok": False, "error": "stripe_connect_not_started"}), 400
+
+    items = list(db.store_items.find({"store_id": store_id, "active": True}).limit(5000))
+    synced = 0
+    for it in items:
+        try:
+            name = (it.get("name") or "").strip()
+            if not name:
+                continue
+            price = float(it.get("price") or 0)
+            if price <= 0:
+                continue
+            currency = (s.get("currency") or "ZAR").lower()
+
+            stripe_product_id = it.get("stripe_product_id")
+            stripe_price_id = it.get("stripe_price_id")
+
+            if not stripe_product_id:
+                prod = stripe.Product.create(
+                    name=name[:200],
+                    metadata={"store_id": store_id, "item_id": it["_internal_id"]},
+                    stripe_account=acct
+                )
+                stripe_product_id = prod.get("id")
+
+            # Always ensure there is a price (recreate if missing)
+            if not stripe_price_id:
+                pr = stripe.Price.create(
+                    product=stripe_product_id,
+                    unit_amount=int(round(price * 100)),
+                    currency=currency,
+                    stripe_account=acct
+                )
+                stripe_price_id = pr.get("id")
+
+            db.store_items.update_one(
+                {"_internal_id": it["_internal_id"]},
+                {"$set": {"stripe_product_id": stripe_product_id, "stripe_price_id": stripe_price_id}}
+            )
+            synced += 1
+        except Exception:
+            # skip bad item; keep syncing others
+            continue
+
+    p.setdefault("stripe", {})
+    p["stripe"]["last_sync_at"] = _now_iso()
+    db.stores.update_one({"_internal_id": store_id}, {"$set": {"payments": p}})
+    return jsonify({"ok": True, "synced": synced, "total_items": len(items)}), 200
 
 
 @app.route("/stores/<store_id>/items", methods=["POST"])
@@ -4550,6 +5517,74 @@ def storefront_checkout(public_slug):
             order_doc["payment"]["provider_ref"] = intent.get("id")
             order_doc["payment"]["status"] = "requires_payment"
 
+
+        # ---------------- Payment handling (demo vs live) ----------------
+        p = _store_payment_cfg(s)
+        mode = (p.get("mode") or "demo").lower()
+        provider = (p.get("provider") or "demo").lower()
+
+        intent = None
+        session = None
+
+        if mode == "demo" or provider == "demo":
+            order_doc["payment"] = {
+                "mode": "demo",
+                "provider": "demo",
+                "status": "demo",
+                "fake_checkout_url": f"{request.url_root.rstrip('/')}/shop/{public_slug}?demo_order={order_internal_id}"
+            }
+        elif provider == "stripe_connect":
+            if not stripe or not _stripe_platform_ready() or not _stripe_platform_init():
+                return jsonify({"ok": False, "error": "stripe_platform_not_configured"}), 400
+            acct = _stripe_connect_account_id(s)
+            if not acct:
+                return jsonify({"ok": False, "error": "stripe_connect_not_connected"}), 400
+
+            # Ensure items have Stripe price IDs on the connected account
+            # If missing, tell manager to run sync endpoint
+            missing = False
+            line_items = []
+            for row in resolved:
+                price_id = (row.get("stripe_price_id") or "").strip()
+                if not price_id:
+                    missing = True
+                    break
+                line_items.append({"price": price_id, "quantity": int(row.get("qty") or 1)})
+
+            if missing:
+                return jsonify({"ok": False, "error": "stripe_prices_missing", "note": "Run /manager/api/store/<store_id>/stripe/sync_products first."}), 400
+
+            fee_cents = _stripe_fee_amount_cents(order_doc["total"])
+
+            success_url = (request.url_root.rstrip("/") + f"/shop/{public_slug}?paid=1&order_id={public_id}")
+            cancel_url  = (request.url_root.rstrip("/") + f"/shop/{public_slug}?cancel=1&order_id={public_id}")
+
+            session = stripe.checkout.Session.create(
+                mode="payment",
+                line_items=line_items,
+                success_url=success_url,
+                cancel_url=cancel_url,
+                payment_intent_data={
+                    "application_fee_amount": fee_cents,
+                    "transfer_data": {"destination": acct},
+                    "metadata": {"order_id": public_id, "store_id": s["_internal_id"]}
+                },
+                metadata={"order_id": public_id, "store_id": s["_internal_id"]}
+            )
+
+            order_doc["payment"] = {
+                "mode": "live",
+                "provider": "stripe_connect",
+                "status": "requires_payment",
+                "checkout_url": session.get("url"),
+                "provider_ref": session.get("id")
+            }
+        elif provider == "yoco":
+            # Placeholder: Yoco checkout is client-side + secret key server-side charging (not implemented here).
+            order_doc["payment"] = {"mode": "live", "provider": "yoco", "status": "requires_payment", "note": "Yoco not yet implemented server-side."}
+        else:
+            order_doc["payment"] = {"mode": mode, "provider": provider, "status": "requires_payment"}
+
         db.orders.insert_one(order_doc)
 
         out = {
@@ -4561,10 +5596,12 @@ def storefront_checkout(public_slug):
             "currency": (s.get("currency") or "ZAR"),
             "payment": order_doc["payment"]
         }
-        if intent is not None:
+        if session is not None:
+            out["stripe"] = {"checkout_url": session.get("url"), "session_id": session.get("id")}
+        elif intent is not None:
             out["stripe"] = {"client_secret": intent.get("client_secret")}
         else:
-            out["stripe"] = {"available": False, "note": "Install stripe + set STRIPE_SECRET_KEY to enable card payments."}
+            out["stripe"] = {"available": False, "note": "Demo mode or provider not configured."}
         return jsonify(out), 201
     except Exception as e:
         return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
@@ -4616,6 +5653,10 @@ def stripe_webhook():
     obj = (event.get("data") or {}).get("object") or {}
     try:
         db = get_db()
+        if et in ("checkout.session.completed",):
+            sid = obj.get("id")
+            if sid:
+                db.orders.update_one({"payment.provider_ref": sid}, {"$set": {"payment.status": "paid"}})
         if et in ("payment_intent.succeeded", "payment_intent.payment_failed"):
             pid = obj.get("id")
             status = obj.get("status")
@@ -4625,4 +5666,13 @@ def stripe_webhook():
         return jsonify({"ok": True}), 200
     except Exception as e:
         return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
+
+# -----------------------------
+# Platform fees / Connect
+# -----------------------------
+PLATFORM_FEE_PCT = float(os.environ.get("PLATFORM_FEE_PCT", "0.05"))  # 5% platform fee on Stripe destination charges
+STRIPE_PLATFORM_SECRET_KEY = os.environ.get("STRIPE_PLATFORM_SECRET_KEY") or os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY")
+STRIPE_CONNECT_REFRESH_URL = os.environ.get("STRIPE_CONNECT_REFRESH_URL")  # e.g. https://yourdomain.com/manager_setup.html
+STRIPE_CONNECT_RETURN_URL  = os.environ.get("STRIPE_CONNECT_RETURN_URL")   # e.g. https://yourdomain.com/manager_dashboard.html
+
 
