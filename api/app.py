@@ -3413,7 +3413,8 @@ def shop_public_storefront(public_slug):
     """
     Public live storefront:
       - Works only after store is published
-      - Simple HTML to avoid changing static files (since this lives in app.py)
+      - If a custom HTML frontend has been uploaded for this store, serve it.
+      - Otherwise, fall back to a simple built-in HTML list.
     """
     try:
         db = get_db()
@@ -3421,8 +3422,51 @@ def shop_public_storefront(public_slug):
         if not s:
             return ("Store not found or not live yet.", 404)
 
+        # ---------------------------------------------------------
+        # Custom storefront HTML (uploaded by store owner/admin)
+        # Stored in GridFS via /v1/store/<store_id>/frontend/upload
+        # ---------------------------------------------------------
+        frontend = (s.get("frontend") or {})
+        html_file_id = frontend.get("html_file_id")
+        if html_file_id:
+            fs = get_fs(db)
+            try:
+                g = fs.get(ObjectId(html_file_id))
+                html = g.read().decode("utf-8", errors="replace")
+            except Exception:
+                html = None
+
+            if html:
+                # Inject a small config block + helper script tag before </head> if possible.
+                # The custom HTML can call window.YITHUME.storefront.* endpoints.
+                api_base = ""
+                cfg = f"""
+<script>
+window.YITHUME = window.YITHUME || {{}};
+window.YITHUME.store = {{
+  store_id: "{s.get('_internal_id')}",
+  public_slug: "{public_slug}",
+  api_base: "{api_base}",
+  products_url: "{api_base}/v1/storefront/{public_slug}/products",
+  quote_url: "{api_base}/v1/storefront/{public_slug}/quote",
+  checkout_url: "{api_base}/v1/storefront/{public_slug}/checkout",
+  track_url: "{api_base}/v1/storefront/{public_slug}/order/"
+}};
+</script>
+"""
+                if "</head>" in html.lower():
+                    # do a case-insensitive insertion preserving original casing
+                    idx = re.search(r"</head>", html, flags=re.I).start()
+                    html = html[:idx] + cfg + html[idx:]
+                else:
+                    html = cfg + html
+
+                return (html, 200, {"Content-Type": "text/html; charset=utf-8"})
+
+        # ---------------------------------------------------------
+        # Fallback: basic HTML storefront (mobile friendly)
+        # ---------------------------------------------------------
         items = list(db.store_items.find({"store_id": s["_internal_id"], "active": True}).sort("created_at", -1).limit(500))
-        # Basic HTML storefront (mobile friendly). You can later replace with a proper static page.
         html = []
         html.append("<!doctype html><html><head><meta charset='utf-8'/>")
         html.append("<meta name='viewport' content='width=device-width,initial-scale=1'/>")
@@ -3452,7 +3496,7 @@ def shop_public_storefront(public_slug):
                 html.append(f"<div class='price'>R {float(price):.2f}</div>")
                 html.append("</div></div></div>")
         html.append("<div style='height:14px'></div>")
-        html.append("<div class='card'><div style='font-weight:800;margin-bottom:6px'>Order</div><div class='muted'>Ordering & payments are being integrated. For now, contact the store.</div></div>")
+        html.append("<div class='card'><div style='font-weight:800;margin-bottom:6px'>Order</div><div class='muted'>Use /v1/storefront/* API to build a checkout UI. This fallback page is just a catalog list.</div></div>")
         html.append("</div></body></html>")
         return ("".join(html), 200, {"Content-Type": "text/html; charset=utf-8"})
     except Exception as e:
@@ -3667,40 +3711,25 @@ def manager_self_update_page():
         return ("Unauthorized", 401)
 
     allowed = _allowed_update_paths()
-    html = f"""
+
+    html = """
 <!doctype html>
 <html><head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>YiThume • Self Update</title>
 <style>
-body{{font-family:ui-sans-serif,system-ui,Arial;background:#0b1220;color:#e5e7eb;margin:0}}
-.wrap{{max-width:980px;margin:0 auto;padding:18px}}
-.card{{background:#111827;border:1px solid #1f2937;border-radius:16px;padding:14px;margin:12px 0}}
-label{{display:block;font-weight:800;margin:6px 0}}
-textarea,input{{width:100%;border-radius:12px;border:1px solid #334155;background:#0b1220;color:#e5e7eb;padding:12px}}
-button{{border:0;border-radius:12px;padding:10px 12px;font-weight:900;cursor:pointer}}
-.btn{{background:#22c55e;color:#052e16}}
-.btn2{{background:#38bdf8;color:#082f49}}
-.small{{color:#94a3b8;font-size:13px}}
-pre{{white-space:pre-wrap;background:#0b1220;border:1px solid #334155;border-radius:12px;padding:12px;overflow:auto}}
+body{font-family:ui-sans-serif,system-ui,Arial;background:#0b1220;color:#e5e7eb;margin:0}
+.wrap{max-width:980px;margin:0 auto;padding:18px}
+.card{background:#111827;border:1px solid #1f2937;border-radius:16px;padding:14px;margin:12px 0}
+label{display:block;font-weight:800;margin:6px 0}
+textarea,input{width:100%;border-radius:12px;border:1px solid #334155;background:#0b1220;color:#e5e7eb;padding:12px}
+button{border:0;border-radius:12px;padding:10px 12px;font-weight:900;cursor:pointer}
+.btn{background:#22c55e;color:#052e16}
+.btn2{background:#38bdf8;color:#082f49}
+.small{color:#94a3b8;font-size:13px}
+pre{white-space:pre-wrap;background:#0b1220;border:1px solid #334155;border-radius:12px;padding:12px;overflow:auto}
 </style></head>
-<script>
-  // --- Admin pin passthrough (FIXES Unauthorized on API calls) ---
-  const QS = new URLSearchParams(window.location.search);
-  const ADMIN_PIN = QS.get("admin_pin") || "";
-
-  function withPin(url) {
-    if (!ADMIN_PIN) return url;
-    return url.includes("?") ? `${url}&admin_pin=${encodeURIComponent(ADMIN_PIN)}`
-                             : `${url}?admin_pin=${encodeURIComponent(ADMIN_PIN)}`;
-  }
-
-  function adminHeaders() {
-    // optional: also send as header for future-proofing
-    return ADMIN_PIN ? { "X-Admin-Pin": ADMIN_PIN } : {};
-  }
-</script>
 
 <body><div class="wrap">
 <h2 style="margin:6px 0">Self-updating code (Admin)</h2>
@@ -3720,13 +3749,14 @@ pre{{white-space:pre-wrap;background:#0b1220;border:1px solid #334155;border-rad
 
 <div class="card">
 <div style="font-weight:900;margin-bottom:6px">Allowed paths</div>
-<div class="small">{", ".join(allowed)}</div>
+<div class="small">__ALLOWED__</div>
 </div>
 
 <div class="card">
 <div style="font-weight:900;margin-bottom:6px">Recent requests</div>
 <div id="list" class="small">Loading...</div>
 </div>
+
 <script>
   // --- Admin pin passthrough (FIXES Unauthorized on API calls) ---
   const QS = new URLSearchParams(window.location.search);
@@ -3738,60 +3768,57 @@ pre{{white-space:pre-wrap;background:#0b1220;border:1px solid #334155;border-rad
                              : `${url}?admin_pin=${encodeURIComponent(ADMIN_PIN)}`;
   }
 
-  function adminHeaders() {
-    // optional: also send as header for future-proofing
-    return ADMIN_PIN ? { "X-Admin-Pin": ADMIN_PIN } : {};
+  async function loadList(){
+    const r = await fetch(withPin('/manager/api/self_update/list'));
+    const j = await r.json();
+    if(!j.ok){document.getElementById('list').innerText = 'Error loading.'; return;}
+    if(!j.items.length){document.getElementById('list').innerText = 'No requests yet.'; return;}
+    let html = '';
+    j.items.forEach(it=>{
+      html += `<div style="padding:10px 0;border-top:1px solid #1f2937">
+        <div><b>${it.title}</b> • <span style="color:#94a3b8">${it.status}</span></div>
+        <div style="color:#94a3b8;font-size:12px">ID: ${it.id} • Branch: ${it.branch||'-'} • ${it.created_at}</div>
+        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
+          <button class="btn2" onclick="propose('${it.id}')">Propose (GPT)</button>
+          <button class="btn2" onclick="preview('${it.id}')">Preview</button>
+          <button class="btn2" onclick="approve('${it.id}')">Approve GitHub</button>
+          <button class="btn" onclick="commit('${it.id}')">Create branch + commit</button>
+        </div>
+      </div>`;
+    });
+    document.getElementById('list').innerHTML = html;
   }
+
+  async function propose(id){
+    const r = await fetch(withPin(`/manager/api/self_update/${id}/propose`), {method:'POST'});
+    const j = await r.json(); alert(JSON.stringify(j,null,2)); loadList();
+  }
+  async function preview(id){
+    const r = await fetch(withPin(`/manager/api/self_update/${id}/preview`));
+    const t = await r.text(); const w = window.open(); w.document.write(t);
+  }
+  async function approve(id){
+    const confirm = prompt('Type APPROVE to allow GitHub operations for this request:');
+    const r = await fetch(withPin(`/manager/api/self_update/${id}/approve_github`), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({confirm})
+    });
+    const j = await r.json(); alert(JSON.stringify(j,null,2)); loadList();
+  }
+  async function commit(id){
+    const confirm = prompt('Type COMMIT to create a branch + commit to GitHub:');
+    const r = await fetch(withPin(`/manager/api/self_update/${id}/github_commit`), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({confirm})
+    });
+    const j = await r.json(); alert(JSON.stringify(j,null,2)); loadList();
+  }
+  loadList();
 </script>
-<script>
-async function loadList(){{
-  const r = await fetch('/manager/api/self_update/list');
-  const j = await r.json();
-  if(!j.ok){{document.getElementById('list').innerText = 'Error loading.'; return;}}
-  if(!j.items.length){{document.getElementById('list').innerText = 'No requests yet.'; return;}}
-  let html = '';
-  j.items.forEach(it=>{{
-    html += `<div style="padding:10px 0;border-top:1px solid #1f2937">
-      <div><b>${{it.title}}</b> • <span style="color:#94a3b8">${{it.status}}</span></div>
-      <div style="color:#94a3b8;font-size:12px">ID: ${{it.id}} • Branch: ${{it.branch||'-'}} • ${{it.created_at}}</div>
-      <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
-        <button class="btn2" onclick="propose('${{it.id}}')">Propose (GPT)</button>
-        <button class="btn2" onclick="preview('${{it.id}}')">Preview</button>
-        <button class="btn2" onclick="approve('${{it.id}}')">Approve GitHub</button>
-        <button class="btn" onclick="commit('${{it.id}}')">Create branch + commit</button>
-      </div>
-    </div>`;
-  }});
-  document.getElementById('list').innerHTML = html;
-}}
-async function propose(id){{
-  const r = await fetch(`/manager/api/self_update/${{id}}/propose`, {{method:'POST'}});
-  const j = await r.json(); alert(JSON.stringify(j,null,2)); loadList();
-}}
-async function preview(id){{
-  const r = await fetch(`/manager/api/self_update/${{id}}/preview`);
-  const t = await r.text(); const w = window.open(); w.document.write(t);
-}}
-async function approve(id){{
-  const confirm = prompt('Type APPROVE to allow GitHub operations for this request:');
-  const r = await fetch(`/manager/api/self_update/${{id}}/approve_github`, {{
-    method:'POST', headers:{{'Content-Type':'application/json'}},
-    body: JSON.stringify({{confirm}})
-  }});
-  const j = await r.json(); alert(JSON.stringify(j,null,2)); loadList();
-}}
-async function commit(id){{
-  const confirm = prompt('Type COMMIT to create a branch + commit to GitHub:');
-  const r = await fetch(`/manager/api/self_update/${{id}}/github_commit`, {{
-    method:'POST', headers:{{'Content-Type':'application/json'}},
-    body: JSON.stringify({{confirm}})
-  }});
-  const j = await r.json(); alert(JSON.stringify(j,null,2)); loadList();
-}}
-loadList();
-</script>
+
 </div></body></html>
 """
+    html = html.replace("__ALLOWED__", ", ".join(allowed))
     return (html, 200, {"Content-Type": "text/html; charset=utf-8"})
 
 @app.route("/manager/api/self_update/create", methods=["POST"])
@@ -4018,3 +4045,584 @@ def api_self_update_github_commit(rid):
 
     col.update_one({"_id": d["_id"]}, {"$set": {"status": "committed", "last_error": None, "commit_sha": commit_sha}})
     return jsonify({"ok": True, "status": "committed", "branch": branch, "commit_sha": commit_sha}), 200
+
+# ==========================================================
+# MULTI-NODE + STOREFRONT API (2026 upgrade)
+# ==========================================================
+# Goals:
+#  - Allow "nodes" (local operators) to exist globally, each with stores + drivers + payouts.
+#  - Provide a clean, headless storefront API so any UI builder (Webflow/Lovable/custom HTML)
+#    can connect to the same backend.
+#  - Optional Stripe support (guarded; safe if stripe isn't installed yet).
+
+try:
+    import stripe  # optional
+except Exception:
+    stripe = None
+
+STRIPE_SECRET_KEY = (os.environ.get("STRIPE_SECRET_KEY") or "").strip()
+STRIPE_WEBHOOK_SECRET = (os.environ.get("STRIPE_WEBHOOK_SECRET") or "").strip()
+
+def _stripe_ready() -> bool:
+    return bool(stripe) and bool(STRIPE_SECRET_KEY)
+
+def _stripe_init():
+    if _stripe_ready():
+        stripe.api_key = STRIPE_SECRET_KEY
+
+def nodes_col(db):
+    return db.nodes
+
+def _ensure_nodes_indexes(db):
+    try:
+        nodes_col(db).create_index([("_internal_id", ASCENDING)], unique=True)
+        nodes_col(db).create_index([("public_slug", ASCENDING)], unique=True, sparse=True)
+        nodes_col(db).create_index([("created_at", DESCENDING)])
+    except Exception:
+        pass
+
+def _node_slugify(name: str) -> str:
+    s = (name or "node").strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+    return s or "node"
+
+def _get_node_or_404(db, node_id: str):
+    n = db.nodes.find_one({"_internal_id": node_id})
+    if not n:
+        abort(404, description="node_not_found")
+    return n
+
+def _require_node_admin():
+    # For now we reuse ADMIN_SECRET. Later you can add per-node auth.
+    return require_admin()
+
+# -----------------------------
+# Nodes CRUD (admin for now)
+# -----------------------------
+@app.route("/v1/nodes", methods=["GET", "POST"])
+@app.route("/api/app/v1/nodes", methods=["GET", "POST"])
+def v1_nodes():
+    db = get_db()
+    _ensure_nodes_indexes(db)
+
+    if request.method == "GET":
+        # Admin-only list for now
+        if not _require_node_admin():
+            return jsonify({"ok": False, "error": "Unauthorized"}), 401
+        limit = max(1, min(int(request.args.get("limit", "50")), 200))
+        cur = db.nodes.find({}).sort("created_at", -1).limit(limit)
+        return jsonify({"ok": True, "nodes": [safe_doc(x) for x in cur]}), 200
+
+    # POST create
+    if not _require_node_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    body = request.get_json(silent=True) or {}
+    node_id = str(uuid.uuid4())
+    name = (body.get("name") or "Node").strip()
+    base_slug = _node_slugify(body.get("public_slug") or name)
+
+    # ensure unique slug
+    slug = base_slug
+    i = 1
+    while db.nodes.find_one({"public_slug": slug}):
+        i += 1
+        slug = f"{base_slug}-{i}"
+
+    doc = {
+        "_internal_id": node_id,
+        "name": name,
+        "public_slug": slug,
+        "country": (body.get("country") or "ZA").strip(),
+        "city": (body.get("city") or "").strip(),
+        "currency": (body.get("currency") or "ZAR").strip(),
+        "commission_rate": float(body.get("commission_rate") or 0.10),  # node operator cut
+        "platform_fee_rate": float(body.get("platform_fee_rate") or PLATFORM_FEE_RATE),
+        "delivery": {
+            "base_fee": float((body.get("delivery") or {}).get("base_fee") or DEFAULT_DELIVERY_FEE if "DEFAULT_DELIVERY_FEE" in globals() else 20),
+            "per_km": float((body.get("delivery") or {}).get("per_km") or 6.0),
+            "mode": (body.get("delivery") or {}).get("mode") or "auto",  # auto/manual
+        },
+        "active": True,
+        "created_at": _now_dt()
+    }
+    db.nodes.insert_one(doc)
+    return jsonify({"ok": True, "node_id": node_id, "public_slug": slug}), 201
+
+@app.route("/v1/nodes/<node_id>", methods=["GET", "PATCH"])
+@app.route("/api/app/v1/nodes/<node_id>", methods=["GET", "PATCH"])
+def v1_node_detail(node_id):
+    db = get_db()
+    _ensure_nodes_indexes(db)
+    n = db.nodes.find_one({"_internal_id": node_id})
+    if not n:
+        return jsonify({"ok": False, "error": "node_not_found"}), 404
+
+    if request.method == "GET":
+        if not _require_node_admin():
+            # public minimal view (safe)
+            return jsonify({"ok": True, "node": {
+                "_internal_id": n["_internal_id"],
+                "name": n.get("name"),
+                "public_slug": n.get("public_slug"),
+                "country": n.get("country"),
+                "city": n.get("city"),
+                "currency": n.get("currency"),
+                "active": bool(n.get("active", True))
+            }}), 200
+        return jsonify({"ok": True, "node": safe_doc(n)}), 200
+
+    # PATCH admin-only
+    if not _require_node_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+    body = request.get_json(silent=True) or {}
+    updates = {}
+    for k in ("name", "country", "city", "currency", "active"):
+        if k in body:
+            updates[k] = body.get(k)
+    if "commission_rate" in body:
+        updates["commission_rate"] = float(body.get("commission_rate") or 0)
+    if "platform_fee_rate" in body:
+        updates["platform_fee_rate"] = float(body.get("platform_fee_rate") or 0)
+    if "delivery" in body and isinstance(body["delivery"], dict):
+        d = body["delivery"]
+        updates["delivery.base_fee"] = float(d.get("base_fee") or 0)
+        updates["delivery.per_km"] = float(d.get("per_km") or 0)
+        if "mode" in d:
+            updates["delivery.mode"] = (d.get("mode") or "auto").strip()
+
+    if updates:
+        db.nodes.update_one({"_internal_id": node_id}, {"$set": updates})
+    n = db.nodes.find_one({"_internal_id": node_id})
+    return jsonify({"ok": True, "node": safe_doc(n)}), 200
+
+# -----------------------------
+# Store ↔ Node assignment
+# -----------------------------
+@app.route("/v1/store/<store_id>/assign_node", methods=["POST"])
+@app.route("/api/app/v1/store/<store_id>/assign_node", methods=["POST"])
+def v1_store_assign_node(store_id):
+    if not _require_node_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+    db = get_db()
+    body = request.get_json(silent=True) or {}
+    node_id = (body.get("node_id") or "").strip()
+    if not node_id:
+        return jsonify({"ok": False, "error": "node_id_required"}), 400
+    if not db.nodes.find_one({"_internal_id": node_id}):
+        return jsonify({"ok": False, "error": "node_not_found"}), 404
+    res = db.stores.update_one({"_internal_id": store_id}, {"$set": {"node_id": node_id}})
+    if res.matched_count == 0:
+        return jsonify({"ok": False, "error": "store_not_found"}), 404
+    return jsonify({"ok": True, "store_id": store_id, "node_id": node_id}), 200
+
+# -----------------------------
+# Custom storefront upload (HTML + optional assets)
+# -----------------------------
+@app.route("/v1/store/<store_id>/frontend/upload", methods=["POST"])
+@app.route("/api/app/v1/store/<store_id>/frontend/upload", methods=["POST"])
+def v1_storefront_upload(store_id):
+    """
+    Upload a custom storefront for a store.
+    - Accepts multipart/form-data:
+        - html: required (text/html)
+        - assets: optional multiple files (css/js/images)
+    Files are stored in GridFS. Store doc stores:
+      stores.frontend = { html_file_id: "...", assets: [{path, file_id, contentType}] }
+    """
+    if not require_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    if "html" not in request.files:
+        return jsonify({"ok": False, "error": "html_file_required"}), 400
+
+    html_f = request.files["html"]
+    html_name = secure_filename(getattr(html_f, "filename", "") or "index.html")
+    html_bytes = html_f.read() or b""
+    if not html_bytes:
+        return jsonify({"ok": False, "error": "empty_html"}), 400
+    if len(html_bytes) > 2 * 1024 * 1024:
+        return jsonify({"ok": False, "error": "html_too_large"}), 413
+
+    db = get_db()
+    s = db.stores.find_one({"_internal_id": store_id})
+    if not s:
+        return jsonify({"ok": False, "error": "store_not_found"}), 404
+
+    fs = get_fs(db)
+    html_id = fs.put(html_bytes, filename=html_name, contentType=getattr(html_f, "mimetype", "text/html"))
+
+    assets_meta = []
+    # optional: request.files.getlist("assets")
+    try:
+        assets = request.files.getlist("assets") if hasattr(request.files, "getlist") else []
+    except Exception:
+        assets = []
+
+    # limit number + size to protect serverless
+    max_assets = 25
+    max_asset_size = 2 * 1024 * 1024
+    for a in (assets or [])[:max_assets]:
+        if not a or not getattr(a, "filename", ""):
+            continue
+        name = secure_filename(a.filename)
+        content = a.read() or b""
+        if not content:
+            continue
+        if len(content) > max_asset_size:
+            continue
+        fid = fs.put(content, filename=name, contentType=getattr(a, "mimetype", "application/octet-stream"))
+        assets_meta.append({"path": name, "file_id": str(fid), "contentType": getattr(a, "mimetype", "application/octet-stream")})
+
+    db.stores.update_one(
+        {"_internal_id": store_id},
+        {"$set": {
+            "frontend": {
+                "html_file_id": str(html_id),
+                "assets": assets_meta,
+                "updated_at": _now_dt()
+            }
+        }}
+    )
+
+    return jsonify({
+        "ok": True,
+        "store_id": store_id,
+        "html_file_id": str(html_id),
+        "assets_count": len(assets_meta)
+    }), 200
+
+@app.route("/shop/<public_slug>/asset/<path:asset_path>", methods=["GET"])
+@app.route("/api/app/shop/<public_slug>/asset/<path:asset_path>", methods=["GET"])
+def shop_public_asset(public_slug, asset_path):
+    """
+    Serve uploaded storefront assets for a published store.
+    """
+    try:
+        db = get_db()
+        s = db.stores.find_one({"public_slug": public_slug, "published": True})
+        if not s:
+            return ("Not found", 404)
+        frontend = (s.get("frontend") or {})
+        assets = frontend.get("assets") or []
+        match = None
+        for a in assets:
+            if (a.get("path") or "") == asset_path:
+                match = a
+                break
+        if not match:
+            return ("Not found", 404)
+
+        fs = get_fs(db)
+        g = fs.get(ObjectId(match["file_id"]))
+        data = g.read()
+        ct = match.get("contentType") or g.content_type or "application/octet-stream"
+        return (data, 200, {"Content-Type": ct})
+    except Exception:
+        return ("Not found", 404)
+
+# -----------------------------
+# Headless Storefront API (public, safe)
+# -----------------------------
+def _store_by_public_slug(db, public_slug: str):
+    return db.stores.find_one({"public_slug": public_slug, "published": True})
+
+@app.route("/v1/storefront/<public_slug>/products", methods=["GET"])
+@app.route("/api/app/v1/storefront/<public_slug>/products", methods=["GET"])
+def storefront_products(public_slug):
+    db = get_db()
+    s = _store_by_public_slug(db, public_slug)
+    if not s:
+        return jsonify({"ok": False, "error": "store_not_found"}), 404
+
+    items = list(db.store_items.find({"store_id": s["_internal_id"], "active": True}).sort("created_at", -1).limit(500))
+    out = []
+    for it in items:
+        out.append({
+            "id": it.get("_internal_id"),
+            "name": it.get("name"),
+            "price": float(it.get("price") or 0),
+            "sku": it.get("sku"),
+            "image_url": it.get("image_url"),
+        })
+    return jsonify({
+        "ok": True,
+        "store": {"id": s.get("_internal_id"), "name": s.get("name"), "currency": (s.get("currency") or "ZAR")},
+        "products": out
+    }), 200
+
+def _calc_delivery_fee_for_store(db, store_doc, customer_coords=None) -> float:
+    # If store belongs to a node with pricing rules, use them; else fall back to DEFAULT_DELIVERY_FEE.
+    node_id = store_doc.get("node_id")
+    if node_id:
+        n = db.nodes.find_one({"_internal_id": node_id})
+    else:
+        n = None
+
+    base = float((n or {}).get("delivery", {}).get("base_fee") or os.environ.get("AGENT_DEFAULT_DELIVERY_FEE", "20") or 20)
+    per_km = float((n or {}).get("delivery", {}).get("per_km") or 0)
+
+    # If coords present and store has coords, compute
+    try:
+        store_coords = (((store_doc.get("address") or {}).get("coords") or {}))
+        slat, slng = store_coords.get("lat"), store_coords.get("lng")
+        clat, clng = (customer_coords or {}).get("lat"), (customer_coords or {}).get("lng")
+        if slat is not None and slng is not None and clat is not None and clng is not None:
+            dist_km = haversine_km(float(slat), float(slng), float(clat), float(clng))
+            return round(base + per_km * dist_km, 2)
+    except Exception:
+        pass
+    return round(base, 2)
+
+@app.route("/v1/storefront/<public_slug>/quote", methods=["POST"])
+@app.route("/api/app/v1/storefront/<public_slug>/quote", methods=["POST"])
+def storefront_quote(public_slug):
+    """
+    Quote subtotal + delivery + total for a given cart.
+    Body:
+      { items: [{product_id, qty}], customer: { address: { coords:{lat,lng} } } }
+    """
+    db = get_db()
+    s = _store_by_public_slug(db, public_slug)
+    if not s:
+        return jsonify({"ok": False, "error": "store_not_found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    items = body.get("items") or []
+    if not isinstance(items, list) or not items:
+        return jsonify({"ok": False, "error": "items_required"}), 400
+
+    # Build subtotal from DB prices (never trust client price)
+    subtotal = 0.0
+    resolved = []
+    for row in items[:200]:
+        pid = (row.get("product_id") or row.get("id") or "").strip()
+        qty = int(row.get("qty") or 1)
+        qty = max(1, min(qty, 50))
+        it = db.store_items.find_one({"_internal_id": pid, "store_id": s["_internal_id"], "active": True})
+        if not it:
+            continue
+        price = float(it.get("price") or 0)
+        subtotal += price * qty
+        resolved.append({"product_id": pid, "name": it.get("name"), "qty": qty, "price": price})
+
+    if not resolved:
+        return jsonify({"ok": False, "error": "no_valid_items"}), 400
+
+    cust = body.get("customer") or {}
+    coords = (((cust.get("address") or {}).get("coords") or {}))
+    delivery_fee = _calc_delivery_fee_for_store(db, s, coords)
+    total = round(subtotal + delivery_fee, 2)
+
+    return jsonify({
+        "ok": True,
+        "store_id": s["_internal_id"],
+        "public_slug": public_slug,
+        "items": resolved,
+        "subtotal": round(subtotal, 2),
+        "delivery_fee": delivery_fee,
+        "total": total,
+        "currency": (s.get("currency") or "ZAR")
+    }), 200
+
+@app.route("/v1/storefront/<public_slug>/checkout", methods=["POST"])
+@app.route("/api/app/v1/storefront/<public_slug>/checkout", methods=["POST"])
+def storefront_checkout(public_slug):
+    """
+    Create an order from a storefront cart.
+
+    SAFETY RAIL:
+      - An order is created only when confirm == "CONFIRM" (same guard as WhatsApp).
+
+    Body:
+      {
+        "confirm": "CONFIRM",
+        "customer": { "name": "...", "phone": "...", "address": { "line1": "...", "city": "...", "coords": {"lat":..,"lng":..} } },
+        "items": [ { "product_id": "...", "qty": 1 } ],
+        "payment": { "method": "card"|"cash"|"eft" }
+      }
+
+    If Stripe is available, returns a PaymentIntent client_secret (simple mode).
+    """
+    db = get_db()
+    s = _store_by_public_slug(db, public_slug)
+    if not s:
+        return jsonify({"ok": False, "error": "store_not_found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    confirm = (body.get("confirm") or "").strip().upper()
+    if confirm != "CONFIRM":
+        return jsonify({"ok": False, "error": "type_CONFIRM_to_place_order"}), 400
+
+    items_in = body.get("items") or []
+    if not isinstance(items_in, list) or not items_in:
+        return jsonify({"ok": False, "error": "items_required"}), 400
+
+    # Build subtotal from DB prices (never trust client price)
+    subtotal = 0.0
+    resolved_items = []
+    for row in items_in[:200]:
+        pid = (row.get("product_id") or row.get("id") or "").strip()
+        qty = int(row.get("qty") or 1)
+        qty = max(1, min(qty, 50))
+        it = db.store_items.find_one({"_internal_id": pid, "store_id": s["_internal_id"], "active": True})
+        if not it:
+            continue
+        price = float(it.get("price") or 0)
+        subtotal += price * qty
+        resolved_items.append({
+            "product_id": pid,
+            "name": it.get("name"),
+            "qty": qty,
+            "price": price,
+            "sku": it.get("sku"),
+            "image_url": it.get("image_url")
+        })
+
+    if not resolved_items:
+        return jsonify({"ok": False, "error": "no_valid_items"}), 400
+
+    customer = body.get("customer") or {}
+    coords = (((customer.get("address") or {}).get("coords") or {}))
+    delivery_fee = _calc_delivery_fee_for_store(db, s, coords)
+    total = round(subtotal + delivery_fee, 2)
+
+    payment_in = body.get("payment") or {}
+    method = (payment_in.get("method") or "card").strip().lower()
+    if method not in ("card", "cash", "eft"):
+        method = "card"
+
+    order_internal_id = str(uuid.uuid4())
+    public_id = make_order_public_id()
+
+    order_doc = {
+        "_internal_id": order_internal_id,
+        "order_id": public_id,
+        "created_at": _now_dt(),
+        "created_at_iso": _now_iso(),
+        "store_id": s["_internal_id"],
+        "node_id": s.get("node_id"),
+        "channel": "storefront",
+        "customer": customer,
+        "items": resolved_items,
+        "subtotal": round(subtotal, 2),
+        "delivery_fee": float(delivery_fee),
+        "total": float(total),
+        "payment": {
+            "method": method,
+            "status": "pending" if method == "card" else "unpaid",
+            "provider_ref": None,
+            "fake_checkout_url": f"https://pay.yithume.example/checkout/{order_internal_id}"
+        },
+        "status": "pending",
+        "assigned_driver_id": None,
+        "assigned_at": None,
+        "delivered_at": None,
+        "route": {},
+        "created_by": "storefront",
+        "meta": {"public_slug": public_slug},
+        "fraud_score": 0.0,
+        "fraud_flags": {},
+        "cluster_key": None,
+        "delivery_photo_file_id": None,
+        "delivery_photo_url": None,
+        "driver_pay_status": "pending",
+        "driver_pay_pending": 0.0,
+        "driver_pay_approved": 0.0,
+        "settlement": {"driver": 0.0, "platform": 0.0, "settled": False}
+    }
+
+    try:
+        intent = None
+        if method == "card" and _stripe_ready():
+            _stripe_init()
+            currency = (os.environ.get("STORE_CURRENCY") or (s.get("currency") or "ZAR")).lower()
+            # Stripe expects ISO currency like "zar"
+            currency = currency.lower()
+            if len(currency) != 3:
+                currency = "zar"
+            intent = stripe.PaymentIntent.create(
+                amount=int(round(order_doc["total"] * 100)),
+                currency=currency,
+                metadata={"order_id": order_doc["order_id"], "store_id": s["_internal_id"], "public_slug": public_slug},
+                automatic_payment_methods={"enabled": True},
+            )
+            order_doc["payment"]["provider_ref"] = intent.get("id")
+            order_doc["payment"]["status"] = "requires_payment"
+
+        db.orders.insert_one(order_doc)
+
+        out = {
+            "ok": True,
+            "order_db_id": order_internal_id,
+            "order_public_id": public_id,
+            "status": order_doc["status"],
+            "totals": {"subtotal": order_doc["subtotal"], "delivery_fee": order_doc["delivery_fee"], "total": order_doc["total"]},
+            "currency": (s.get("currency") or "ZAR"),
+            "payment": order_doc["payment"]
+        }
+        if intent is not None:
+            out["stripe"] = {"client_secret": intent.get("client_secret")}
+        else:
+            out["stripe"] = {"available": False, "note": "Install stripe + set STRIPE_SECRET_KEY to enable card payments."}
+        return jsonify(out), 201
+    except Exception as e:
+        return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
+
+
+@app.route("/v1/storefront/<public_slug>/order/<order_id>", methods=["GET"])
+
+@app.route("/api/app/v1/storefront/<public_slug>/order/<order_id>", methods=["GET"])
+def storefront_order_status(public_slug, order_id):
+    db = get_db()
+    s = _store_by_public_slug(db, public_slug)
+    if not s:
+        return jsonify({"ok": False, "error": "store_not_found"}), 404
+    o = db.orders.find_one({"order_id": order_id, "store_id": s["_internal_id"]})
+    if not o:
+        return jsonify({"ok": False, "error": "order_not_found"}), 404
+    return jsonify({"ok": True, "order": {
+        "order_id": o.get("order_id"),
+        "status": o.get("status"),
+        "payment": (o.get("payment") or {}).get("status"),
+        "total": o.get("total"),
+        "delivery_fee": o.get("delivery_fee"),
+        "assigned_driver_id": o.get("assigned_driver_id"),
+        "created_at": o.get("created_at_iso")
+    }}), 200
+
+# -----------------------------
+# Stripe webhook (optional)
+# -----------------------------
+@app.route("/v1/stripe/webhook", methods=["POST"])
+@app.route("/api/app/v1/stripe/webhook", methods=["POST"])
+def stripe_webhook():
+    if not _stripe_ready():
+        return jsonify({"ok": False, "error": "stripe_not_configured"}), 400
+    _stripe_init()
+
+    payload = request.data
+    sig_header = request.headers.get("Stripe-Signature", "")
+    if not STRIPE_WEBHOOK_SECRET:
+        return jsonify({"ok": False, "error": "stripe_webhook_secret_missing"}), 400
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except Exception as e:
+        return jsonify({"ok": False, "error": "invalid_signature", "details": str(e)}), 400
+
+    # Handle common events (extend as needed)
+    et = event.get("type")
+    obj = (event.get("data") or {}).get("object") or {}
+    try:
+        db = get_db()
+        if et in ("payment_intent.succeeded", "payment_intent.payment_failed"):
+            pid = obj.get("id")
+            status = obj.get("status")
+            if pid:
+                new_status = "paid" if et == "payment_intent.succeeded" else "failed"
+                db.orders.update_one({"payment.provider_ref": pid}, {"$set": {"payment.status": new_status}})
+        return jsonify({"ok": True}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
+
