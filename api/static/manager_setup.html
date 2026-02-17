@@ -29,13 +29,13 @@
         <div class="flex items-center justify-between gap-4">
           <div>
             <div class="text-sm font-semibold">Setup steps</div>
-            <div class="text-xs text-zinc-400 mt-1">Pin → Business → Channels → Catalog → Delivery → Review</div>
+            <div class="text-xs text-zinc-400 mt-1">Pin → Business → Channels → Payments → Catalog → Storefront → Delivery → Review</div>
           </div>
           <div class="w-40">
             <div class="w-full bg-zinc-800 rounded-full h-2">
-              <div id="bar" class="bg-emerald-500 h-2 rounded-full" style="width: 16%"></div>
+              <div id="bar" class="bg-emerald-500 h-2 rounded-full" style="width: 12%"></div>
             </div>
-            <div id="barText" class="text-xs text-zinc-400 mt-2 text-right">Step 1 of 6</div>
+            <div id="barText" class="text-xs text-zinc-400 mt-2 text-right">Step 1 of 8</div>
           </div>
         </div>
       </div>
@@ -146,8 +146,55 @@
           </div>
         </div>
 
+        <!-- NEW Step 4: Payments -->
         <div id="step4" class="step hidden">
-          <h2 class="text-xl font-semibold">4) Product catalog</h2>
+          <h2 class="text-xl font-semibold">4) Payments</h2>
+          <p class="text-sm text-zinc-400 mt-1">Demo = no charge. Live = real money. Stripe Connect is recommended.</p>
+
+          <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="text-sm text-zinc-300">Mode</label>
+              <select id="payments_mode" class="mt-1 w-full rounded-xl bg-zinc-950/50 border border-zinc-800 px-3 py-3">
+                <option value="demo">Demo (no charge)</option>
+                <option value="live">Live (real payments)</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-sm text-zinc-300">Provider</label>
+              <select id="payments_provider" class="mt-1 w-full rounded-xl bg-zinc-950/50 border border-zinc-800 px-3 py-3">
+                <option value="demo">Demo</option>
+                <option value="stripe_connect">Stripe (Connect)</option>
+                <option value="yoco">Yoco (placeholder)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mt-4 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+            <div class="text-sm font-semibold">Stripe Connect (recommended)</div>
+            <div class="text-sm text-zinc-400 mt-1">
+              You <u>do not paste API keys</u>. You connect your Stripe account via onboarding.
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button id="connectStripeBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm">
+                Start Stripe Connect
+              </button>
+              <button id="stripeStatusBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm">
+                Check status
+              </button>
+              <button id="stripeSyncBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm">
+                Sync products → Stripe
+              </button>
+            </div>
+            <pre id="paymentsOut" class="mt-3 text-xs text-zinc-300 whitespace-pre-wrap"></pre>
+            <div class="text-xs text-zinc-500 mt-3">
+              If you stay in Demo for now, you can still test orders + delivery end-to-end.
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5 now = Product catalog (was 4) -->
+        <div id="step5" class="step hidden">
+          <h2 class="text-xl font-semibold">5) Product catalog</h2>
           <p class="text-sm text-zinc-400 mt-1">How will you load products for the agent to quote?</p>
 
           <div class="mt-4 space-y-3">
@@ -168,8 +215,72 @@
           </div>
         </div>
 
-        <div id="step5" class="step hidden">
-          <h2 class="text-xl font-semibold">5) Delivery</h2>
+        <!-- NEW Step 6: Storefront -->
+        <div id="step6" class="step hidden">
+          <h2 class="text-xl font-semibold">6) Storefront</h2>
+          <p class="text-sm text-zinc-400 mt-1">Pick a storefront source. You can switch later.</p>
+
+          <div class="mt-4 space-y-3">
+            <label class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4 cursor-pointer">
+              <input type="radio" name="storefront_mode" value="hosted" checked />
+              <div>
+                <div class="font-medium">Hosted storefront (default)</div>
+                <div class="text-xs text-zinc-400">Fastest: YiThume provides the UI at /shop/&lt;slug&gt;.</div>
+              </div>
+            </label>
+
+            <label class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4 cursor-pointer">
+              <input type="radio" name="storefront_mode" value="custom_html" />
+              <div>
+                <div class="font-medium">Upload custom HTML</div>
+                <div class="text-xs text-zinc-400">Use Webflow/Lovable/GPT → export HTML → upload here.</div>
+              </div>
+            </label>
+
+            <label class="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4 cursor-pointer">
+              <input type="radio" name="storefront_mode" value="external_builder" />
+              <div>
+                <div class="font-medium">External builder (headless)</div>
+                <div class="text-xs text-zinc-400">Keep your site elsewhere and call YiThume API for catalog + checkout.</div>
+              </div>
+            </label>
+          </div>
+
+          <div id="customHtmlBox" class="hidden mt-4 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+            <div class="text-sm font-semibold">Upload custom HTML</div>
+            <div class="text-xs text-zinc-400 mt-1">Upload index.html (and optionally a ZIP of assets if you support it).</div>
+
+            <div class="mt-3 space-y-3">
+              <div>
+                <label class="text-sm text-zinc-300">index.html</label>
+                <input id="htmlFile" type="file" accept=".html,text/html" class="mt-1 w-full text-sm" />
+              </div>
+
+              <button id="uploadHtmlBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm">
+                Upload HTML to /shop/&lt;slug&gt;
+              </button>
+
+              <pre id="storefrontOut" class="text-xs text-zinc-300 whitespace-pre-wrap"></pre>
+            </div>
+          </div>
+
+          <div id="headlessBox" class="hidden mt-4 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+            <div class="text-sm font-semibold">Headless endpoints</div>
+            <div class="text-xs text-zinc-400 mt-2">
+              Build anywhere, call these endpoints:
+              <ul class="list-disc ml-5 mt-2 space-y-1">
+                <li><code class="text-zinc-200">GET /v1/storefront/&lt;slug&gt;/products</code></li>
+                <li><code class="text-zinc-200">POST /v1/storefront/&lt;slug&gt;/quote</code></li>
+                <li><code class="text-zinc-200">POST /v1/storefront/&lt;slug&gt;/checkout</code> (requires <b>CONFIRM</b>)</li>
+                <li><code class="text-zinc-200">GET /v1/storefront/&lt;slug&gt;/order/&lt;id&gt;</code></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 7 now = Delivery (was 5) -->
+        <div id="step7" class="step hidden">
+          <h2 class="text-xl font-semibold">7) Delivery</h2>
           <p class="text-sm text-zinc-400 mt-1">Choose how dispatch should work in MVP.</p>
 
           <div class="mt-4">
@@ -192,8 +303,9 @@
           </div>
         </div>
 
-        <div id="step6" class="step hidden">
-          <h2 class="text-xl font-semibold">6) Review & create</h2>
+        <!-- Step 8 now = Review (was 6) -->
+        <div id="step8" class="step hidden">
+          <h2 class="text-xl font-semibold">8) Review & create</h2>
           <p class="text-sm text-zinc-400 mt-1">This will create the manager + employees + initial jobs.</p>
 
           <div class="mt-4 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
@@ -233,8 +345,16 @@
 
 <script>
 (function () {
-  const steps = ["step1","step2","step3","step4","step5","step6"];
+  const steps = ["step1","step2","step3","step4","step5","step6","step7","step8"];
   let idx = 0;
+
+  // Will be set after /manager/api/setup creates store/workspace
+  let created = {
+    workspace_id: null,
+    store_id: null,
+    store_slug: null,
+    redirect_url: null
+  };
 
   const qs = new URLSearchParams(location.search);
   const savedPin = localStorage.getItem("yithume_admin_pin") || "";
@@ -258,12 +378,25 @@
     idx = i;
     setBar();
     clearAlert();
-    if (idx === 5) renderSummary();
+    if (idx === steps.length - 1) renderSummary();
+    toggleStorefrontBoxes();
   }
 
   function getProductsMode() {
     const r = document.querySelector('input[name="products_mode"]:checked');
     return r ? r.value : "catalog_seed";
+  }
+
+  function getStorefrontMode() {
+    const r = document.querySelector('input[name="storefront_mode"]:checked');
+    return r ? r.value : "hosted";
+  }
+
+  function toggleStorefrontBoxes() {
+    if (!el("customHtmlBox")) return;
+    const m = getStorefrontMode();
+    el("customHtmlBox").classList.toggle("hidden", m !== "custom_html");
+    el("headlessBox").classList.toggle("hidden", m !== "external_builder");
   }
 
   function getState() {
@@ -279,12 +412,22 @@
       needs_returns: el("needs_returns").checked,
       needs_delivery: el("needs_delivery").checked,
 
+      payments_mode: el("payments_mode").value,
+      payments_provider: el("payments_provider").value,
+
       products_mode: getProductsMode(),
+      storefront_mode: getStorefrontMode(),
       delivery_mode: el("delivery_mode").value,
 
       autopilot_level: "assist",
       plan: "starter",
     };
+  }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"']/g, (m) => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
   }
 
   function renderSummary() {
@@ -294,6 +437,8 @@
       `<div><span class="text-zinc-400">Store:</span> ${escapeHtml(s.store_name || "New Store")}</div>`,
       `<div><span class="text-zinc-400">Template:</span> ${escapeHtml(s.template)}</div>`,
       `<div><span class="text-zinc-400">Currency:</span> ${escapeHtml(s.currency)}</div>`,
+      `<div><span class="text-zinc-400">Payments:</span> ${escapeHtml(s.payments_mode)} / ${escapeHtml(s.payments_provider)}</div>`,
+      `<div><span class="text-zinc-400">Storefront:</span> ${escapeHtml(s.storefront_mode)}</div>`,
       `<div><span class="text-zinc-400">Delivery:</span> ${escapeHtml(s.delivery_mode)}</div>`,
       `<div><span class="text-zinc-400">Web:</span> ${s.channel_web ? "Yes" : "No"}</div>`,
       `<div><span class="text-zinc-400">Support:</span> ${s.needs_support ? "Yes" : "No"}</div>`,
@@ -302,12 +447,6 @@
       `</div>`
     ];
     el("summary").innerHTML = lines.join("");
-  }
-
-  function escapeHtml(str) {
-    return String(str || "").replace(/[&<>"']/g, (m) => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[m]));
   }
 
   function validateStep() {
@@ -322,6 +461,80 @@
     return null;
   }
 
+  function pinParam() {
+    const p = el("admin_pin").value.trim();
+    return p ? `?admin_pin=${encodeURIComponent(p)}` : "";
+  }
+
+  async function postJson(url, body) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {})
+    });
+    const text = await res.text();
+    try { return { ok: res.ok, status: res.status, json: JSON.parse(text) }; }
+    catch { return { ok: res.ok, status: res.status, json: { ok:false, error:text } }; }
+  }
+
+  // --- Payments helpers (after store exists)
+  async function savePaymentsConfig() {
+    const s = getState();
+    if (!created.store_id) return;
+    const url = `/manager/api/store/${encodeURIComponent(created.store_id)}/payments${pinParam()}`;
+    return await postJson(url, { mode: s.payments_mode, provider: s.payments_provider });
+  }
+
+  async function stripeConnectStart() {
+    if (!created.store_id) return;
+    el("paymentsOut").textContent = "Starting Stripe Connect...";
+    const url = `/manager/api/store/${encodeURIComponent(created.store_id)}/stripe/connect/start${pinParam()}`;
+    const out = await postJson(url, {});
+    el("paymentsOut").textContent = JSON.stringify(out.json, null, 2);
+    if (out.json && out.json.onboarding_url) window.open(out.json.onboarding_url, "_blank");
+  }
+
+  async function stripeConnectStatus() {
+    if (!created.store_id) return;
+    el("paymentsOut").textContent = "Checking status...";
+    const res = await fetch(`/manager/api/store/${encodeURIComponent(created.store_id)}/stripe/connect/status${pinParam()}`);
+    const j = await res.json();
+    el("paymentsOut").textContent = JSON.stringify(j, null, 2);
+  }
+
+  async function stripeSyncProducts() {
+    if (!created.store_id) return;
+    el("paymentsOut").textContent = "Syncing products...";
+    const url = `/manager/api/store/${encodeURIComponent(created.store_id)}/stripe/sync_products${pinParam()}`;
+    const out = await postJson(url, {});
+    el("paymentsOut").textContent = JSON.stringify(out.json, null, 2);
+  }
+
+  // --- Storefront upload (optional)
+  async function uploadCustomHtml() {
+    if (!created.store_id) return showAlert("Create store first (finish setup).");
+    const f = el("htmlFile").files && el("htmlFile").files[0];
+    if (!f) return showAlert("Choose an index.html file first.");
+
+    el("storefrontOut").textContent = "Uploading...";
+    const fd = new FormData();
+    fd.append("index_html", f);
+
+    const res = await fetch(`/manager/api/store/${encodeURIComponent(created.store_id)}/storefront/upload${pinParam()}`, {
+      method: "POST",
+      body: fd
+    });
+
+    const text = await res.text();
+    let j = null;
+    try { j = JSON.parse(text); } catch { j = { ok:false, error:text }; }
+    el("storefrontOut").textContent = JSON.stringify(j, null, 2);
+
+    if (j.ok && created.store_slug) {
+      el("storefrontOut").textContent += `\n\nView: /shop/${created.store_slug}`;
+    }
+  }
+
   async function createWorkspace() {
     clearAlert();
     const s = getState();
@@ -330,32 +543,42 @@
     el("createBtn").disabled = true;
     el("creating").classList.remove("hidden");
 
-    // always send admin_pin in BOTH query + JSON body (works with your require_admin)
+    // Setup creates workspace + store
     const url = `/manager/api/setup?admin_pin=${encodeURIComponent(s.admin_pin)}`;
+    const out = await postJson(url, s);
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(s)
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      el("createBtn").disabled = false;
-      el("creating").classList.add("hidden");
-      showAlert(`Setup failed (${res.status}). ${text}`);
-      return;
-    }
-
-    const out = await res.json();
     if (!out.ok) {
       el("createBtn").disabled = false;
       el("creating").classList.add("hidden");
-      showAlert(out.error || "Setup failed.");
+      showAlert(`Setup failed (${out.status}). ${out.json.error || "Unknown error"}`);
       return;
     }
 
-    location.href = out.redirect_url || `/manager/dashboard/${out.workspace_id}?admin_pin=${encodeURIComponent(s.admin_pin)}`;
+    if (!out.json.ok) {
+      el("createBtn").disabled = false;
+      el("creating").classList.add("hidden");
+      showAlert(out.json.error || "Setup failed.");
+      return;
+    }
+
+    // Capture created identifiers (app.py must return these)
+    created.workspace_id = out.json.workspace_id || null;
+    created.store_id     = out.json.store_id || out.json.created_store_id || null;
+    created.store_slug   = out.json.store_slug || null;
+    created.redirect_url = out.json.redirect_url || null;
+
+    // Immediately persist payments config
+    await savePaymentsConfig();
+
+    // If user chose Stripe Connect + live, prompt them to onboard
+    if (s.payments_provider === "stripe_connect") {
+      el("paymentsOut").textContent =
+        "Stripe Connect selected. After creation, go to Payments step and click Start Stripe Connect.";
+    }
+
+    // Redirect to manager dashboard
+    location.href = created.redirect_url
+      || `/manager/dashboard/${created.workspace_id}?admin_pin=${encodeURIComponent(s.admin_pin)}`;
   }
 
   // Prefill PIN from URL/localStorage
@@ -371,6 +594,17 @@
     if (err) { showAlert(err); return; }
     if (idx < steps.length - 1) showStep(idx + 1);
   });
+
+  // Step 4 button wiring
+  document.addEventListener("change", (e) => {
+    if (e.target && e.target.name === "storefront_mode") toggleStorefrontBoxes();
+  });
+
+  el("connectStripeBtn").addEventListener("click", stripeConnectStart);
+  el("stripeStatusBtn").addEventListener("click", stripeConnectStatus);
+  el("stripeSyncBtn").addEventListener("click", stripeSyncProducts);
+
+  el("uploadHtmlBtn").addEventListener("click", uploadCustomHtml);
 
   el("createBtn").addEventListener("click", createWorkspace);
 
