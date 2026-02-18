@@ -171,6 +171,16 @@
           Sell with YiThume
         </a>
 
+        <button id="buyerLoginBtn"
+          class="px-3 py-2 text-xs rounded-xl border border-slate-300 hover:bg-slate-100">
+          Buyer Login
+        </button>
+
+        <button id="sellerLoginBtn"
+          class="px-3 py-2 text-xs rounded-xl border border-slate-300 hover:bg-slate-100">
+          Seller Login
+        </button>
+
         <button id="adminLoginBtn"
           class="px-3 py-2 text-xs rounded-xl border border-slate-300 hover:bg-slate-100">
           Admin
@@ -4754,5 +4764,223 @@ function renderHistory() {
 </script>
 
 
+
+<!-- ============================================================
+     AUTH MODAL (Buyer/Seller/Driver/Operator)
+     - Token stored in localStorage as yithume_token
+     - Frontend sends Authorization: Bearer <token>
+============================================================ -->
+<div id="authModal" class="fixed inset-0 z-[60] hidden">
+  <div class="absolute inset-0 bg-black/40"></div>
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+      <div class="px-5 py-4 flex items-center justify-between border-b border-slate-200">
+        <div>
+          <div class="text-sm font-semibold text-slate-900">Sign in</div>
+          <div class="text-xs text-slate-500" id="authModalSubtitle">Use your account to continue</div>
+        </div>
+        <button id="authModalClose" class="p-2 rounded-lg hover:bg-slate-100" aria-label="Close">
+          ✕
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4">
+        <div class="grid grid-cols-2 gap-2">
+          <button id="authTabLogin" class="px-3 py-2 rounded-xl border text-sm font-semibold">Login</button>
+          <button id="authTabRegister" class="px-3 py-2 rounded-xl border text-sm font-semibold">Register</button>
+        </div>
+
+        <div>
+          <label class="text-xs font-semibold text-slate-700">Role</label>
+          <select id="authRole" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+            <option value="buyer">Buyer</option>
+            <option value="seller">Seller</option>
+            <option value="driver">Driver</option>
+            <option value="operator">Network Operator</option>
+          </select>
+          <div class="text-[11px] text-slate-500 mt-1">
+            Admin login remains via the existing Admin PIN flow.
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs font-semibold text-slate-700">Email</label>
+          <input id="authEmail" type="email" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 text-sm" placeholder="you@email.com" />
+        </div>
+
+        <div>
+          <label class="text-xs font-semibold text-slate-700">Password</label>
+          <input id="authPassword" type="password" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 text-sm" placeholder="••••••••" />
+        </div>
+
+        <div id="authRegisterExtra" class="hidden">
+          <label class="text-xs font-semibold text-slate-700">Confirm Password</label>
+          <input id="authPassword2" type="password" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 text-sm" placeholder="••••••••" />
+        </div>
+
+        <div class="flex items-center justify-between gap-3">
+          <div class="text-xs text-slate-500" id="authStatusText"></div>
+          <button id="authSubmitBtn" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
+            Continue
+          </button>
+        </div>
+
+        <div class="text-[11px] text-slate-500 leading-relaxed">
+          Your session token is stored locally as <span class="font-mono">yithume_token</span>.
+          It is sent to the API via <span class="font-mono">Authorization: Bearer</span>.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const API_BASE = "";
+  const TOKEN_KEY = "yithume_token";
+  const ROLE_KEY  = "yithume_role";
+
+  function qs(id){ return document.getElementById(id); }
+  function show(el){ el.classList.remove("hidden"); }
+  function hide(el){ el.classList.add("hidden"); }
+  function setStatus(msg, isError){
+    const el = qs("authStatusText");
+    el.textContent = msg || "";
+    el.style.color = isError ? "#b91c1c" : "#64748b";
+  }
+
+  async function api(path, opts){
+    const o = opts || {};
+    o.headers = o.headers || {};
+    const t = localStorage.getItem(TOKEN_KEY);
+    if(t) o.headers["Authorization"] = "Bearer " + t;
+    return fetch(API_BASE + path, o);
+  }
+
+  let mode = "login"; // login | register
+
+  function setMode(m){
+    mode = m;
+    const loginBtn = qs("authTabLogin");
+    const regBtn   = qs("authTabRegister");
+    const extra    = qs("authRegisterExtra");
+    const submit   = qs("authSubmitBtn");
+
+    if(mode === "login"){
+      loginBtn.className = "px-3 py-2 rounded-xl border text-sm font-semibold bg-slate-900 text-white border-slate-900";
+      regBtn.className   = "px-3 py-2 rounded-xl border text-sm font-semibold hover:bg-slate-50";
+      hide(extra);
+      submit.textContent = "Login";
+    }else{
+      regBtn.className   = "px-3 py-2 rounded-xl border text-sm font-semibold bg-slate-900 text-white border-slate-900";
+      loginBtn.className = "px-3 py-2 rounded-xl border text-sm font-semibold hover:bg-slate-50";
+      show(extra);
+      submit.textContent = "Create account";
+    }
+    setStatus("");
+  }
+
+  function openAuth(prefRole){
+    const modal = qs("authModal");
+    show(modal);
+    setMode("login");
+    if(prefRole) qs("authRole").value = prefRole;
+    qs("authEmail").focus();
+  }
+
+  function closeAuth(){
+    hide(qs("authModal"));
+    setStatus("");
+    qs("authEmail").value = "";
+    qs("authPassword").value = "";
+    const p2 = qs("authPassword2"); if(p2) p2.value="";
+  }
+
+  async function submitAuth(){
+    const role = qs("authRole").value;
+    const email = (qs("authEmail").value || "").trim();
+    const password = qs("authPassword").value || "";
+    const password2 = (qs("authPassword2").value || "");
+    if(!email || !password){
+      setStatus("Email and password required.", true); return;
+    }
+    if(mode === "register" && password !== password2){
+      setStatus("Passwords do not match.", true); return;
+    }
+
+    setStatus("Working...");
+    try{
+      const endpoint = mode === "login" ? "/v1/auth/login" : "/v1/auth/register";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ email, password, role })
+      });
+      const data = await res.json().catch(()=> ({}));
+      if(!res.ok){
+        setStatus(data.error || "Auth failed.", true);
+        return;
+      }
+      if(data && data.token){
+        localStorage.setItem(TOKEN_KEY, data.token);
+      }
+      if(data && data.role){
+        localStorage.setItem(ROLE_KEY, data.role);
+      }else{
+        localStorage.setItem(ROLE_KEY, role);
+      }
+
+      setStatus("Success. Redirecting...");
+      setTimeout(()=>{
+        closeAuth();
+        // Seller goes to dashboard
+        const finalRole = (data && data.role) ? data.role : role;
+        if(finalRole === "seller"){
+          window.location.href = "/dashboard";
+        }else{
+          // Buyers/drivers/operators stay on home for now
+          window.location.reload();
+        }
+      }, 400);
+
+    }catch(e){
+      setStatus("Network error.", true);
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", function(){
+    // Bind buttons
+    const buyerBtn = qs("buyerLoginBtn");
+    const sellerBtn = qs("sellerLoginBtn");
+    if(buyerBtn) buyerBtn.addEventListener("click", ()=>openAuth("buyer"));
+    if(sellerBtn) sellerBtn.addEventListener("click", ()=>openAuth("seller"));
+
+    qs("authModalClose").addEventListener("click", closeAuth);
+    qs("authTabLogin").addEventListener("click", ()=>setMode("login"));
+    qs("authTabRegister").addEventListener("click", ()=>setMode("register"));
+    qs("authSubmitBtn").addEventListener("click", submitAuth);
+
+    // ESC close
+    document.addEventListener("keydown", (e)=>{ if(e.key==="Escape") closeAuth(); });
+
+    // Click outside closes
+    qs("authModal").addEventListener("click", (e)=>{
+      if(e.target === qs("authModal")) closeAuth();
+    });
+
+    // If already logged in as seller, show quick link
+    const role = localStorage.getItem(ROLE_KEY);
+    const token = localStorage.getItem(TOKEN_KEY);
+    if(role === "seller" && token){
+      // Add a small badge next to Seller Login
+      const sb = qs("sellerLoginBtn");
+      if(sb){
+        sb.textContent = "Seller Dashboard";
+        sb.addEventListener("click", (e)=>{ e.preventDefault(); window.location.href="/dashboard"; }, {once:true});
+      }
+    }
+  });
+})();
+</script>
 </body>
 </html>
