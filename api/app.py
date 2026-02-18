@@ -488,6 +488,440 @@ def _pin_or_header_ok():
 def require_admin():
     return _pin_or_header_ok()
 
+# -------------------------------------------------
+# AUTH / RBAC (non-breaking, opt-in)
+# -------------------------------------------------
+# Goals:
+# - Keep existing ADMIN_SECRET flows working
+# - Add optional user auth + roles for venture-scale infrastructure
+# - Use opaque bearer tokens stored hashed in Mongo (no JWT dependency)
+#
+# Roles:
+#   admin, seller, driver, operator, buyer
+#
+# Notes:
+# - If AUTH_ENABLED=false, endpoints that require auth will return 501
+#   (we keep it explicit so you know you haven't wired auth yet).
+# - Existing endpoints remain unchanged unless they explicitly call require_user().
+AUTH_ENABLED = os.environ.get("AUTH_ENABLED", "false").lower() == "true"
+AUTH_TOKEN_TTL_DAYS = int(os.environ.get("AUTH_TOKEN_TTL_DAYS", "30"))
+AUTH_TOKEN_PEPPER = os.environ.get("AUTH_TOKEN_PEPPER", "").strip()  # optional extra salt
+
+# Header used for bearer auth
+AUTH_HEADER = "Authorization"
+
+
+def _hash_token(token: str) -> str:
+    # Hash bearer token so tokens are never stored in plaintext.
+    base = (token or "").strip()
+    if not base:
+        return ""
+    # Pepper is optional (recommended in production)
+    return hashlib.sha256((base + AUTH_TOKEN_PEPPER).encode("utf-8")).hexdigest()
+
+
+def _hash_pin_or_password(secret: str) -> str:
+    return hashlib.sha256(str(secret or "").encode("utf-8")).hexdigest()
+
+
+def ensure_auth_indexes(db):
+    """Best-effort indexes. Safe to call many times."""
+    try:
+        db.users.create_index([("phone", 1)], unique=True, sparse=True)
+    except Exception:
+        pass
+    try:
+        db.users.create_index([("email", 1)], unique=True, sparse=True)
+    except Exception:
+        pass
+    try:
+        db.users.create_index([("roles", 1)])
+    except Exception:
+        pass
+    try:
+        db.auth_tokens.create_index([("token_hash", 1)], unique=True)
+    except Exception:
+        pass
+    try:
+        db.auth_tokens.create_index([("expires_at", 1)], expireAfterSeconds=0)
+    except Exception:
+        pass
+    try:
+        db.bans.create_index([("active", 1), ("target_type", 1), ("target_id", 1)])
+        db.bans.create_index([("active", 1), ("phone", 1)])
+        db.bans.create_index([("expires_at", 1)], expireAfterSeconds=0)
+    except Exception:
+        pass
+    try:
+        db.flags.create_index([("target_type", 1), ("target_id", 1)])
+        db.flags.create_index([("created_at", 1)])
+    except Exception:
+        pass
+
+
+def _auth_disabled_response():
+    return jsonify({"ok": False, "error": "auth_disabled", "hint": "Set AUTH_ENABLED=true"}), 501
+
+
+def _extract_bearer_token() -> str | None:
+    h = request.headers.get(AUTH_HEADER) or ""
+    h = h.strip()
+    if not h:
+        return None
+    if h.lower().startswith("bearer "):
+        return h.split(" ", 1)[1].strip() or None
+    # Allow raw tokens too (useful for quick testing)
+    return h or None
+
+
+def issue_token(db, user_id: str) -> dict:
+    token = str(uuid.uuid4()) + str(uuid.uuid4())
+    token_hash = _hash_token(token)
+    expires_at = _now_dt() + timedelta(days=AUTH_TOKEN_TTL_DAYS)
+    db.auth_tokens.insert_one({
+        "token_hash": token_hash,
+        "user_id": user_id,
+        "created_at": _now_dt(),
+        "expires_at": expires_at
+    })
+    return {"token": token, "expires_at": expires_at.isoformat() + "Z"}
+
+
+def get_user_by_token(db, token: str) -> dict | None:
+    if not token:
+        return None
+    token_hash = _hash_token(token)
+    t = db.auth_tokens.find_one({"token_hash": token_hash})
+    if not t:
+        return None
+    u = db.users.find_one({"_internal_id": t.get("user_id")})
+    if not u:
+        return None
+    return u
+
+
+def safe_user(u: dict) -> dict | None:
+    if not u:
+        return None
+    out = dict(u)
+    out.pop("_id", None)
+    # never leak hashes
+    out.pop("pin_hash", None)
+    out.pop("password_hash", None)
+    return out
+
+
+def require_user(db=None) -> dict | None:
+    """Returns user doc if logged-in. Returns None if not authenticated."""
+    if not AUTH_ENABLED:
+        return None
+    db = db or get_db()
+    try:
+        ensure_auth_indexes(db)
+    except Exception:
+        pass
+    token = _extract_bearer_token()
+    if not token:
+        return None
+    return get_user_by_token(db, token)
+
+
+def require_roles(*roles):
+    """Decorator for endpoints that require auth + any of the given roles."""
+    def deco(fn):
+        def wrapper(*args, **kwargs):
+            if not AUTH_ENABLED:
+                return _auth_disabled_response()
+            db = get_db()
+            u = require_user(db)
+            if not u:
+                return jsonify({"ok": False, "error": "unauthorized"}), 401
+            have = set((u.get("roles") or []))
+            need = set([r for r in roles if r])
+            if need and have.isdisjoint(need):
+                return jsonify({"ok": False, "error": "forbidden", "required": list(need)}), 403
+            # Attach user to request context (simple)
+            request._auth_user = u  # type: ignore[attr-defined]
+            return fn(*args, **kwargs)
+        wrapper.__name__ = fn.__name__
+        return wrapper
+    return deco
+
+
+# -------------------------------------------------
+# TRUST & SAFETY: Flags + Bans (non-breaking)
+# -------------------------------------------------
+def is_phone_banned(db, phone: str | None) -> dict | None:
+    if not phone:
+        return None
+    phone = str(phone).strip()
+    if not phone:
+        return None
+    b = db.bans.find_one({"active": True, "phone": phone})
+    return b
+
+
+def is_target_banned(db, target_type: str, target_id: str) -> dict | None:
+    if not target_type or not target_id:
+        return None
+    return db.bans.find_one({"active": True, "target_type": target_type, "target_id": target_id})
+
+
+def _ban_response(ban_doc: dict):
+    exp = ban_doc.get("expires_at")
+    exp_iso = exp.isoformat() + "Z" if isinstance(exp, datetime) else exp
+    return jsonify({
+        "ok": False,
+        "error": "banned",
+        "reason": ban_doc.get("reason") or "policy",
+        "expires_at": exp_iso
+    }), 403
+
+
+def enforce_not_banned(db, phone: str | None = None, target_type: str | None = None, target_id: str | None = None):
+    """Returns (None) if ok; otherwise returns a Flask response tuple."""
+    try:
+        if phone:
+            b = is_phone_banned(db, phone)
+            if b:
+                return _ban_response(b)
+        if target_type and target_id:
+            b = is_target_banned(db, target_type, target_id)
+            if b:
+                return _ban_response(b)
+        return None
+    except Exception:
+        # Safety: never break flows due to safety layer errors
+        return None
+
+
+# -------------------------------------------------
+# AUTH ENDPOINTS (opt-in)
+# -------------------------------------------------
+@app.route("/auth/register", methods=["POST"])
+@app.route("/api/app/auth/register", methods=["POST"])
+def auth_register():
+    if not AUTH_ENABLED:
+        return _auth_disabled_response()
+
+    db = get_db()
+    ensure_auth_indexes(db)
+
+    body = request.get_json(silent=True) or {}
+    phone = (body.get("phone") or "").strip()
+    email = (body.get("email") or "").strip().lower() or None
+    pin = (body.get("pin") or body.get("password") or "").strip()
+    role = (body.get("role") or "buyer").strip().lower()
+
+    if role not in ("buyer", "seller", "driver", "operator", "admin"):
+        return jsonify({"ok": False, "error": "bad_role"}), 400
+
+    if phone and not phone_ok(phone):
+        return jsonify({"ok": False, "error": "bad_phone"}), 400
+
+    if not pin or len(pin) < 4:
+        return jsonify({"ok": False, "error": "pin_required", "hint": "Use a 4+ digit PIN"}), 400
+
+    # prevent banned users from registering
+    ban_resp = enforce_not_banned(db, phone=phone)
+    if ban_resp:
+        return ban_resp
+
+    user_id = str(uuid.uuid4())
+    doc = {
+        "_internal_id": user_id,
+        "phone": phone or None,
+        "email": email,
+        "roles": [role],
+        "pin_hash": _hash_pin_or_password(pin),
+        "status": "active",
+        "created_at": _now_dt()
+    }
+
+    try:
+        db.users.insert_one(doc)
+    except Exception as e:
+        # duplicate phone/email
+        return jsonify({"ok": False, "error": "user_exists", "details": str(e)}), 409
+
+    tok = issue_token(db, user_id)
+    return jsonify({"ok": True, "user": safe_user(doc), **tok}), 201
+
+
+@app.route("/auth/login", methods=["POST"])
+@app.route("/api/app/auth/login", methods=["POST"])
+def auth_login():
+    if not AUTH_ENABLED:
+        return _auth_disabled_response()
+
+    db = get_db()
+    ensure_auth_indexes(db)
+
+    body = request.get_json(silent=True) or {}
+    phone = (body.get("phone") or "").strip()
+    email = (body.get("email") or "").strip().lower()
+    pin = (body.get("pin") or body.get("password") or "").strip()
+
+    if not pin or len(pin) < 4:
+        return jsonify({"ok": False, "error": "pin_required"}), 400
+
+    q = None
+    if phone:
+        if not phone_ok(phone):
+            return jsonify({"ok": False, "error": "bad_phone"}), 400
+        q = {"phone": phone}
+    elif email:
+        q = {"email": email}
+    else:
+        return jsonify({"ok": False, "error": "missing_identifier", "hint": "phone or email"}), 400
+
+    u = db.users.find_one(q)
+    if not u:
+        return jsonify({"ok": False, "error": "invalid_credentials"}), 401
+
+    # ban check
+    ban_resp = enforce_not_banned(db, phone=u.get("phone"), target_type="user", target_id=u.get("_internal_id"))
+    if ban_resp:
+        return ban_resp
+
+    if u.get("pin_hash") != _hash_pin_or_password(pin):
+        return jsonify({"ok": False, "error": "invalid_credentials"}), 401
+
+    tok = issue_token(db, u.get("_internal_id"))
+    return jsonify({"ok": True, "user": safe_user(u), **tok}), 200
+
+
+@app.route("/auth/me", methods=["GET"])
+@app.route("/api/app/auth/me", methods=["GET"])
+def auth_me():
+    if not AUTH_ENABLED:
+        return _auth_disabled_response()
+    db = get_db()
+    u = require_user(db)
+    if not u:
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    return jsonify({"ok": True, "user": safe_user(u)}), 200
+
+
+# -------------------------------------------------
+# Moderation endpoints (ADMIN_SECRET protected; non-breaking)
+# -------------------------------------------------
+@app.route("/admin/api/mod/ban", methods=["POST"])
+@app.route("/api/app/admin/api/mod/ban", methods=["POST"])
+def admin_mod_ban():
+    if not require_admin():
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    db = get_db()
+    ensure_auth_indexes(db)
+
+    body = request.get_json(silent=True) or {}
+    target_type = (body.get("target_type") or "user").strip().lower()
+    target_id = (body.get("target_id") or "").strip()
+    phone = (body.get("phone") or "").strip() or None
+    reason = (body.get("reason") or "policy").strip()
+    days = body.get("days")  # optional
+    expires_at = None
+    try:
+        if days is not None and str(days).strip() != "":
+            expires_at = _now_dt() + timedelta(days=int(days))
+    except Exception:
+        expires_at = None
+
+    if target_type not in ("user", "driver", "store", "operator", "buyer", "seller"):
+        return jsonify({"ok": False, "error": "bad_target_type"}), 400
+
+    if not target_id and not phone:
+        return jsonify({"ok": False, "error": "target_required", "hint": "target_id or phone"}), 400
+
+    ban_id = str(uuid.uuid4())
+    ban_doc = {
+        "_internal_id": ban_id,
+        "target_type": target_type,
+        "target_id": target_id or None,
+        "phone": phone,
+        "reason": reason,
+        "active": True,
+        "created_at": _now_dt(),
+        "expires_at": expires_at
+    }
+    db.bans.insert_one(ban_doc)
+    return jsonify({"ok": True, "ban": safe_doc(ban_doc)}), 201
+
+
+@app.route("/admin/api/mod/unban", methods=["POST"])
+@app.route("/api/app/admin/api/mod/unban", methods=["POST"])
+def admin_mod_unban():
+    if not require_admin():
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    db = get_db()
+    ensure_auth_indexes(db)
+
+    body = request.get_json(silent=True) or {}
+    ban_id = (body.get("ban_id") or "").strip()
+    target_id = (body.get("target_id") or "").strip()
+    phone = (body.get("phone") or "").strip()
+
+    q = None
+    if ban_id:
+        q = {"_internal_id": ban_id}
+    elif target_id:
+        q = {"target_id": target_id, "active": True}
+    elif phone:
+        q = {"phone": phone, "active": True}
+    else:
+        return jsonify({"ok": False, "error": "missing_identifier"}), 400
+
+    db.bans.update_many(q, {"$set": {"active": False}})
+    return jsonify({"ok": True}), 200
+
+
+@app.route("/admin/api/mod/flag", methods=["POST"])
+@app.route("/api/app/admin/api/mod/flag", methods=["POST"])
+def admin_mod_flag():
+    if not require_admin():
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    db = get_db()
+    ensure_auth_indexes(db)
+
+    body = request.get_json(silent=True) or {}
+    target_type = (body.get("target_type") or "user").strip().lower()
+    target_id = (body.get("target_id") or "").strip()
+    phone = (body.get("phone") or "").strip() or None
+    label = (body.get("label") or "manual_flag").strip()
+    notes = (body.get("notes") or "").strip()
+
+    if target_type not in ("user", "driver", "store", "order", "operator"):
+        return jsonify({"ok": False, "error": "bad_target_type"}), 400
+    if not target_id and not phone:
+        return jsonify({"ok": False, "error": "target_required", "hint": "target_id or phone"}), 400
+
+    flag_id = str(uuid.uuid4())
+    doc = {
+        "_internal_id": flag_id,
+        "target_type": target_type,
+        "target_id": target_id or None,
+        "phone": phone,
+        "label": label,
+        "notes": notes,
+        "created_at": _now_dt()
+    }
+    db.flags.insert_one(doc)
+    return jsonify({"ok": True, "flag": safe_doc(doc)}), 201
+
+
+@app.route("/admin/api/mod/bans", methods=["GET"])
+@app.route("/api/app/admin/api/mod/bans", methods=["GET"])
+def admin_mod_list_bans():
+    if not require_admin():
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    db = get_db()
+    ensure_auth_indexes(db)
+
+    active = (request.args.get("active") or "true").lower() != "false"
+    q = {"active": True} if active else {}
+    rows = list(db.bans.find(q, {"_id": 0}).sort("created_at", DESCENDING).limit(500))
+    return jsonify({"ok": True, "bans": rows}), 200
+
 
 
 # -------- Platform Admin Analytics (Owner / White-label KPI dashboard) --------
@@ -1604,6 +2038,12 @@ def create_order():
 
     try:
         db = get_db()
+        # Trust & Safety: block banned customers (phone-based) without breaking existing flows
+        cust_phone = (((order_doc.get("customer") or {}).get("phone")) or ((order_doc.get("customer") or {}).get("customer_phone")))
+        ban_resp = enforce_not_banned(db, phone=cust_phone)
+        if ban_resp:
+            return ban_resp
+
         zone = (order_doc["meta"] or {}).get("zone")
         coords = (((order_doc.get("customer") or {}).get("address") or {}).get("coords") or {})
         candidate_driver = find_available_driver(
@@ -2395,6 +2835,11 @@ def create_store():
     }
     try:
         db = get_db()
+        # Trust & Safety: prevent banned sellers from creating stores (phone-based)
+        ban_resp = enforce_not_banned(db, phone=store_doc.get("phone"))
+        if ban_resp:
+            return ban_resp
+
         db.stores.insert_one(store_doc)
         return jsonify({"ok": True, "store_id": internal_id}), 201
     except mongo_errors.PyMongoError as e:
@@ -5755,5 +6200,4 @@ PLATFORM_FEE_PCT = float(os.environ.get("PLATFORM_FEE_PCT", "0.05"))  # 5% platf
 STRIPE_PLATFORM_SECRET_KEY = os.environ.get("STRIPE_PLATFORM_SECRET_KEY") or os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("STRIPE_API_KEY")
 STRIPE_CONNECT_REFRESH_URL = os.environ.get("STRIPE_CONNECT_REFRESH_URL")  # e.g. https://yourdomain.com/manager_setup.html
 STRIPE_CONNECT_RETURN_URL  = os.environ.get("STRIPE_CONNECT_RETURN_URL")   # e.g. https://yourdomain.com/manager_dashboard.html
-
 
