@@ -76,6 +76,11 @@
           Storefront HTML
         </button>
 
+        <!-- NEW: GitHub connect -->
+        <button id="githubConnectBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">
+          GitHub
+        </button>
+
         <!-- NEW: Theme toggle -->
         <button id="themeToggleBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">
           Theme: Dark
@@ -118,6 +123,9 @@
           <button id="openStorefrontBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm disabled:opacity-50" disabled>
             Open storefront
           </button>
+              <button id="commitStorefrontBtn" class="px-3 py-2 rounded-xl bg-emerald-600/20 border border-emerald-600/30 hover:bg-emerald-600/30 text-sm">
+                Commit to GitHub
+              </button>
         </div>
       </div>
 
@@ -717,7 +725,18 @@
   }
 
   async function fetchJSON(url, opts) {
-    const res = await fetch(url, opts || {});
+    const TOKEN_KEY = "yithume_token";
+    const token = localStorage.getItem(TOKEN_KEY);
+
+    const o = opts ? { ...opts } : {};
+    o.headers = o.headers ? { ...o.headers } : {};
+
+    // Add bearer token automatically for new /v1 endpoints
+    if (token && (url.startsWith("/v1/") || url.startsWith("/s/") || url.startsWith("v1/"))) {
+      o.headers["Authorization"] = "Bearer " + token;
+    }
+
+    const res = await fetch(url, o);
     const text = await res.text();
     try {
       return { ok: res.ok, status: res.status, json: JSON.parse(text) };
@@ -1491,6 +1510,314 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
   initFromUrlOrStorage();
   loadOrders();
   setInterval(loadOrders, 5000);
+})();
+</script>
+
+<!-- ============================================================
+     AUTH MODAL (Seller)
+============================================================ -->
+<div id="sellerAuthModal" class="fixed inset-0 z-[80] hidden">
+  <div class="absolute inset-0 bg-black/50"></div>
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl overflow-hidden">
+      <div class="px-5 py-4 flex items-center justify-between border-b border-zinc-800">
+        <div>
+          <div class="text-sm font-semibold">Seller Login</div>
+          <div class="text-xs text-zinc-400">Sign in to manage your store</div>
+        </div>
+        <button id="sellerAuthClose" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">Close</button>
+      </div>
+      <div class="p-5 space-y-3">
+        <div class="text-xs text-zinc-400">Email</div>
+        <input id="sellerAuthEmail" class="w-full px-3 py-2 rounded-xl bg-zinc-950/50 border border-zinc-800 text-sm" placeholder="you@email.com" />
+        <div class="text-xs text-zinc-400">Password</div>
+        <input id="sellerAuthPassword" type="password" class="w-full px-3 py-2 rounded-xl bg-zinc-950/50 border border-zinc-800 text-sm" placeholder="••••••••" />
+        <div class="grid grid-cols-2 gap-2 pt-2">
+          <button id="sellerLoginBtn2" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold">Login</button>
+          <button id="sellerRegisterBtn2" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm font-semibold">Register</button>
+        </div>
+        <div id="sellerAuthStatus" class="text-xs text-zinc-400 pt-1"></div>
+        <div class="text-[11px] text-zinc-500 leading-relaxed">
+          Token saved locally as <span class="font-mono text-zinc-300">yithume_token</span> and sent via
+          <span class="font-mono text-zinc-300">Authorization: Bearer</span> for <span class="font-mono text-zinc-300">/v1/*</span> endpoints.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     GITHUB CONNECT MODAL
+============================================================ -->
+<div id="githubModal" class="fixed inset-0 z-[80] hidden">
+  <div class="absolute inset-0 bg-black/50"></div>
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="w-full max-w-xl rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl overflow-hidden">
+      <div class="px-5 py-4 flex items-center justify-between border-b border-zinc-800">
+        <div>
+          <div class="text-sm font-semibold">Connect GitHub</div>
+          <div class="text-xs text-zinc-400">Required before “Commit to GitHub” is enabled</div>
+        </div>
+        <button id="githubCloseBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm">Close</button>
+      </div>
+
+      <div class="p-5 space-y-3">
+        <div class="grid md:grid-cols-2 gap-3">
+          <div>
+            <div class="text-xs text-zinc-400">GitHub username</div>
+            <input id="ghUser" class="mt-1 w-full px-3 py-2 rounded-xl bg-zinc-950/50 border border-zinc-800 text-sm" placeholder="your-username" />
+          </div>
+          <div>
+            <div class="text-xs text-zinc-400">Repo name</div>
+            <input id="ghRepo" class="mt-1 w-full px-3 py-2 rounded-xl bg-zinc-950/50 border border-zinc-800 text-sm" placeholder="repo" />
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-3">
+          <div>
+            <div class="text-xs text-zinc-400">Branch</div>
+            <input id="ghBranch" class="mt-1 w-full px-3 py-2 rounded-xl bg-zinc-950/50 border border-zinc-800 text-sm" value="main" />
+          </div>
+          <div>
+            <div class="text-xs text-zinc-400">Personal Access Token (PAT)</div>
+            <input id="ghPat" type="password" class="mt-1 w-full px-3 py-2 rounded-xl bg-zinc-950/50 border border-zinc-800 text-sm" placeholder="ghp_..." />
+          </div>
+        </div>
+
+        <div class="text-[11px] text-zinc-500 leading-relaxed">
+          We do <b>not</b> ask for your GitHub password. This PAT is stored <b>encrypted server-side</b> (MongoDB) and is never returned to the browser.
+          Best practice is GitHub OAuth; PAT is a safe placeholder if you keep scopes minimal (repo:contents).
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <button id="ghTestBtn" class="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm font-semibold">Test connection</button>
+          <button id="ghConnectBtn" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold">Save connection</button>
+          <div id="ghStatus" class="text-xs text-zinc-400 ml-auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const TOKEN_KEY = "yithume_token";
+  const ROLE_KEY  = "yithume_role";
+  const STORE_KEY = "yithume_store_id";
+
+  function el(id){ return document.getElementById(id); }
+  function show(id){ el(id).classList.remove("hidden"); }
+  function hide(id){ el(id).classList.add("hidden"); }
+  function setText(id, t){ const x=el(id); if(x) x.textContent = t || ""; }
+
+  async function apiJSON(url, opts){
+    // uses fetchJSON already present in file (now auto-adds Authorization for /v1)
+    return await fetchJSON(url, opts);
+  }
+
+  async function requireSellerAuth(){
+    const token = localStorage.getItem(TOKEN_KEY);
+    if(!token){
+      show("sellerAuthModal");
+      return false;
+    }
+    const me = await apiJSON("/v1/auth/me");
+    if(!me.ok || !me.json || !me.json.ok){
+      show("sellerAuthModal");
+      return false;
+    }
+    const role = me.json.role || "";
+    localStorage.setItem(ROLE_KEY, role);
+    if(role !== "seller" && role !== "admin"){
+      const a = el("alert");
+      if(a){
+        a.classList.remove("hidden");
+        a.textContent = "Access denied: seller role required.";
+      }
+      return false;
+    }
+    return true;
+  }
+
+  async function bootstrapStore(){
+    const out = await apiJSON("/v1/store/my");
+    if(!out.ok || !out.json || !out.json.ok){
+      const a = el("alert");
+      if(a){
+        a.classList.remove("hidden");
+        a.textContent = out.json && out.json.error ? out.json.error : "Failed to load store.";
+      }
+      return null;
+    }
+    const storeId = out.json.store_id;
+    localStorage.setItem(STORE_KEY, storeId);
+    const input = el("storeIdInput");
+    if(input){
+      input.value = storeId;
+      input.disabled = true;
+      input.classList.add("opacity-70");
+      input.title = "Auto-loaded from your seller account";
+    }
+    return storeId;
+  }
+
+  async function refreshGitHubStatus(storeId){
+    if(!storeId) return { connected:false };
+    const out = await apiJSON(`/v1/github/status?store_id=${encodeURIComponent(storeId)}`);
+    if(out.ok && out.json && out.json.ok){
+      const connected = !!out.json.connected;
+      // Update UI hint
+      const sub = el("navSub");
+      if(sub && connected){
+        sub.textContent = "Connected: GitHub enabled • Upload storefront HTML • Commit • Open /s/<store_id>";
+      }
+      const commitBtn = el("commitStorefrontBtn");
+      if(commitBtn){
+        commitBtn.disabled = !connected;
+        commitBtn.classList.toggle("opacity-50", !connected);
+        commitBtn.title = connected ? "" : "Connect GitHub first";
+      }
+      return out.json;
+    }
+    // Not connected or error
+    const commitBtn = el("commitStorefrontBtn");
+    if(commitBtn){
+      commitBtn.disabled = true;
+      commitBtn.classList.add("opacity-50");
+      commitBtn.title = "Connect GitHub first";
+    }
+    return { connected:false };
+  }
+
+  function openGitHubModal(){
+    show("githubModal");
+    setText("ghStatus", "");
+    const storeId = localStorage.getItem(STORE_KEY) || "";
+    if(!storeId){
+      setText("ghStatus", "No store loaded yet.");
+    }
+  }
+
+  function closeGitHubModal(){ hide("githubModal"); }
+
+  async function githubTestOrConnect(kind){
+    const storeId = localStorage.getItem(STORE_KEY) || "";
+    if(!storeId){ setText("ghStatus","Load your store first."); return; }
+
+    const username = (el("ghUser").value || "").trim();
+    const repo     = (el("ghRepo").value || "").trim();
+    const branch   = (el("ghBranch").value || "main").trim();
+    const pat      = (el("ghPat").value || "").trim();
+
+    if(!username || !repo || !branch || !pat){
+      setText("ghStatus","Please fill all fields."); return;
+    }
+    setText("ghStatus", kind === "test" ? "Testing..." : "Saving...");
+
+    const endpoint = kind === "test" ? "/v1/github/test" : "/v1/github/connect";
+    const out = await apiJSON(endpoint, {
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ store_id: storeId, username, repo, branch, pat })
+    });
+
+    if(!out.ok || !out.json || !out.json.ok){
+      setText("ghStatus", (out.json && out.json.error) ? out.json.error : "Request failed.");
+      return;
+    }
+    setText("ghStatus", kind === "test" ? "OK ✅" : "Saved ✅");
+    if(kind !== "test"){
+      await refreshGitHubStatus(storeId);
+    }
+  }
+
+  async function commitStorefront(){
+    const storeId = localStorage.getItem(STORE_KEY) || "";
+    if(!storeId){ alert("No store loaded."); return; }
+
+    const status = await refreshGitHubStatus(storeId);
+    if(!status.connected){
+      openGitHubModal();
+      return;
+    }
+
+    const outEl = el("storefrontOut");
+    if(outEl) outEl.textContent = "Committing to GitHub...";
+    const out = await apiJSON("/v1/github/commit_storefront", {
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ store_id: storeId })
+    });
+    if(!out.ok || !out.json || !out.json.ok){
+      if(outEl) outEl.textContent = (out.json && out.json.error) ? out.json.error : "Commit failed.";
+      return;
+    }
+    const msg = `Commit OK ✅\nSHA: ${out.json.sha}\nURL: ${out.json.url}`;
+    if(outEl) outEl.textContent = msg;
+  }
+
+  async function sellerLoginOrRegister(kind){
+    const email = (el("sellerAuthEmail").value || "").trim();
+    const password = (el("sellerAuthPassword").value || "");
+    if(!email || !password){
+      setText("sellerAuthStatus","Email + password required."); return;
+    }
+    setText("sellerAuthStatus", kind === "login" ? "Logging in..." : "Creating account...");
+
+    const endpoint = kind === "login" ? "/v1/auth/login" : "/v1/auth/register";
+    const res = await fetch(endpoint, {
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ email, password, role: "seller" })
+    });
+    const data = await res.json().catch(()=> ({}));
+    if(!res.ok || !data || !data.token){
+      setText("sellerAuthStatus", data.error || "Auth failed.");
+      return;
+    }
+    localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(ROLE_KEY, data.role || "seller");
+    setText("sellerAuthStatus", "Success ✅");
+    hide("sellerAuthModal");
+
+    // Bootstrap store & load
+    const storeId = await bootstrapStore();
+    if(storeId){
+      await refreshGitHubStatus(storeId);
+      const loadBtn = el("loadStoreBtn");
+      if(loadBtn) loadBtn.click();
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", async function(){
+    // Close modals
+    el("sellerAuthClose").addEventListener("click", ()=>hide("sellerAuthModal"));
+    el("sellerLoginBtn2").addEventListener("click", ()=>sellerLoginOrRegister("login"));
+    el("sellerRegisterBtn2").addEventListener("click", ()=>sellerLoginOrRegister("register"));
+
+    el("githubCloseBtn").addEventListener("click", closeGitHubModal);
+    el("ghTestBtn").addEventListener("click", ()=>githubTestOrConnect("test"));
+    el("ghConnectBtn").addEventListener("click", ()=>githubTestOrConnect("connect"));
+
+    // Nav GitHub button
+    const ghNav = el("githubConnectBtn");
+    if(ghNav) ghNav.addEventListener("click", openGitHubModal);
+
+    // Commit button inside storefront modal
+    const commitBtn = el("commitStorefrontBtn");
+    if(commitBtn) commitBtn.addEventListener("click", commitStorefront);
+
+    // Require auth (seller)
+    const ok = await requireSellerAuth();
+    if(ok){
+      const storeId = await bootstrapStore();
+      if(storeId){
+        await refreshGitHubStatus(storeId);
+        const loadBtn = el("loadStoreBtn");
+        if(loadBtn) loadBtn.click();
+      }
+    }
+  });
 })();
 </script>
 </body>
