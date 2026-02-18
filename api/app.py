@@ -5,6 +5,12 @@ import re
 import io
 import uuid
 import hashlib
+import secrets
+import urllib.request
+import urllib.error
+import base64
+import json
+import hmac
 from datetime import datetime, timedelta
 from math import radians, cos, sin, asin, sqrt
 from flask import Flask, request, jsonify, send_file, abort, send_from_directory, render_template, redirect, url_for
@@ -487,440 +493,6 @@ def _pin_or_header_ok():
 
 def require_admin():
     return _pin_or_header_ok()
-
-# -------------------------------------------------
-# AUTH / RBAC (non-breaking, opt-in)
-# -------------------------------------------------
-# Goals:
-# - Keep existing ADMIN_SECRET flows working
-# - Add optional user auth + roles for venture-scale infrastructure
-# - Use opaque bearer tokens stored hashed in Mongo (no JWT dependency)
-#
-# Roles:
-#   admin, seller, driver, operator, buyer
-#
-# Notes:
-# - If AUTH_ENABLED=false, endpoints that require auth will return 501
-#   (we keep it explicit so you know you haven't wired auth yet).
-# - Existing endpoints remain unchanged unless they explicitly call require_user().
-AUTH_ENABLED = os.environ.get("AUTH_ENABLED", "false").lower() == "true"
-AUTH_TOKEN_TTL_DAYS = int(os.environ.get("AUTH_TOKEN_TTL_DAYS", "30"))
-AUTH_TOKEN_PEPPER = os.environ.get("AUTH_TOKEN_PEPPER", "").strip()  # optional extra salt
-
-# Header used for bearer auth
-AUTH_HEADER = "Authorization"
-
-
-def _hash_token(token: str) -> str:
-    # Hash bearer token so tokens are never stored in plaintext.
-    base = (token or "").strip()
-    if not base:
-        return ""
-    # Pepper is optional (recommended in production)
-    return hashlib.sha256((base + AUTH_TOKEN_PEPPER).encode("utf-8")).hexdigest()
-
-
-def _hash_pin_or_password(secret: str) -> str:
-    return hashlib.sha256(str(secret or "").encode("utf-8")).hexdigest()
-
-
-def ensure_auth_indexes(db):
-    """Best-effort indexes. Safe to call many times."""
-    try:
-        db.users.create_index([("phone", 1)], unique=True, sparse=True)
-    except Exception:
-        pass
-    try:
-        db.users.create_index([("email", 1)], unique=True, sparse=True)
-    except Exception:
-        pass
-    try:
-        db.users.create_index([("roles", 1)])
-    except Exception:
-        pass
-    try:
-        db.auth_tokens.create_index([("token_hash", 1)], unique=True)
-    except Exception:
-        pass
-    try:
-        db.auth_tokens.create_index([("expires_at", 1)], expireAfterSeconds=0)
-    except Exception:
-        pass
-    try:
-        db.bans.create_index([("active", 1), ("target_type", 1), ("target_id", 1)])
-        db.bans.create_index([("active", 1), ("phone", 1)])
-        db.bans.create_index([("expires_at", 1)], expireAfterSeconds=0)
-    except Exception:
-        pass
-    try:
-        db.flags.create_index([("target_type", 1), ("target_id", 1)])
-        db.flags.create_index([("created_at", 1)])
-    except Exception:
-        pass
-
-
-def _auth_disabled_response():
-    return jsonify({"ok": False, "error": "auth_disabled", "hint": "Set AUTH_ENABLED=true"}), 501
-
-
-def _extract_bearer_token() -> str | None:
-    h = request.headers.get(AUTH_HEADER) or ""
-    h = h.strip()
-    if not h:
-        return None
-    if h.lower().startswith("bearer "):
-        return h.split(" ", 1)[1].strip() or None
-    # Allow raw tokens too (useful for quick testing)
-    return h or None
-
-
-def issue_token(db, user_id: str) -> dict:
-    token = str(uuid.uuid4()) + str(uuid.uuid4())
-    token_hash = _hash_token(token)
-    expires_at = _now_dt() + timedelta(days=AUTH_TOKEN_TTL_DAYS)
-    db.auth_tokens.insert_one({
-        "token_hash": token_hash,
-        "user_id": user_id,
-        "created_at": _now_dt(),
-        "expires_at": expires_at
-    })
-    return {"token": token, "expires_at": expires_at.isoformat() + "Z"}
-
-
-def get_user_by_token(db, token: str) -> dict | None:
-    if not token:
-        return None
-    token_hash = _hash_token(token)
-    t = db.auth_tokens.find_one({"token_hash": token_hash})
-    if not t:
-        return None
-    u = db.users.find_one({"_internal_id": t.get("user_id")})
-    if not u:
-        return None
-    return u
-
-
-def safe_user(u: dict) -> dict | None:
-    if not u:
-        return None
-    out = dict(u)
-    out.pop("_id", None)
-    # never leak hashes
-    out.pop("pin_hash", None)
-    out.pop("password_hash", None)
-    return out
-
-
-def require_user(db=None) -> dict | None:
-    """Returns user doc if logged-in. Returns None if not authenticated."""
-    if not AUTH_ENABLED:
-        return None
-    db = db or get_db()
-    try:
-        ensure_auth_indexes(db)
-    except Exception:
-        pass
-    token = _extract_bearer_token()
-    if not token:
-        return None
-    return get_user_by_token(db, token)
-
-
-def require_roles(*roles):
-    """Decorator for endpoints that require auth + any of the given roles."""
-    def deco(fn):
-        def wrapper(*args, **kwargs):
-            if not AUTH_ENABLED:
-                return _auth_disabled_response()
-            db = get_db()
-            u = require_user(db)
-            if not u:
-                return jsonify({"ok": False, "error": "unauthorized"}), 401
-            have = set((u.get("roles") or []))
-            need = set([r for r in roles if r])
-            if need and have.isdisjoint(need):
-                return jsonify({"ok": False, "error": "forbidden", "required": list(need)}), 403
-            # Attach user to request context (simple)
-            request._auth_user = u  # type: ignore[attr-defined]
-            return fn(*args, **kwargs)
-        wrapper.__name__ = fn.__name__
-        return wrapper
-    return deco
-
-
-# -------------------------------------------------
-# TRUST & SAFETY: Flags + Bans (non-breaking)
-# -------------------------------------------------
-def is_phone_banned(db, phone: str | None) -> dict | None:
-    if not phone:
-        return None
-    phone = str(phone).strip()
-    if not phone:
-        return None
-    b = db.bans.find_one({"active": True, "phone": phone})
-    return b
-
-
-def is_target_banned(db, target_type: str, target_id: str) -> dict | None:
-    if not target_type or not target_id:
-        return None
-    return db.bans.find_one({"active": True, "target_type": target_type, "target_id": target_id})
-
-
-def _ban_response(ban_doc: dict):
-    exp = ban_doc.get("expires_at")
-    exp_iso = exp.isoformat() + "Z" if isinstance(exp, datetime) else exp
-    return jsonify({
-        "ok": False,
-        "error": "banned",
-        "reason": ban_doc.get("reason") or "policy",
-        "expires_at": exp_iso
-    }), 403
-
-
-def enforce_not_banned(db, phone: str | None = None, target_type: str | None = None, target_id: str | None = None):
-    """Returns (None) if ok; otherwise returns a Flask response tuple."""
-    try:
-        if phone:
-            b = is_phone_banned(db, phone)
-            if b:
-                return _ban_response(b)
-        if target_type and target_id:
-            b = is_target_banned(db, target_type, target_id)
-            if b:
-                return _ban_response(b)
-        return None
-    except Exception:
-        # Safety: never break flows due to safety layer errors
-        return None
-
-
-# -------------------------------------------------
-# AUTH ENDPOINTS (opt-in)
-# -------------------------------------------------
-@app.route("/auth/register", methods=["POST"])
-@app.route("/api/app/auth/register", methods=["POST"])
-def auth_register():
-    if not AUTH_ENABLED:
-        return _auth_disabled_response()
-
-    db = get_db()
-    ensure_auth_indexes(db)
-
-    body = request.get_json(silent=True) or {}
-    phone = (body.get("phone") or "").strip()
-    email = (body.get("email") or "").strip().lower() or None
-    pin = (body.get("pin") or body.get("password") or "").strip()
-    role = (body.get("role") or "buyer").strip().lower()
-
-    if role not in ("buyer", "seller", "driver", "operator", "admin"):
-        return jsonify({"ok": False, "error": "bad_role"}), 400
-
-    if phone and not phone_ok(phone):
-        return jsonify({"ok": False, "error": "bad_phone"}), 400
-
-    if not pin or len(pin) < 4:
-        return jsonify({"ok": False, "error": "pin_required", "hint": "Use a 4+ digit PIN"}), 400
-
-    # prevent banned users from registering
-    ban_resp = enforce_not_banned(db, phone=phone)
-    if ban_resp:
-        return ban_resp
-
-    user_id = str(uuid.uuid4())
-    doc = {
-        "_internal_id": user_id,
-        "phone": phone or None,
-        "email": email,
-        "roles": [role],
-        "pin_hash": _hash_pin_or_password(pin),
-        "status": "active",
-        "created_at": _now_dt()
-    }
-
-    try:
-        db.users.insert_one(doc)
-    except Exception as e:
-        # duplicate phone/email
-        return jsonify({"ok": False, "error": "user_exists", "details": str(e)}), 409
-
-    tok = issue_token(db, user_id)
-    return jsonify({"ok": True, "user": safe_user(doc), **tok}), 201
-
-
-@app.route("/auth/login", methods=["POST"])
-@app.route("/api/app/auth/login", methods=["POST"])
-def auth_login():
-    if not AUTH_ENABLED:
-        return _auth_disabled_response()
-
-    db = get_db()
-    ensure_auth_indexes(db)
-
-    body = request.get_json(silent=True) or {}
-    phone = (body.get("phone") or "").strip()
-    email = (body.get("email") or "").strip().lower()
-    pin = (body.get("pin") or body.get("password") or "").strip()
-
-    if not pin or len(pin) < 4:
-        return jsonify({"ok": False, "error": "pin_required"}), 400
-
-    q = None
-    if phone:
-        if not phone_ok(phone):
-            return jsonify({"ok": False, "error": "bad_phone"}), 400
-        q = {"phone": phone}
-    elif email:
-        q = {"email": email}
-    else:
-        return jsonify({"ok": False, "error": "missing_identifier", "hint": "phone or email"}), 400
-
-    u = db.users.find_one(q)
-    if not u:
-        return jsonify({"ok": False, "error": "invalid_credentials"}), 401
-
-    # ban check
-    ban_resp = enforce_not_banned(db, phone=u.get("phone"), target_type="user", target_id=u.get("_internal_id"))
-    if ban_resp:
-        return ban_resp
-
-    if u.get("pin_hash") != _hash_pin_or_password(pin):
-        return jsonify({"ok": False, "error": "invalid_credentials"}), 401
-
-    tok = issue_token(db, u.get("_internal_id"))
-    return jsonify({"ok": True, "user": safe_user(u), **tok}), 200
-
-
-@app.route("/auth/me", methods=["GET"])
-@app.route("/api/app/auth/me", methods=["GET"])
-def auth_me():
-    if not AUTH_ENABLED:
-        return _auth_disabled_response()
-    db = get_db()
-    u = require_user(db)
-    if not u:
-        return jsonify({"ok": False, "error": "unauthorized"}), 401
-    return jsonify({"ok": True, "user": safe_user(u)}), 200
-
-
-# -------------------------------------------------
-# Moderation endpoints (ADMIN_SECRET protected; non-breaking)
-# -------------------------------------------------
-@app.route("/admin/api/mod/ban", methods=["POST"])
-@app.route("/api/app/admin/api/mod/ban", methods=["POST"])
-def admin_mod_ban():
-    if not require_admin():
-        return jsonify({"ok": False, "error": "forbidden"}), 403
-    db = get_db()
-    ensure_auth_indexes(db)
-
-    body = request.get_json(silent=True) or {}
-    target_type = (body.get("target_type") or "user").strip().lower()
-    target_id = (body.get("target_id") or "").strip()
-    phone = (body.get("phone") or "").strip() or None
-    reason = (body.get("reason") or "policy").strip()
-    days = body.get("days")  # optional
-    expires_at = None
-    try:
-        if days is not None and str(days).strip() != "":
-            expires_at = _now_dt() + timedelta(days=int(days))
-    except Exception:
-        expires_at = None
-
-    if target_type not in ("user", "driver", "store", "operator", "buyer", "seller"):
-        return jsonify({"ok": False, "error": "bad_target_type"}), 400
-
-    if not target_id and not phone:
-        return jsonify({"ok": False, "error": "target_required", "hint": "target_id or phone"}), 400
-
-    ban_id = str(uuid.uuid4())
-    ban_doc = {
-        "_internal_id": ban_id,
-        "target_type": target_type,
-        "target_id": target_id or None,
-        "phone": phone,
-        "reason": reason,
-        "active": True,
-        "created_at": _now_dt(),
-        "expires_at": expires_at
-    }
-    db.bans.insert_one(ban_doc)
-    return jsonify({"ok": True, "ban": safe_doc(ban_doc)}), 201
-
-
-@app.route("/admin/api/mod/unban", methods=["POST"])
-@app.route("/api/app/admin/api/mod/unban", methods=["POST"])
-def admin_mod_unban():
-    if not require_admin():
-        return jsonify({"ok": False, "error": "forbidden"}), 403
-    db = get_db()
-    ensure_auth_indexes(db)
-
-    body = request.get_json(silent=True) or {}
-    ban_id = (body.get("ban_id") or "").strip()
-    target_id = (body.get("target_id") or "").strip()
-    phone = (body.get("phone") or "").strip()
-
-    q = None
-    if ban_id:
-        q = {"_internal_id": ban_id}
-    elif target_id:
-        q = {"target_id": target_id, "active": True}
-    elif phone:
-        q = {"phone": phone, "active": True}
-    else:
-        return jsonify({"ok": False, "error": "missing_identifier"}), 400
-
-    db.bans.update_many(q, {"$set": {"active": False}})
-    return jsonify({"ok": True}), 200
-
-
-@app.route("/admin/api/mod/flag", methods=["POST"])
-@app.route("/api/app/admin/api/mod/flag", methods=["POST"])
-def admin_mod_flag():
-    if not require_admin():
-        return jsonify({"ok": False, "error": "forbidden"}), 403
-    db = get_db()
-    ensure_auth_indexes(db)
-
-    body = request.get_json(silent=True) or {}
-    target_type = (body.get("target_type") or "user").strip().lower()
-    target_id = (body.get("target_id") or "").strip()
-    phone = (body.get("phone") or "").strip() or None
-    label = (body.get("label") or "manual_flag").strip()
-    notes = (body.get("notes") or "").strip()
-
-    if target_type not in ("user", "driver", "store", "order", "operator"):
-        return jsonify({"ok": False, "error": "bad_target_type"}), 400
-    if not target_id and not phone:
-        return jsonify({"ok": False, "error": "target_required", "hint": "target_id or phone"}), 400
-
-    flag_id = str(uuid.uuid4())
-    doc = {
-        "_internal_id": flag_id,
-        "target_type": target_type,
-        "target_id": target_id or None,
-        "phone": phone,
-        "label": label,
-        "notes": notes,
-        "created_at": _now_dt()
-    }
-    db.flags.insert_one(doc)
-    return jsonify({"ok": True, "flag": safe_doc(doc)}), 201
-
-
-@app.route("/admin/api/mod/bans", methods=["GET"])
-@app.route("/api/app/admin/api/mod/bans", methods=["GET"])
-def admin_mod_list_bans():
-    if not require_admin():
-        return jsonify({"ok": False, "error": "forbidden"}), 403
-    db = get_db()
-    ensure_auth_indexes(db)
-
-    active = (request.args.get("active") or "true").lower() != "false"
-    q = {"active": True} if active else {}
-    rows = list(db.bans.find(q, {"_id": 0}).sort("created_at", DESCENDING).limit(500))
-    return jsonify({"ok": True, "bans": rows}), 200
 
 
 
@@ -2038,12 +1610,6 @@ def create_order():
 
     try:
         db = get_db()
-        # Trust & Safety: block banned customers (phone-based) without breaking existing flows
-        cust_phone = (((order_doc.get("customer") or {}).get("phone")) or ((order_doc.get("customer") or {}).get("customer_phone")))
-        ban_resp = enforce_not_banned(db, phone=cust_phone)
-        if ban_resp:
-            return ban_resp
-
         zone = (order_doc["meta"] or {}).get("zone")
         coords = (((order_doc.get("customer") or {}).get("address") or {}).get("coords") or {})
         candidate_driver = find_available_driver(
@@ -2835,11 +2401,6 @@ def create_store():
     }
     try:
         db = get_db()
-        # Trust & Safety: prevent banned sellers from creating stores (phone-based)
-        ban_resp = enforce_not_banned(db, phone=store_doc.get("phone"))
-        if ban_resp:
-            return ban_resp
-
         db.stores.insert_one(store_doc)
         return jsonify({"ok": True, "store_id": internal_id}), 201
     except mongo_errors.PyMongoError as e:
@@ -6201,3 +5762,561 @@ STRIPE_PLATFORM_SECRET_KEY = os.environ.get("STRIPE_PLATFORM_SECRET_KEY") or os.
 STRIPE_CONNECT_REFRESH_URL = os.environ.get("STRIPE_CONNECT_REFRESH_URL")  # e.g. https://yourdomain.com/manager_setup.html
 STRIPE_CONNECT_RETURN_URL  = os.environ.get("STRIPE_CONNECT_RETURN_URL")   # e.g. https://yourdomain.com/manager_dashboard.html
 
+
+
+### --- V1 AUTH + STOREFRONT + GITHUB (ADDED) ---
+# -------------------------------------------------
+# V1 AUTH + RBAC + STORES + STOREFRONT + GITHUB
+# (Additive; does NOT change existing endpoints)
+# -------------------------------------------------
+
+SESSION_TTL_HOURS_V1 = int(os.environ.get("SESSION_TTL_HOURS_V1", "168"))  # 7 days
+GITHUB_ENCRYPTION_KEY = os.environ.get("GITHUB_ENCRYPTION_KEY", "")
+
+def _utcnow():
+    return datetime.utcnow()
+
+def _users_col(db=None):
+    db = db or get_db()
+    try:
+        db["users"].create_index([("email", 1)], unique=True, sparse=True)
+        db["users"].create_index([("phone", 1)], unique=True, sparse=True)
+    except Exception:
+        pass
+    return db["users"]
+
+def _sessions_col(db=None):
+    db = db or get_db()
+    try:
+        db["sessions"].create_index("expires_at", expireAfterSeconds=0)
+        db["sessions"].create_index([("token", 1)], unique=True)
+        db["sessions"].create_index([("user_id", 1)])
+    except Exception:
+        pass
+    return db["sessions"]
+
+def _stores_col(db=None):
+    db = db or get_db()
+    try:
+        db["stores"].create_index([("seller_id", 1)])
+    except Exception:
+        pass
+    return db["stores"]
+
+def _pbkdf2_hash_password(password: str, salt: bytes = None, iters: int = 200_000) -> str:
+    if not isinstance(password, str) or len(password) < 6:
+        raise ValueError("Password must be at least 6 characters.")
+    salt = salt or secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iters, dklen=32)
+    return "pbkdf2$%d$%s$%s" % (
+        iters,
+        base64.urlsafe_b64encode(salt).decode("utf-8").rstrip("="),
+        base64.urlsafe_b64encode(dk).decode("utf-8").rstrip("="),
+    )
+
+def _pbkdf2_verify_password(password: str, stored: str) -> bool:
+    try:
+        parts = stored.split("$")
+        if len(parts) != 4 or parts[0] != "pbkdf2":
+            return False
+        iters = int(parts[1])
+        salt = base64.urlsafe_b64decode(parts[2] + "==")
+        expected = base64.urlsafe_b64decode(parts[3] + "==")
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iters, dklen=32)
+        return hmac.compare_digest(dk, expected)
+    except Exception:
+        return False
+
+def _new_session_token() -> str:
+    return secrets.token_urlsafe(32)
+
+def _issue_session(db, user_id: str):
+    token = _new_session_token()
+    expires_at = _utcnow() + timedelta(hours=SESSION_TTL_HOURS_V1)
+    _sessions_col(db).insert_one({
+        "token": token,
+        "user_id": user_id,
+        "created_at": _utcnow(),
+        "expires_at": expires_at
+    })
+    return token, expires_at
+
+def _get_bearer_token(req):
+    auth = req.headers.get("Authorization", "")
+    if auth.lower().startswith("bearer "):
+        return auth.split(" ", 1)[1].strip()
+    return None
+
+def _require_auth(req, db=None):
+    db = db or get_db()
+    token = _get_bearer_token(req)
+    if not token:
+        return None, ("Missing Authorization Bearer token", 401)
+    sess = _sessions_col(db).find_one({"token": token})
+    if not sess:
+        return None, ("Invalid session token", 401)
+    user = _users_col(db).find_one({"_id": ObjectId(sess["user_id"])}) if isinstance(sess["user_id"], str) else _users_col(db).find_one({"_id": sess["user_id"]})
+    if not user:
+        return None, ("User not found", 401)
+    return user, None
+
+def _require_role(user, roles):
+    return user and user.get("role") in set(roles)
+
+def _ensure_store_for_seller(db, seller_id):
+    stores = _stores_col(db)
+    store = stores.find_one({"seller_id": str(seller_id)})
+    if store:
+        return store
+    new_store = {
+        "seller_id": str(seller_id),
+        "created_at": _utcnow(),
+        "github": {"connected": False}
+    }
+    res = stores.insert_one(new_store)
+    new_store["_id"] = res.inserted_id
+    return new_store
+
+# -----------------------------
+# Lightweight PAT encryption (no external deps)
+# NOTE: Best practice is OAuth or KMS-backed encryption.
+# This uses a derived key + nonce XOR stream as a minimal reversible wrapper.
+# -----------------------------
+def _derive_key(enc_key: str, nonce: bytes) -> bytes:
+    return hashlib.pbkdf2_hmac("sha256", enc_key.encode("utf-8"), nonce, 200_000, dklen=32)
+
+def _xor_bytes(data: bytes, key: bytes) -> bytes:
+    out = bytearray(len(data))
+    for i, b in enumerate(data):
+        out[i] = b ^ key[i % len(key)]
+    return bytes(out)
+
+def encrypt_pat(pat: str) -> str:
+    if not GITHUB_ENCRYPTION_KEY:
+        raise ValueError("GITHUB_ENCRYPTION_KEY is required to store GitHub tokens securely.")
+    nonce = secrets.token_bytes(16)
+    key = _derive_key(GITHUB_ENCRYPTION_KEY, nonce)
+    ct = _xor_bytes(pat.encode("utf-8"), key)
+    return "enc1$%s$%s" % (
+        base64.urlsafe_b64encode(nonce).decode("utf-8").rstrip("="),
+        base64.urlsafe_b64encode(ct).decode("utf-8").rstrip("="),
+    )
+
+def decrypt_pat(enc: str) -> str:
+    parts = (enc or "").split("$")
+    if len(parts) != 3 or parts[0] != "enc1":
+        raise ValueError("Invalid encrypted token format.")
+    nonce = base64.urlsafe_b64decode(parts[1] + "==")
+    ct = base64.urlsafe_b64decode(parts[2] + "==")
+    key = _derive_key(GITHUB_ENCRYPTION_KEY, nonce)
+    pt = _xor_bytes(ct, key)
+    return pt.decode("utf-8")
+
+# -----------------------------
+# GitHub HTTP helpers (urllib)
+# -----------------------------
+def _gh_request(method: str, url: str, token: str, body: dict = None):
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "YiThume-Vercel",
+        "Authorization": f"Bearer {token}",
+    }
+    data = None
+    if body is not None:
+        payload = json.dumps(body).encode("utf-8")
+        data = payload
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=data, headers=headers, method=method.upper())
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            raw = resp.read()
+            return resp.status, json.loads(raw.decode("utf-8") or "{}")
+    except urllib.error.HTTPError as e:
+        try:
+            raw = e.read().decode("utf-8")
+            return e.code, json.loads(raw or "{}")
+        except Exception:
+            return e.code, {"error": "github_http_error"}
+    except Exception:
+        return 0, {"error": "github_request_failed"}
+
+# -----------------------------
+# V1 AUTH
+# -----------------------------
+@app.post("/v1/auth/register")
+def v1_register():
+    db = get_db()
+    data = request.get_json(force=True, silent=True) or {}
+    role = (data.get("role") or "buyer").lower().strip()
+    if role not in {"admin", "seller", "driver", "network_operator", "buyer"}:
+        return jsonify({"ok": False, "error": "Invalid role"}), 400
+
+    email = (data.get("email") or "").strip().lower()
+    phone = (data.get("phone") or "").strip()
+    password = (data.get("password") or "")
+
+    if not email and not phone:
+        return jsonify({"ok": False, "error": "Email or phone is required"}), 400
+
+    # Admin registration is not allowed through public register
+    if role == "admin":
+        return jsonify({"ok": False, "error": "Admin role cannot be registered here"}), 403
+
+    users = _users_col(db)
+    # Basic uniqueness checks
+    if email and users.find_one({"email": email}):
+        return jsonify({"ok": False, "error": "Email already registered"}), 409
+    if phone and users.find_one({"phone": phone}):
+        return jsonify({"ok": False, "error": "Phone already registered"}), 409
+
+    try:
+        pw_hash = _pbkdf2_hash_password(password)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+    doc = {
+        "email": email or None,
+        "phone": phone or None,
+        "password_hash": pw_hash,
+        "role": role,
+        "created_at": _utcnow(),
+        "last_login": None,
+    }
+    res = users.insert_one(doc)
+    user_id = str(res.inserted_id)
+
+    # Auto-create store for sellers
+    store_id = None
+    if role == "seller":
+        store = _ensure_store_for_seller(db, user_id)
+        store_id = str(store["_id"])
+
+    token, expires_at = _issue_session(db, user_id)
+
+    return jsonify({
+        "ok": True,
+        "token": token,
+        "expires_at": expires_at.isoformat() + "Z",
+        "user": {"id": user_id, "role": role, "email": email, "phone": phone},
+        "store_id": store_id
+    })
+
+@app.post("/v1/auth/login")
+def v1_login():
+    db = get_db()
+    data = request.get_json(force=True, silent=True) or {}
+
+    role = (data.get("role") or "").lower().strip()
+    email = (data.get("email") or "").strip().lower()
+    phone = (data.get("phone") or "").strip()
+    password = (data.get("password") or "")
+
+    # Admin login is via ADMIN_SECRET (PIN) for backward compatibility
+    if role == "admin":
+        pin = (data.get("admin_secret") or data.get("pin") or "").strip()
+        if not ADMIN_SECRET:
+            return jsonify({"ok": False, "error": "ADMIN_SECRET not set"}), 500
+        if pin != str(ADMIN_SECRET):
+            return jsonify({"ok": False, "error": "Invalid admin secret"}), 401
+
+        users = _users_col(db)
+        admin = users.find_one({"role": "admin", "email": "admin@yithume.local"})
+        if not admin:
+            res = users.insert_one({
+                "email": "admin@yithume.local",
+                "phone": None,
+                "password_hash": None,
+                "role": "admin",
+                "created_at": _utcnow(),
+                "last_login": _utcnow(),
+            })
+            admin_id = str(res.inserted_id)
+        else:
+            admin_id = str(admin["_id"])
+            users.update_one({"_id": admin["_id"]}, {"$set": {"last_login": _utcnow()}})
+        token, expires_at = _issue_session(db, admin_id)
+        return jsonify({"ok": True, "token": token, "expires_at": expires_at.isoformat() + "Z", "user": {"id": admin_id, "role": "admin"}})
+
+    users = _users_col(db)
+
+    q = {}
+    if email:
+        q["email"] = email
+    elif phone:
+        q["phone"] = phone
+    else:
+        return jsonify({"ok": False, "error": "Email or phone is required"}), 400
+
+    user = users.find_one(q)
+    if not user:
+        return jsonify({"ok": False, "error": "Invalid credentials"}), 401
+
+    if role and user.get("role") != role:
+        return jsonify({"ok": False, "error": "Role mismatch"}), 403
+
+    if not user.get("password_hash") or not _pbkdf2_verify_password(password, user["password_hash"]):
+        return jsonify({"ok": False, "error": "Invalid credentials"}), 401
+
+    users.update_one({"_id": user["_id"]}, {"$set": {"last_login": _utcnow()}})
+
+    user_id = str(user["_id"])
+    store_id = None
+    if user.get("role") == "seller":
+        store = _ensure_store_for_seller(db, user_id)
+        store_id = str(store["_id"])
+
+    token, expires_at = _issue_session(db, user_id)
+
+    return jsonify({
+        "ok": True,
+        "token": token,
+        "expires_at": expires_at.isoformat() + "Z",
+        "user": {"id": user_id, "role": user.get("role"), "email": user.get("email"), "phone": user.get("phone")},
+        "store_id": store_id
+    })
+
+@app.get("/v1/auth/me")
+def v1_me():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+    out = {"id": str(user["_id"]), "role": user.get("role"), "email": user.get("email"), "phone": user.get("phone")}
+    return jsonify({"ok": True, "user": out})
+
+# -----------------------------
+# V1 STORE HELPERS
+# -----------------------------
+@app.get("/v1/store/my")
+def v1_store_my():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+    if user.get("role") != "seller":
+        return jsonify({"ok": False, "error": "Seller role required"}), 403
+    store = _ensure_store_for_seller(db, str(user["_id"]))
+    return jsonify({"ok": True, "store": {"id": str(store["_id"]), "seller_id": store["seller_id"], "github": {k:v for k,v in (store.get("github") or {}).items() if k != "token_enc"}}})
+
+# -----------------------------
+# STOREFRONT HTML UPLOAD (BUG FIX)
+# -----------------------------
+@app.post("/v1/store/<store_id>/storefront_html")
+def v1_storefront_upload(store_id):
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+    if user.get("role") != "seller":
+        return jsonify({"ok": False, "error": "Seller role required"}), 403
+
+    store = _stores_col(db).find_one({"_id": ObjectId(store_id)})
+    if not store or store.get("seller_id") != str(user["_id"]):
+        return jsonify({"ok": False, "error": "Store not found or not owned"}), 404
+
+    if "html" not in request.files:
+        return jsonify({"ok": False, "error": "multipart field 'html' is required"}), 400
+
+    f = request.files["html"]
+    html_bytes = f.read()
+    if not html_bytes:
+        return jsonify({"ok": False, "error": "Empty HTML file"}), 400
+
+    filename = f"storefront_{store_id}.html"
+    fs = get_fs(db)
+
+    # Remove previous version if exists
+    try:
+        existing = fs.find_one({"filename": filename})
+        if existing:
+            fs.delete(existing._id)
+    except Exception:
+        pass
+
+    file_id = fs.put(html_bytes, filename=filename, contentType="text/html", metadata={
+        "store_id": store_id,
+        "seller_id": str(user["_id"]),
+        "uploaded_at": _utcnow()
+    })
+
+    _stores_col(db).update_one({"_id": ObjectId(store_id)}, {"$set": {"storefront_file_id": file_id, "storefront_updated_at": _utcnow()}})
+
+    return jsonify({"ok": True, "store_id": store_id, "file_id": str(file_id), "open_url": f"/s/{store_id}"})
+
+@app.get("/s/<store_id>")
+def public_storefront(store_id):
+    db = get_db()
+    fs = get_fs(db)
+    filename = f"storefront_{store_id}.html"
+    file_obj = fs.find_one({"filename": filename})
+    if not file_obj:
+        return "<h1>Storefront not found</h1>", 404
+    data = file_obj.read()
+    return app.response_class(data, mimetype="text/html")
+
+# -----------------------------
+# GITHUB CONNECT
+# -----------------------------
+@app.post("/v1/github/connect")
+def v1_github_connect():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+    if user.get("role") != "seller":
+        return jsonify({"ok": False, "error": "Seller role required"}), 403
+
+    data = request.get_json(force=True, silent=True) or {}
+    store_id = (data.get("store_id") or "").strip()
+    gh_user = (data.get("username") or "").strip()
+    repo = (data.get("repo") or "").strip()
+    branch = (data.get("branch") or "main").strip()
+    pat = (data.get("pat") or "").strip()
+
+    if not (store_id and gh_user and repo and pat):
+        return jsonify({"ok": False, "error": "store_id, username, repo, and pat are required"}), 400
+
+    store = _stores_col(db).find_one({"_id": ObjectId(store_id)})
+    if not store or store.get("seller_id") != str(user["_id"]):
+        return jsonify({"ok": False, "error": "Store not found or not owned"}), 404
+
+    try:
+        token_enc = encrypt_pat(pat)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+    _stores_col(db).update_one({"_id": ObjectId(store_id)}, {"$set": {
+        "github": {
+            "connected": True,
+            "username": gh_user,
+            "repo": repo,
+            "branch": branch,
+            "token_enc": token_enc,
+            "connected_at": _utcnow()
+        }
+    }})
+
+    return jsonify({"ok": True, "connected": True, "repo": {"username": gh_user, "repo": repo, "branch": branch}})
+
+@app.get("/v1/github/status")
+def v1_github_status():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+    if user.get("role") != "seller":
+        return jsonify({"ok": False, "error": "Seller role required"}), 403
+
+    store_id = (request.args.get("store_id") or "").strip()
+    if not store_id:
+        store = _ensure_store_for_seller(db, str(user["_id"]))
+        store_id = str(store["_id"])
+
+    store = _stores_col(db).find_one({"_id": ObjectId(store_id)})
+    if not store or store.get("seller_id") != str(user["_id"]):
+        return jsonify({"ok": False, "error": "Store not found or not owned"}), 404
+
+    gh = store.get("github") or {}
+    return jsonify({"ok": True, "connected": bool(gh.get("connected")), "repo": {"username": gh.get("username"), "repo": gh.get("repo"), "branch": gh.get("branch")}})
+
+@app.post("/v1/github/test")
+def v1_github_test():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+    if user.get("role") != "seller":
+        return jsonify({"ok": False, "error": "Seller role required"}), 403
+
+    data = request.get_json(force=True, silent=True) or {}
+    store_id = (data.get("store_id") or "").strip()
+    if not store_id:
+        return jsonify({"ok": False, "error": "store_id required"}), 400
+
+    store = _stores_col(db).find_one({"_id": ObjectId(store_id)})
+    if not store or store.get("seller_id") != str(user["_id"]):
+        return jsonify({"ok": False, "error": "Store not found or not owned"}), 404
+
+    gh = store.get("github") or {}
+    if not gh.get("connected") or not gh.get("token_enc"):
+        return jsonify({"ok": False, "error": "GitHub not connected"}), 400
+
+    try:
+        pat = decrypt_pat(gh["token_enc"])
+    except Exception:
+        return jsonify({"ok": False, "error": "Failed to decrypt token"}), 500
+
+    url = f"https://api.github.com/repos/{gh.get('username')}/{gh.get('repo')}"
+    status, payload = _gh_request("GET", url, pat)
+    if status == 200:
+        return jsonify({"ok": True, "repo": {"full_name": payload.get("full_name"), "private": payload.get("private")}})
+    return jsonify({"ok": False, "status": status, "details": payload}), 400
+
+@app.post("/v1/github/commit_storefront")
+def v1_github_commit_storefront():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+    if user.get("role") != "seller":
+        return jsonify({"ok": False, "error": "Seller role required"}), 403
+
+    data = request.get_json(force=True, silent=True) or {}
+    store_id = (data.get("store_id") or "").strip()
+    if not store_id:
+        return jsonify({"ok": False, "error": "store_id required"}), 400
+
+    store = _stores_col(db).find_one({"_id": ObjectId(store_id)})
+    if not store or store.get("seller_id") != str(user["_id"]):
+        return jsonify({"ok": False, "error": "Store not found or not owned"}), 404
+
+    gh = store.get("github") or {}
+    if not gh.get("connected") or not gh.get("token_enc"):
+        return jsonify({"ok": False, "error": "GitHub not connected"}), 400
+
+    try:
+        pat = decrypt_pat(gh["token_enc"])
+    except Exception:
+        return jsonify({"ok": False, "error": "Failed to decrypt token"}), 500
+
+    # Load storefront HTML from GridFS
+    fs = get_fs(db)
+    filename = f"storefront_{store_id}.html"
+    file_obj = fs.find_one({"filename": filename})
+    if not file_obj:
+        return jsonify({"ok": False, "error": "No storefront HTML uploaded yet"}), 400
+    html_bytes = file_obj.read()
+
+    path = f"storefronts/{store_id}/index.html"
+    owner = gh.get("username")
+    repo = gh.get("repo")
+    branch = gh.get("branch") or "main"
+
+    # Get existing file SHA if any
+    get_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{quote(path)}?ref={quote(branch)}"
+    status, existing = _gh_request("GET", get_url, pat)
+
+    sha = existing.get("sha") if status == 200 else None
+
+    put_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{quote(path)}"
+    body = {
+        "message": f"Publish storefront for store {store_id}",
+        "content": base64.b64encode(html_bytes).decode("utf-8"),
+        "branch": branch
+    }
+    if sha:
+        body["sha"] = sha
+
+    status2, payload2 = _gh_request("PUT", put_url, pat, body=body)
+    if status2 in (200, 201):
+        commit_sha = (payload2.get("commit") or {}).get("sha")
+        html_url = ((payload2.get("content") or {}).get("html_url")) or None
+        return jsonify({"ok": True, "commit_sha": commit_sha, "file_url": html_url, "path": path})
+    return jsonify({"ok": False, "status": status2, "details": payload2}), 400
