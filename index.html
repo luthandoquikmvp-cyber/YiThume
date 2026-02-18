@@ -10,7 +10,7 @@
   />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>YiThume — Health delivered. Fast.</title>
-  <meta name="description" content="YiThume delivers OTC meds to remote and hard-to-reach places. Start in the Eastern Cape — expanding nationwide. Order on the website, confirm in WhatsApp." />
+  <meta name="description" content="YiThume is a WhatsApp-first commerce + delivery OS: shoppers order OTC essentials and confirm in WhatsApp; merchants launch a live storefront + shopping agent with simple SaaS pricing." />
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -107,6 +107,11 @@
   </style>
 </head>
 <body class="min-h-screen bg-gradient-to-b from-white to-slate-50 text-slate-900">
+<!-- UI BUILD: 2026-02-16 • saas-pricing+create-link -->
+<div class="fixed bottom-4 left-4 z-[60] px-3 py-1 rounded-full text-xs bg-black/60 text-white border border-white/10 backdrop-blur">
+  UI BUILD: 2026-02-16 • saas-pricing+create-link
+</div>
+
 
 <!-- Header -->
 <header class="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-slate-200">
@@ -161,6 +166,20 @@
           class="px-3 py-2 text-sm rounded-xl border border-slate-300 hover:bg-slate-100">
           Driver sign-in / up
         </button>
+        <a href="/dashboard?open=create"
+          class="px-3 py-2 text-sm rounded-xl border border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-semibold">
+          Sell with YiThume
+        </a>
+
+        <button id="buyerLoginBtn"
+          class="px-3 py-2 text-xs rounded-xl border border-slate-300 hover:bg-slate-100">
+          Buyer Login
+        </button>
+
+        <button id="sellerLoginBtn"
+          class="px-3 py-2 text-xs rounded-xl border border-slate-300 hover:bg-slate-100">
+          Seller Login
+        </button>
 
         <button id="adminLoginBtn"
           class="px-3 py-2 text-xs rounded-xl border border-slate-300 hover:bg-slate-100">
@@ -212,8 +231,7 @@
             Health delivered. <span class="text-emerald-600">Fast</span>.
           </h1>
           <p class="mt-4 text-slate-700 max-w-xl">
-            Order on the website, then we confirm and send a secure payment link in WhatsApp. Clear pricing, trusted local drivers.
-            <span class="block mt-2 text-slate-700"><b>For merchants:</b> launch a live storefront, upload products by CSV, and add an AI shopping agent for your customers.</span>
+            For shoppers: order on the website, then we confirm and send a secure payment link in WhatsApp. For merchants: launch a live storefront + shopping agent in minutes — upload products by CSV and go live.
           </p>
         </div>
         <ul class="mt-6 grid grid-cols-2 gap-3 text-sm">
@@ -253,12 +271,7 @@
           <button id="openDriverModal" class="px-5 py-3 rounded-2xl border border-slate-300 text-slate-800 text-sm font-medium hover:bg-slate-100">
             Sign up / Log in (Driver)
           </button>
-        
-          <a href="/dashboard?open=create" id="ctaSellHero"
-             class="px-5 py-3 rounded-2xl border border-emerald-300 text-emerald-700 text-sm font-medium hover:bg-emerald-50 text-center">
-            Sell with YiThume
-          </a>
-</div>
+        </div>
         <div class="mt-3 text-xs text-slate-500">Build your basket here — we’ll send it to WhatsApp for confirmation &amp; payment.</div>
         <div class="mt-auto"></div>
       </div>
@@ -391,121 +404,110 @@
 <!-- Pricing (distance-based, no zones) -->
 <section id="pricing" class="py-12 sm:py-16 border-t border-slate-200">
   <div class="max-w-6xl mx-auto px-4 sm:px-6">
-    <h2 class="text-2xl sm:text-3xl font-bold">Pricing</h2>
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+      <div>
+        <h2 class="text-2xl sm:text-3xl font-bold">Pricing</h2>
+        <p class="mt-2 text-slate-600 text-sm">Two sides: delivery pricing for shoppers, and simple SaaS plans for merchants who want a live storefront + agent.</p>
+      </div>
+      <a href="/dashboard?open=create" class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-semibold">
+        Create a store
+      </a>
+    </div>
 
-    <div class="mt-6 grid md:grid-cols-3 gap-4">
-      <div class="rounded-2xl border bg-white p-5 shadow-sm">
-        <div class="text-sm text-slate-500">Base</div>
-        <div class="mt-1 text-2xl font-bold">R15</div>
-        <div class="mt-2 text-sm text-slate-600">Base delivery fee per order.</div>
-      </div>
-      <div class="rounded-2xl border bg-white p-5 shadow-sm">
-        <div class="text-sm text-slate-500">Distance</div>
-        <div class="mt-1 text-2xl font-bold">R8 / km</div>
-        <div class="mt-2 text-sm text-slate-600">From pickup depot to your address.</div>
-      </div>
-      <div class="rounded-2xl border bg-white p-5 shadow-sm">
-        <div class="text-sm text-slate-500">Rush (optional)</div>
-        <div class="mt-1 text-2xl font-bold">+ R30</div>
-        <div class="mt-2 text-sm text-slate-600">When available in your area.</div>
+    <!-- Shopper delivery pricing -->
+    <div class="mt-7">
+      <div class="text-sm font-semibold text-slate-800">For shoppers (delivery)</div>
+      <div class="mt-3 grid md:grid-cols-3 gap-4">
+        <div class="rounded-2xl border bg-white p-5 shadow-sm">
+          <div class="text-sm text-slate-500">Base</div>
+          <div class="mt-1 text-2xl font-bold">R15</div>
+          <div class="mt-2 text-sm text-slate-600">Base delivery fee per order.</div>
+        </div>
+        <div class="rounded-2xl border bg-white p-5 shadow-sm">
+          <div class="text-sm text-slate-500">Distance</div>
+          <div class="mt-1 text-2xl font-bold">R8 / km</div>
+          <div class="mt-2 text-sm text-slate-600">From pickup depot to your address.</div>
+        </div>
+        <div class="rounded-2xl border bg-white p-5 shadow-sm">
+          <div class="text-sm text-slate-500">Rush (optional)</div>
+          <div class="mt-1 text-2xl font-bold">+ R30</div>
+          <div class="mt-2 text-sm text-slate-600">When available in your area.</div>
+        </div>
       </div>
     </div>
 
-    <div class="mt-6 rounded-2xl border bg-white p-5 shadow-sm">
-      <div class="text-sm text-slate-500">Pickup depots (select in checkout)</div>
-      <ul class="mt-2 text-sm text-slate-700 list-disc pl-5" id="depotList">
-        <li>Port Alfred Depot</li>
-        <li>Alice Depot</li>
-        <li>Makhanda / Grahamstown</li>
-        <li>Gqeberha (Port Elizabeth)</li>
-        <li>Pretoria (Main Depot)</li>
-      </ul>
-      <div class="mt-3 text-xs text-slate-500">
-        No defaults — choose the nearest pickup depot at checkout for the most accurate quote.
-      </div>
-    </div>
-
-    <div class="mt-4 text-xs text-slate-500">Delivery days: Wed–Sun. Windows: 08–10 • 12–14 • 16–18. If we can’t deliver, you’re refunded.</div>
-  
     <!-- Merchant SaaS pricing -->
     <div class="mt-10">
-      <div class="flex items-end justify-between flex-wrap gap-3">
-        <div>
-          <div class="text-xs font-semibold uppercase tracking-wide text-emerald-700">For merchants</div>
-          <h3 class="text-xl sm:text-2xl font-bold mt-1">Storefront SaaS pricing</h3>
-          <p class="mt-2 text-sm text-slate-700 max-w-2xl">
-            Upload products via CSV, go live with a shareable link, and (optionally) add an AI shopping agent that helps customers build baskets.
-          </p>
-        </div>
-        <a href="/dashboard?open=create"
-           class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
-          Create a store
-        </a>
+      <div class="flex items-center justify-between gap-3">
+        <div class="text-sm font-semibold text-slate-800">For merchants (SaaS)</div>
+        <div class="text-xs text-slate-500">Pay with Stripe · Other providers <span class="font-semibold">coming soon</span></div>
       </div>
 
-      <div class="mt-5 grid md:grid-cols-4 gap-4">
+      <div class="mt-3 grid md:grid-cols-4 gap-4">
         <div class="rounded-2xl border bg-white p-5 shadow-sm">
           <div class="text-sm text-slate-500">Starter</div>
           <div class="mt-1 text-2xl font-bold">$0.99</div>
-          <ul class="mt-3 text-sm text-slate-700 space-y-1">
-            <li>• Live store link</li>
+          <div class="mt-1 text-xs text-slate-500">from ~R19</div>
+          <ul class="mt-3 text-sm text-slate-600 space-y-2">
+            <li>• Live storefront</li>
             <li>• CSV product upload</li>
-            <li>• Basic checkout flow</li>
+            <li>• Orders + WhatsApp confirm</li>
           </ul>
+          <a href="/dashboard?open=create" class="mt-4 inline-flex w-full items-center justify-center px-3 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 font-semibold">
+            Start
+          </a>
         </div>
 
         <div class="rounded-2xl border bg-white p-5 shadow-sm">
           <div class="text-sm text-slate-500">Agent</div>
           <div class="mt-1 text-2xl font-bold">$1.99</div>
-          <ul class="mt-3 text-sm text-slate-700 space-y-1">
+          <div class="mt-1 text-xs text-slate-500">from ~R39</div>
+          <ul class="mt-3 text-sm text-slate-600 space-y-2">
             <li>• Everything in Starter</li>
-            <li>• AI shopping agent (basic)</li>
-            <li>• WhatsApp-first confirmations</li>
+            <li>• Dedicated shopping agent</li>
+            <li>• Quote → CONFIRM → order</li>
           </ul>
+          <a href="/dashboard?open=create" class="mt-4 inline-flex w-full items-center justify-center px-3 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-semibold">
+            Choose Agent
+          </a>
         </div>
 
         <div class="rounded-2xl border bg-white p-5 shadow-sm">
           <div class="text-sm text-slate-500">Pro</div>
           <div class="mt-1 text-2xl font-bold">$2.99</div>
-          <ul class="mt-3 text-sm text-slate-700 space-y-1">
-            <li>• Everything in Agent</li>
-            <li>• Priority feature requests</li>
-            <li>• Advanced analytics (coming soon)</li>
+          <div class="mt-1 text-xs text-slate-500">from ~R59</div>
+          <ul class="mt-3 text-sm text-slate-600 space-y-2">
+            <li>• Faster iterations</li>
+            <li>• Basic analytics</li>
+            <li>• Priority support</li>
           </ul>
+          <a href="/dashboard?open=create" class="mt-4 inline-flex w-full items-center justify-center px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 font-semibold">
+            Choose Pro
+          </a>
         </div>
 
         <div class="rounded-2xl border bg-white p-5 shadow-sm">
           <div class="text-sm text-slate-500">Station / Node</div>
           <div class="mt-1 text-2xl font-bold">from $499</div>
-          <ul class="mt-3 text-sm text-slate-700 space-y-1">
-            <li>• Driver network tools</li>
-            <li>• Commission tracking</li>
-            <li>• Multi-store coverage (coming soon)</li>
+          <div class="mt-1 text-xs text-slate-500">or $899 depending on setup</div>
+          <ul class="mt-3 text-sm text-slate-600 space-y-2">
+            <li>• Driver network + payouts</li>
+            <li>• Commission-enabled delivery ops</li>
+            <li>• Multi-store coverage</li>
           </ul>
-          <div class="mt-3 text-[11px] text-slate-500">Enterprise pricing available for larger regions.</div>
+          <a href="/dashboard?open=create" class="mt-4 inline-flex w-full items-center justify-center px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 font-semibold">
+            Talk to us
+          </a>
         </div>
       </div>
 
-      <div class="mt-4 rounded-2xl border bg-white p-5 shadow-sm">
-        <div class="text-sm font-semibold">Payments</div>
-        <div class="mt-2 text-sm text-slate-700">
-          <span class="inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
-            Stripe Payment Links
-          </span>
-          <span class="ml-2 inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-500 text-xs font-semibold opacity-70">
-            PayFast (coming soon)
-          </span>
-          <span class="ml-2 inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-500 text-xs font-semibold opacity-70">
-            Ozow (coming soon)
-          </span>
-          <span class="ml-2 inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-500 text-xs font-semibold opacity-70">
-            Yoco (coming soon)
-          </span>
-        </div>
+      <div class="mt-4 text-xs text-slate-500">
+        * ZAR equivalents are estimates. Final pricing shown at checkout.
       </div>
     </div>
-</div>
+  </div>
 </section>
+
 
 <!-- FAQ -->
 <section id="faq" class="py-12 sm:py-16 border-t border-slate-200">
@@ -575,7 +577,9 @@
           Driver sign-in / up
         </button>
         <button id="openStoreModalFooter"
-          class="px-3 py-2 text-sm rounded-xl border border-emerald-300 text-emerald-700 hover:bg-emerald-50">Sell with YiThume</button>
+          class="px-3 py-2 text-sm rounded-xl border border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+          Add your store
+        </button>
       </div>
     </div>
   </div>
@@ -2256,7 +2260,7 @@ function resolveDriverForOrder(o){
     });
   }
 
-  openStoreFooter?.addEventListener('click', () => { window.location.href = '/dashboard?open=create'; });
+  openStoreFooter?.addEventListener('click', openStore);
   closeStoreModalBtn?.addEventListener('click', closeStore);
   cancelStoreBtn?.addEventListener('click', closeStore);
 
@@ -4760,5 +4764,223 @@ function renderHistory() {
 </script>
 
 
+
+<!-- ============================================================
+     AUTH MODAL (Buyer/Seller/Driver/Operator)
+     - Token stored in localStorage as yithume_token
+     - Frontend sends Authorization: Bearer <token>
+============================================================ -->
+<div id="authModal" class="fixed inset-0 z-[60] hidden">
+  <div class="absolute inset-0 bg-black/40"></div>
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+      <div class="px-5 py-4 flex items-center justify-between border-b border-slate-200">
+        <div>
+          <div class="text-sm font-semibold text-slate-900">Sign in</div>
+          <div class="text-xs text-slate-500" id="authModalSubtitle">Use your account to continue</div>
+        </div>
+        <button id="authModalClose" class="p-2 rounded-lg hover:bg-slate-100" aria-label="Close">
+          ✕
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4">
+        <div class="grid grid-cols-2 gap-2">
+          <button id="authTabLogin" class="px-3 py-2 rounded-xl border text-sm font-semibold">Login</button>
+          <button id="authTabRegister" class="px-3 py-2 rounded-xl border text-sm font-semibold">Register</button>
+        </div>
+
+        <div>
+          <label class="text-xs font-semibold text-slate-700">Role</label>
+          <select id="authRole" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+            <option value="buyer">Buyer</option>
+            <option value="seller">Seller</option>
+            <option value="driver">Driver</option>
+            <option value="operator">Network Operator</option>
+          </select>
+          <div class="text-[11px] text-slate-500 mt-1">
+            Admin login remains via the existing Admin PIN flow.
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs font-semibold text-slate-700">Email</label>
+          <input id="authEmail" type="email" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 text-sm" placeholder="you@email.com" />
+        </div>
+
+        <div>
+          <label class="text-xs font-semibold text-slate-700">Password</label>
+          <input id="authPassword" type="password" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 text-sm" placeholder="••••••••" />
+        </div>
+
+        <div id="authRegisterExtra" class="hidden">
+          <label class="text-xs font-semibold text-slate-700">Confirm Password</label>
+          <input id="authPassword2" type="password" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 text-sm" placeholder="••••••••" />
+        </div>
+
+        <div class="flex items-center justify-between gap-3">
+          <div class="text-xs text-slate-500" id="authStatusText"></div>
+          <button id="authSubmitBtn" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
+            Continue
+          </button>
+        </div>
+
+        <div class="text-[11px] text-slate-500 leading-relaxed">
+          Your session token is stored locally as <span class="font-mono">yithume_token</span>.
+          It is sent to the API via <span class="font-mono">Authorization: Bearer</span>.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const API_BASE = "";
+  const TOKEN_KEY = "yithume_token";
+  const ROLE_KEY  = "yithume_role";
+
+  function qs(id){ return document.getElementById(id); }
+  function show(el){ el.classList.remove("hidden"); }
+  function hide(el){ el.classList.add("hidden"); }
+  function setStatus(msg, isError){
+    const el = qs("authStatusText");
+    el.textContent = msg || "";
+    el.style.color = isError ? "#b91c1c" : "#64748b";
+  }
+
+  async function api(path, opts){
+    const o = opts || {};
+    o.headers = o.headers || {};
+    const t = localStorage.getItem(TOKEN_KEY);
+    if(t) o.headers["Authorization"] = "Bearer " + t;
+    return fetch(API_BASE + path, o);
+  }
+
+  let mode = "login"; // login | register
+
+  function setMode(m){
+    mode = m;
+    const loginBtn = qs("authTabLogin");
+    const regBtn   = qs("authTabRegister");
+    const extra    = qs("authRegisterExtra");
+    const submit   = qs("authSubmitBtn");
+
+    if(mode === "login"){
+      loginBtn.className = "px-3 py-2 rounded-xl border text-sm font-semibold bg-slate-900 text-white border-slate-900";
+      regBtn.className   = "px-3 py-2 rounded-xl border text-sm font-semibold hover:bg-slate-50";
+      hide(extra);
+      submit.textContent = "Login";
+    }else{
+      regBtn.className   = "px-3 py-2 rounded-xl border text-sm font-semibold bg-slate-900 text-white border-slate-900";
+      loginBtn.className = "px-3 py-2 rounded-xl border text-sm font-semibold hover:bg-slate-50";
+      show(extra);
+      submit.textContent = "Create account";
+    }
+    setStatus("");
+  }
+
+  function openAuth(prefRole){
+    const modal = qs("authModal");
+    show(modal);
+    setMode("login");
+    if(prefRole) qs("authRole").value = prefRole;
+    qs("authEmail").focus();
+  }
+
+  function closeAuth(){
+    hide(qs("authModal"));
+    setStatus("");
+    qs("authEmail").value = "";
+    qs("authPassword").value = "";
+    const p2 = qs("authPassword2"); if(p2) p2.value="";
+  }
+
+  async function submitAuth(){
+    const role = qs("authRole").value;
+    const email = (qs("authEmail").value || "").trim();
+    const password = qs("authPassword").value || "";
+    const password2 = (qs("authPassword2").value || "");
+    if(!email || !password){
+      setStatus("Email and password required.", true); return;
+    }
+    if(mode === "register" && password !== password2){
+      setStatus("Passwords do not match.", true); return;
+    }
+
+    setStatus("Working...");
+    try{
+      const endpoint = mode === "login" ? "/v1/auth/login" : "/v1/auth/register";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ email, password, role })
+      });
+      const data = await res.json().catch(()=> ({}));
+      if(!res.ok){
+        setStatus(data.error || "Auth failed.", true);
+        return;
+      }
+      if(data && data.token){
+        localStorage.setItem(TOKEN_KEY, data.token);
+      }
+      if(data && data.role){
+        localStorage.setItem(ROLE_KEY, data.role);
+      }else{
+        localStorage.setItem(ROLE_KEY, role);
+      }
+
+      setStatus("Success. Redirecting...");
+      setTimeout(()=>{
+        closeAuth();
+        // Seller goes to dashboard
+        const finalRole = (data && data.role) ? data.role : role;
+        if(finalRole === "seller"){
+          window.location.href = "/dashboard";
+        }else{
+          // Buyers/drivers/operators stay on home for now
+          window.location.reload();
+        }
+      }, 400);
+
+    }catch(e){
+      setStatus("Network error.", true);
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", function(){
+    // Bind buttons
+    const buyerBtn = qs("buyerLoginBtn");
+    const sellerBtn = qs("sellerLoginBtn");
+    if(buyerBtn) buyerBtn.addEventListener("click", ()=>openAuth("buyer"));
+    if(sellerBtn) sellerBtn.addEventListener("click", ()=>openAuth("seller"));
+
+    qs("authModalClose").addEventListener("click", closeAuth);
+    qs("authTabLogin").addEventListener("click", ()=>setMode("login"));
+    qs("authTabRegister").addEventListener("click", ()=>setMode("register"));
+    qs("authSubmitBtn").addEventListener("click", submitAuth);
+
+    // ESC close
+    document.addEventListener("keydown", (e)=>{ if(e.key==="Escape") closeAuth(); });
+
+    // Click outside closes
+    qs("authModal").addEventListener("click", (e)=>{
+      if(e.target === qs("authModal")) closeAuth();
+    });
+
+    // If already logged in as seller, show quick link
+    const role = localStorage.getItem(ROLE_KEY);
+    const token = localStorage.getItem(TOKEN_KEY);
+    if(role === "seller" && token){
+      // Add a small badge next to Seller Login
+      const sb = qs("sellerLoginBtn");
+      if(sb){
+        sb.textContent = "Seller Dashboard";
+        sb.addEventListener("click", (e)=>{ e.preventDefault(); window.location.href="/dashboard"; }, {once:true});
+      }
+    }
+  });
+})();
+</script>
 </body>
 </html>
