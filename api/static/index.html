@@ -4910,7 +4910,9 @@ function renderHistory() {
 
     setStatus("Working...");
     try{
-      const endpoint = mode === "login" ? "/v1/auth/login" : "/v1/auth/register";
+      // IMPORTANT (Vercel routing): API requests must be prefixed with /api
+      // because vercel.json routes /api/(.*) -> /api/app.py.
+      const endpoint = mode === "login" ? "/api/v1/auth/login" : "/api/v1/auth/register";
       const res = await fetch(endpoint, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
@@ -4936,7 +4938,8 @@ function renderHistory() {
         // Seller goes to dashboard
         const finalRole = (data && data.role) ? data.role : role;
         if(finalRole === "seller"){
-          window.location.href = "/dashboard";
+          // Dashboard lives under /api/static in this build
+          window.location.href = "/api/static/dashboard.html";
         }else{
           // Buyers/drivers/operators stay on home for now
           window.location.reload();
