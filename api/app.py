@@ -4375,8 +4375,11 @@ def store_publish(store_id):
         return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
 
 @app.route("/shop/<public_slug>", methods=["GET"])
+@app.route("/shop/<public_slug>/", methods=["GET"])
 @app.route("/api/app/shop/<public_slug>", methods=["GET"])
+@app.route("/api/app/shop/<public_slug>/", methods=["GET"])
 def shop_public_storefront(public_slug):
+
     """
     Public live storefront:
       - Works only after store is published
@@ -4384,6 +4387,9 @@ def shop_public_storefront(public_slug):
       - Otherwise, fall back to a simple built-in HTML list.
     """
     try:
+        # Ensure trailing slash so relative assets like "styles.css" resolve to /shop/<slug>/styles.css
+        if not request.path.endswith("/"):
+            return redirect(request.path + "/", code=302)
         db = get_db()
         s = db.stores.find_one({"public_slug": public_slug, "published": True})
         if not s:
@@ -4406,7 +4412,7 @@ def shop_public_storefront(public_slug):
             if html:
                 # Inject a small config block + helper script tag before </head> if possible.
                 # The custom HTML can call window.YITHUME.storefront.* endpoints.
-                api_base = ""
+                api_base = (os.environ.get("PUBLIC_API_BASE") or request.url_root.rstrip("/"))
                 cfg = f"""
 <script>
 window.YITHUME = window.YITHUME || {{}};
@@ -5184,6 +5190,56 @@ def v1_store_assign_node(store_id):
     return jsonify({"ok": True, "store_id": store_id, "node_id": node_id}), 200
 
 # -----------------------------
+
+def _ensure_full_html_document(html_text: str, title: str = "YiThume Store") -> str:
+    """
+    Normalize user-provided HTML so it always renders as a valid document:
+      - Ensures <!doctype html>, <html>, <head>, <meta charset>, <meta viewport>, <title>, <body>.
+      - If user uploaded a fragment, we wrap it.
+    """
+    t = (html_text or "").strip()
+    if not t:
+        return "<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>%s</title></head><body></body></html>" % (title or "Store")
+
+    lower = t.lower()
+    is_doc = ("<html" in lower) or ("<head" in lower) or ("<body" in lower)
+
+    if not is_doc:
+        body = t
+        t = f"<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>{title}</title></head><body>{body}</body></html>"
+        lower = t.lower()
+
+    if "<!doctype" not in lower:
+        t = "<!doctype html>\n" + t
+        lower = t.lower()
+
+    if "<head" not in lower:
+        if "<html" in lower:
+            t = re.sub(r"<html[^>]*>", lambda m: m.group(0) + "<head></head>", t, count=1, flags=re.I)
+        else:
+            t = "<head></head>" + t
+        lower = t.lower()
+
+    if "charset=" not in lower:
+        t = re.sub(r"</head>", "<meta charset='utf-8'/>\n</head>", t, count=1, flags=re.I)
+        lower = t.lower()
+    if "name='viewport'" not in lower and 'name="viewport"' not in lower:
+        t = re.sub(r"</head>", "<meta name='viewport' content='width=device-width,initial-scale=1'/>\n</head>", t, count=1, flags=re.I)
+        lower = t.lower()
+
+    if "<title" not in lower:
+        t = re.sub(r"</head>", f"<title>{title}</title>\n</head>", t, count=1, flags=re.I)
+        lower = t.lower()
+
+    if "<body" not in lower:
+        parts = re.split(r"</head>", t, flags=re.I, maxsplit=1)
+        if len(parts) == 2:
+            t = parts[0] + "</head><body>" + parts[1] + "</body>"
+        else:
+            t = t + "<body></body>"
+
+    return t
+
 # Custom storefront upload (HTML + optional assets)
 # -----------------------------
 @app.route("/v1/store/<store_id>/frontend/upload", methods=["POST"])
@@ -5210,6 +5266,14 @@ def v1_storefront_upload(store_id):
         return jsonify({"ok": False, "error": "empty_html"}), 400
     if len(html_bytes) > 2 * 1024 * 1024:
         return jsonify({"ok": False, "error": "html_too_large"}), 413
+
+    # Normalize HTML so missing <title>/<head> etc never breaks the storefront
+    try:
+        html_text = html_bytes.decode("utf-8", errors="replace")
+    except Exception:
+        html_text = ""
+    html_text = _ensure_full_html_document(html_text, title="YiThume Store")
+    html_bytes = html_text.encode("utf-8")
 
     db = get_db()
     s = db.stores.find_one({"_internal_id": store_id})
@@ -5258,6 +5322,22 @@ def v1_storefront_upload(store_id):
         "html_file_id": str(html_id),
         "assets_count": len(assets_meta)
     }), 200
+
+
+@app.route("/shop/<public_slug>/<path:asset_path>", methods=["GET"])
+@app.route("/api/app/shop/<public_slug>/<path:asset_path>", methods=["GET"])
+def shop_public_asset_fallback(public_slug, asset_path):
+    """
+    Convenience asset route so custom storefronts can reference assets relatively:
+      - When the storefront URL ends with a slash (/shop/<slug>/), a link to "styles.css"
+        resolves to /shop/<slug>/styles.css which will hit this endpoint.
+      - Internally we serve from the same GridFS assets list as /shop/<slug>/asset/<path>.
+    """
+    if not asset_path or asset_path == "/":
+        return ("Not found", 404)
+    if asset_path.startswith("asset/"):
+        return shop_public_asset(public_slug, asset_path.split("asset/", 1)[1])
+    return shop_public_asset(public_slug, asset_path)
 
 @app.route("/shop/<public_slug>/asset/<path:asset_path>", methods=["GET"])
 @app.route("/api/app/shop/<public_slug>/asset/<path:asset_path>", methods=["GET"])
@@ -5443,7 +5523,8 @@ def storefront_checkout(public_slug):
             "qty": qty,
             "price": price,
             "sku": it.get("sku"),
-            "image_url": it.get("image_url")
+            "image_url": it.get("image_url"),
+            "stripe_price_id": it.get("stripe_price_id")
         })
 
     if not resolved_items:
@@ -5544,7 +5625,7 @@ def storefront_checkout(public_slug):
             # If missing, tell manager to run sync endpoint
             missing = False
             line_items = []
-            for row in resolved:
+            for row in resolved_items:
                 price_id = (row.get("stripe_price_id") or "").strip()
                 if not price_id:
                     missing = True
