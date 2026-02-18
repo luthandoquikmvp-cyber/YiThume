@@ -5250,7 +5250,7 @@ def _ensure_full_html_document(html_text: str, title: str = "YiThume Store") -> 
 # -----------------------------
 @app.route("/v1/store/<store_id>/frontend/upload", methods=["POST"])
 @app.route("/api/app/v1/store/<store_id>/frontend/upload", methods=["POST"])
-def v1_storefront_upload(store_id):
+def v1_storefront_upload_frontend(store_id):
     """
     Upload a custom storefront for a store.
     - Accepts multipart/form-data:
