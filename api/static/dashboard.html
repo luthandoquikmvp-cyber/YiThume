@@ -732,7 +732,7 @@
     o.headers = o.headers ? { ...o.headers } : {};
 
     // Add bearer token automatically for new /v1 endpoints
-    if (token && (url.startsWith("/v1/") || url.startsWith("/s/") || url.startsWith("v1/"))) {
+    if (token && (url.startsWith("/api/v1/") || url.startsWith("/s/") || url.startsWith("v1/"))) {
       o.headers["Authorization"] = "Bearer " + token;
     }
 
@@ -800,7 +800,7 @@
     const fd = new FormData();
     fd.append("html", html);
 
-    const res = await fetch(`/v1/store/${encodeURIComponent(storeId)}/storefront_html`, {
+    const res = await fetch(`/api/v1/store/${encodeURIComponent(storeId)}/storefront_html`, {
       method: "POST",
       body: fd
     });
@@ -1001,7 +1001,7 @@
       }
     };
 
-    const out = await fetchJSON("/v1/store/create", {
+    const out = await fetchJSON("/api/v1/store/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -1621,7 +1621,7 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
       show("sellerAuthModal");
       return false;
     }
-    const me = await apiJSON("/v1/auth/me");
+    const me = await apiJSON("/api/v1/auth/me");
     if(!me.ok || !me.json || !me.json.ok){
       show("sellerAuthModal");
       return false;
@@ -1640,7 +1640,7 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
   }
 
   async function bootstrapStore(){
-    const out = await apiJSON("/v1/store/my");
+    const out = await apiJSON("/api/v1/store/my");
     if(!out.ok || !out.json || !out.json.ok){
       const a = el("alert");
       if(a){
@@ -1663,7 +1663,7 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
 
   async function refreshGitHubStatus(storeId){
     if(!storeId) return { connected:false };
-    const out = await apiJSON(`/v1/github/status?store_id=${encodeURIComponent(storeId)}`);
+    const out = await apiJSON(`/api/v1/github/status?store_id=${encodeURIComponent(storeId)}`);
     if(out.ok && out.json && out.json.ok){
       const connected = !!out.json.connected;
       // Update UI hint
@@ -1714,7 +1714,7 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
     }
     setText("ghStatus", kind === "test" ? "Testing..." : "Saving...");
 
-    const endpoint = kind === "test" ? "/v1/github/test" : "/v1/github/connect";
+    const endpoint = kind === "test" ? "/api/v1/github/test" : "/api/v1/github/connect";
     const out = await apiJSON(endpoint, {
       method:"POST",
       headers: {"Content-Type":"application/json"},
@@ -1743,7 +1743,7 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
 
     const outEl = el("storefrontOut");
     if(outEl) outEl.textContent = "Committing to GitHub...";
-    const out = await apiJSON("/v1/github/commit_storefront", {
+    const out = await apiJSON("/api/v1/github/commit_storefront", {
       method:"POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify({ store_id: storeId })
@@ -1764,7 +1764,8 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
     }
     setText("sellerAuthStatus", kind === "login" ? "Logging in..." : "Creating account...");
 
-    const endpoint = kind === "login" ? "/v1/auth/login" : "/v1/auth/register";
+    // IMPORTANT (Vercel routing): API requests must be prefixed with /api
+    const endpoint = kind === "login" ? "/api/v1/auth/login" : "/api/v1/auth/register";
     const res = await fetch(endpoint, {
       method:"POST",
       headers: {"Content-Type":"application/json"},
