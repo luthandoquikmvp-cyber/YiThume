@@ -1395,6 +1395,160 @@ def home():
     # Serves: api/static/index.html
     return send_from_directory(app.static_folder, "index.html")
 
+
+# -----------------------------
+# Marketplace (public catalog)
+# -----------------------------
+
+@app.route("/marketplace", methods=["GET"])
+@app.route("/api/app/marketplace", methods=["GET"])
+def marketplace_page():
+    """Serves: api/static/marketplace.html"""
+    return send_from_directory(app.static_folder, "marketplace.html")
+
+
+@app.route("/v1/marketplace/products", methods=["GET"])
+@app.route("/api/app/v1/marketplace/products", methods=["GET"])
+def marketplace_products():
+    """
+    Public marketplace feed across ALL stores.
+
+    Includes:
+      - legacy items in db.store_items
+      - SaaS addon items in saas_products
+
+    Query params:
+      - q: search in name/category/store
+      - category: filter by category
+      - limit: max items (default 400)
+    """
+    try:
+        db = get_db()
+
+        q = _str(request.args.get("q"))
+        cat = _str(request.args.get("category"))
+        limit = _safe_int(request.args.get("limit"), 400)
+        if limit <= 0:
+            limit = 400
+        limit = min(limit, 2000)
+
+        # -------------------------
+        # Legacy store items
+        # -------------------------
+        legacy_items = list(db.store_items.find({"active": True}).sort("created_at", -1).limit(limit))
+
+        # -------------------------
+        # SaaS addon products
+        # -------------------------
+        saas_items = list(_col(db, "saas_products").find({"active": True}).sort("created_at", -1).limit(limit))
+
+        # Collect store ids for name/slug hydration
+        store_ids = set()
+        for it in legacy_items:
+            sid = it.get("store_id")
+            if sid:
+                store_ids.add(sid)
+        for p in saas_items:
+            sid = p.get("store_id")
+            if sid:
+                store_ids.add(sid)
+
+        # Hydrate from both store collections (some deployments use db.stores; SaaS uses saas_stores)
+        stores_map = {}
+        if store_ids:
+            try:
+                for s in db.stores.find({"_internal_id": {"$in": list(store_ids)}}):
+                    stores_map[s.get("_internal_id")] = s
+            except Exception:
+                pass
+            try:
+                for s in _col(db, "saas_stores").find({"_internal_id": {"$in": list(store_ids)}}):
+                    stores_map[s.get("_internal_id")] = s
+            except Exception:
+                pass
+
+        def _category_of(x):
+            c = x.get("category") or x.get("Category") or x.get("type") or "General"
+            c = _str(c, "General").strip() or "General"
+            return c[:60]
+
+        def _money(x):
+            try:
+                return float(x)
+            except Exception:
+                return 0.0
+
+        out = []
+
+        # Legacy items -> normalized
+        for it in legacy_items:
+            sid = it.get("store_id")
+            s = stores_map.get(sid) or {}
+            out.append({
+                "source": "legacy",
+                "id": _str(it.get("_id")),
+                "name": _str(it.get("name"), "Item"),
+                "description": _str(it.get("description")),
+                "category": _category_of(it),
+                "price": _money(it.get("price")),
+                "currency": _str((s.get("currency") or "ZAR")),
+                "image_url": _str(it.get("image_url")),
+                "store_id": _str(sid),
+                "store_name": _str(s.get("name"), "Store"),
+                "store_public_slug": s.get("public_slug"),
+                "store_public_url": _store_public_url(s.get("public_slug")) if s.get("public_slug") else None,
+                "created_at": (it.get("created_at").isoformat() + "Z") if isinstance(it.get("created_at"), datetime) else None,
+            })
+
+        # SaaS products -> normalized
+        for p in saas_items:
+            sid = p.get("store_id")
+            s = stores_map.get(sid) or {}
+            out.append({
+                "source": "saas",
+                "id": _str(p.get("_internal_id") or p.get("sku") or p.get("name")),
+                "name": _str(p.get("name"), "Item"),
+                "description": _str(p.get("description")),
+                "category": _category_of(p),
+                "price": _money(p.get("price")),
+                "currency": _str((s.get("currency") or "ZAR")),
+                "image_url": _str(p.get("image_url")),
+                "store_id": _str(sid),
+                "store_name": _str(s.get("name"), "Store"),
+                "store_public_slug": s.get("public_slug"),
+                "store_public_url": _store_public_url(s.get("public_slug")) if s.get("public_slug") else None,
+                "created_at": (p.get("created_at").isoformat() + "Z") if isinstance(p.get("created_at"), datetime) else None,
+            })
+
+        # Search + category filters
+        if q:
+            ql = q.lower().strip()
+            out = [
+                x for x in out
+                if ql in (x.get("name") or "").lower()
+                or ql in (x.get("category") or "").lower()
+                or ql in (x.get("store_name") or "").lower()
+            ]
+        if cat:
+            cl = cat.lower().strip()
+            out = [x for x in out if (x.get("category") or "").lower().strip() == cl]
+
+        cats = sorted(list({(x.get("category") or "General").strip() or "General" for x in out}))
+
+        # Most recent first (best-effort)
+        def _ts(x):
+            return x.get("created_at") or ""
+        out.sort(key=_ts, reverse=True)
+
+        return jsonify({
+            "ok": True,
+            "count": len(out),
+            "categories": cats,
+            "products": out[:limit]
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
+
 # -----------------------------
 # Manager Setup Wizard (proper onboarding)
 # -----------------------------
