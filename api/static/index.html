@@ -107,12 +107,6 @@
   </style>
 </head>
 <body class="min-h-screen bg-gradient-to-b from-white to-slate-50 text-slate-900">
-<!-- UI BUILD: 2026-02-16 • saas-pricing+create-link -->
-<div class="fixed bottom-4 left-4 z-[60] px-3 py-1 rounded-full text-xs bg-black/60 text-white border border-white/10 backdrop-blur">
-  UI BUILD: 2026-02-16 • saas-pricing+create-link
-</div>
-
-
 <!-- Header -->
 <header class="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-slate-200">
   <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
@@ -134,6 +128,8 @@
     <nav class="hidden md:flex items-center gap-6" aria-label="Primary">
       <a href="#how" class="text-sm hover:text-emerald-700">How It Works</a>
       <a href="#services" class="text-sm hover:text-emerald-700">Services</a>
+      <a href="/marketplace" class="text-sm hover:text-emerald-700">Marketplace</a>
+      <a href="#network" class="text-sm hover:text-emerald-700">Build a Network</a>
       <a href="#pricing" class="text-sm hover:text-emerald-700">Pricing</a>
       <a href="#drivers" class="text-sm hover:text-emerald-700">For Drivers</a>
       <a href="#faq" class="text-sm hover:text-emerald-700">FAQ</a>
@@ -158,35 +154,44 @@
 
       <!-- CTAs (desktop / sm+) -->
       <div class="hidden sm:flex items-center gap-2">
+        <a href="/marketplace"
+          class="px-3 py-2 text-sm rounded-xl border border-slate-300 hover:bg-slate-100">
+          Marketplace
+        </a>
+
         <button id="openOrderBuilderTop"
           class="px-3 py-2 text-sm rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">
           Start order
         </button>
-        <button id="openDriverModalTop"
-          class="px-3 py-2 text-sm rounded-xl border border-slate-300 hover:bg-slate-100">
-          Driver sign-in / up
-        </button>
+
         <a href="/dashboard?open=create"
           class="px-3 py-2 text-sm rounded-xl border border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-semibold">
           Sell with YiThume
         </a>
 
-        <button id="buyerLoginBtn"
-          class="px-3 py-2 text-xs rounded-xl border border-slate-300 hover:bg-slate-100">
-          Buyer Login
+        <button id="openDriverModalTop"
+          class="px-3 py-2 text-sm rounded-xl border border-slate-300 hover:bg-slate-100">
+          Driver
         </button>
 
-        <button id="sellerLoginBtn"
-          class="px-3 py-2 text-xs rounded-xl border border-slate-300 hover:bg-slate-100">
-          Seller Login
-        </button>
+        <details class="relative">
+          <summary
+            class="list-none cursor-pointer px-3 py-2 text-sm rounded-xl border border-slate-300 hover:bg-slate-100 flex items-center gap-2">
+            Log in
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M5 7l5 6 5-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" />
+            </svg>
+          </summary>
 
-        <button id="adminLoginBtn"
-          class="px-3 py-2 text-xs rounded-xl border border-slate-300 hover:bg-slate-100">
-          Admin
-        </button>
+          <div class="absolute right-0 mt-2 w-48 rounded-2xl border bg-white shadow-lg overflow-hidden z-50">
+            <button id="buyerLoginBtn" class="w-full text-left px-4 py-3 text-sm hover:bg-slate-50">Buyer login</button>
+            <button id="sellerLoginBtn" class="w-full text-left px-4 py-3 text-sm hover:bg-slate-50">Seller login</button>
+            <button id="adminLoginBtn" class="w-full text-left px-4 py-3 text-sm hover:bg-slate-50">Admin</button>
+          </div>
+        </details>
       </div>
-    </div>
+</div>
   </div>
 
   <!-- Mobile dropdown nav -->
@@ -196,6 +201,8 @@
     <nav class="px-4 py-4 text-sm flex flex-col gap-2 max-w-6xl mx-auto w-full">
       <a href="#how" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">How It Works</a>
       <a href="#services" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">Services</a>
+      <a href="/marketplace" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">Marketplace</a>
+      <a href="#network" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">Build a Network</a>
       <a href="#pricing" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">Pricing</a>
       <a href="#drivers" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">For Drivers</a>
       <a href="#faq" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">FAQ</a>
@@ -210,6 +217,16 @@
       <button id="openDriverModalTopMobile"
         class="w-full py-2 rounded-xl border border-slate-300 text-center active:scale-[.98] transition mobile-nav-link">
         Driver sign-in / up
+      </button>
+
+      <button id="buyerLoginBtnMobile"
+        class="w-full py-2 rounded-xl border border-slate-300 text-center text-xs active:scale-[.98] transition mobile-nav-link">
+        Buyer login
+      </button>
+
+      <button id="sellerLoginBtnMobile"
+        class="w-full py-2 rounded-xl border border-slate-300 text-center text-xs active:scale-[.98] transition mobile-nav-link">
+        Seller login
       </button>
 
       <button id="adminLoginBtnMobile"
@@ -231,7 +248,7 @@
             Deliver anything. <span class="text-emerald-600">Anywhere</span>.
           </h1>
           <p class="mt-4 text-slate-700 max-w-xl">
-            For buyers: shop online, then confirm and pay via a secure link in WhatsApp. For sellers: launch a live storefront in minutes — upload products by CSV, tap into a driver network, and deliver even in remote areas. Want more control? Set up your own delivery network and earn commissions on every drop.
+            For buyers: shop online, then confirm and pay via a secure link in WhatsApp. For sellers: launch a storefront fast, list your products, and deliver even in remote areas using local drivers. Want more control? Build your own delivery network and earn commissions on every drop.
           </p>
         </div>
         <ul class="mt-6 grid grid-cols-2 gap-3 text-sm">
@@ -390,12 +407,102 @@
         </div>
         <div class="rounded-xl border p-3 bg-slate-50/50">
           <div class="font-medium text-slate-800">Fashion &amp; personal care</div>
-          <div class="text-[11px] text-slate-500">Bandages, pads, etc.</div>
+          <div class="text-[11px] text-slate-500">Toiletries, personal care</div>
         </div>
       </div>
 
       <div class="mt-auto pt-6 text-[11px] text-slate-500 leading-snug">
-        We are a delivery service only. We do not provide medical advice.
+        We help local sellers deliver to customers. Some categories may require additional checks.
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- Build a Network (Ownership) -->
+<section id="network" class="py-12 sm:py-16 border-t border-slate-200">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6">
+    <div class="grid lg:grid-cols-2 gap-8 items-start">
+      <div class="rounded-3xl border bg-white shadow-sm p-6 sm:p-8">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-semibold border border-emerald-100">
+          Network ownership
+        </div>
+
+        <h2 class="mt-4 text-2xl sm:text-3xl font-bold leading-tight">
+          Own a piece of the delivery network in your area.
+        </h2>
+
+        <p class="mt-3 text-sm text-slate-700 leading-relaxed">
+          YiThume lets you run your own “delivery node” — recruit drivers, cover a town or region, and earn a commission
+          on every successful drop. It’s built for people who want to build local logistics — without needing to build an app.
+        </p>
+
+        <div class="mt-5 grid sm:grid-cols-2 gap-3 text-sm">
+          <div class="rounded-2xl border bg-slate-50/60 p-4">
+            <div class="font-semibold">Set your coverage</div>
+            <div class="mt-1 text-slate-600 text-xs">Choose towns, depots, and delivery windows.</div>
+          </div>
+          <div class="rounded-2xl border bg-slate-50/60 p-4">
+            <div class="font-semibold">Onboard drivers</div>
+            <div class="mt-1 text-slate-600 text-xs">Verify, assign, and pay drivers weekly.</div>
+          </div>
+          <div class="rounded-2xl border bg-slate-50/60 p-4">
+            <div class="font-semibold">Power local businesses</div>
+            <div class="mt-1 text-slate-600 text-xs">Merchants plug into your network instantly.</div>
+          </div>
+          <div class="rounded-2xl border bg-slate-50/60 p-4">
+            <div class="font-semibold">Earn commissions</div>
+            <div class="mt-1 text-slate-600 text-xs">A share of delivery fees across your coverage.</div>
+          </div>
+        </div>
+
+        <div class="mt-6 flex flex-col sm:flex-row gap-3">
+          <a href="/dashboard?open=create"
+            class="inline-flex items-center justify-center px-5 py-3 rounded-2xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
+            Start a node
+          </a>
+          <a href="#pricing"
+            class="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-slate-300 text-slate-800 text-sm font-semibold hover:bg-slate-100">
+            See plans
+          </a>
+        </div>
+
+        <div class="mt-3 text-[11px] text-slate-500 leading-snug">
+          Note: Coverage and commissions depend on your area and driver availability.
+        </div>
+      </div>
+
+      <div class="rounded-3xl border bg-white shadow-sm p-6 sm:p-8">
+        <h3 class="text-lg font-semibold">How network ownership works</h3>
+        <ol class="mt-4 space-y-3 text-sm text-slate-700">
+          <li class="flex gap-3">
+            <span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 font-bold text-xs">1</span>
+            <div><b>Launch your node.</b> Pick a town/region and set operating windows.</div>
+          </li>
+          <li class="flex gap-3">
+            <span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 font-bold text-xs">2</span>
+            <div><b>Recruit drivers.</b> Approve drivers and manage availability and payouts.</div>
+          </li>
+          <li class="flex gap-3">
+            <span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 font-bold text-xs">3</span>
+            <div><b>Bring in merchants.</b> Local stores list products and use your delivery coverage.</div>
+          </li>
+          <li class="flex gap-3">
+            <span class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 font-bold text-xs">4</span>
+            <div><b>Earn from every drop.</b> You get commission on deliveries routed through your node.</div>
+          </li>
+        </ol>
+
+        <div class="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+          <div class="text-xs font-semibold text-emerald-900">Good fit for</div>
+          <div class="mt-1 text-sm text-emerald-900">
+            Community entrepreneurs • Small logistics teams • Township & rural operators • Anyone who wants to run local delivery.
+          </div>
+        </div>
+
+        <div class="mt-4 text-[11px] text-slate-500 leading-snug">
+          This is not “a promise to compete with anyone” — it’s a practical way to run local delivery and own operations in your region.
+        </div>
       </div>
     </div>
   </div>
@@ -450,7 +557,7 @@
           <div class="mt-1 text-xs text-slate-500">from ~R19</div>
           <ul class="mt-3 text-sm text-slate-600 space-y-2">
             <li>• Live storefront</li>
-            <li>• CSV product upload</li>
+            <li>• Product listing</li>
             <li>• Orders + WhatsApp confirm</li>
           </ul>
           <a href="/dashboard?open=create" class="mt-4 inline-flex w-full items-center justify-center px-3 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 font-semibold">
