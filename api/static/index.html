@@ -108,9 +108,12 @@
 </head>
 <body class="min-h-screen bg-gradient-to-b from-white to-slate-50 text-slate-900">
 <!-- Header -->
+<!-- Header -->
 <header class="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-slate-200">
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-    <div class="flex items-center gap-2">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+
+    <!-- Brand -->
+    <div class="flex items-center gap-2 shrink-0">
       <!-- Header logo: Gradient square with a white Y -->
       <svg width="36" height="36" viewBox="0 0 36 36" class="rounded-2xl" aria-label="YiThume logo">
         <defs>
@@ -124,95 +127,129 @@
       <div class="text-xl font-semibold tracking-tight">YiThume</div>
     </div>
 
-  <!-- Desktop nav -->
-<nav class="hidden md:flex items-center gap-5" aria-label="Primary">
-  <a href="#how" class="text-sm hover:text-emerald-700">How It Works</a>
-  <a href="#services" class="text-sm hover:text-emerald-700">Services</a>
-  <a href="#network" class="text-sm hover:text-emerald-700">Build a Network</a>
-  <a href="#pricing" class="text-sm hover:text-emerald-700">Pricing</a>
-  <a href="#drivers" class="text-sm hover:text-emerald-700">For Drivers</a>
-  <a href="#faq" class="text-sm hover:text-emerald-700">FAQ</a>
-</nav>
+    <!-- Desktop nav (center) -->
+    <nav class="hidden md:flex items-center gap-6 min-w-0" aria-label="Primary">
+      <a href="/marketplace"
+         class="text-sm font-semibold text-slate-900 hover:text-emerald-700 whitespace-nowrap">
+        Marketplace
+      </a>
 
-<!-- Header actions (desktop / sm+) -->
-<div class="hidden sm:flex items-center gap-2">
-  <a href="/dashboard?open=create"
-     class="px-3 py-2 text-sm rounded-xl border border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-semibold whitespace-nowrap">
-    Sell with YiThume
-  </a>
+      <a href="#network" class="text-sm text-slate-700 hover:text-emerald-700 whitespace-nowrap">
+        Build a Network
+      </a>
 
-  <a href="#drivers"
-     class="px-3 py-2 text-sm rounded-xl border border-slate-300 hover:bg-slate-100 whitespace-nowrap">
-    Driver
-  </a>
+      <a href="#drivers" class="text-sm text-slate-700 hover:text-emerald-700 whitespace-nowrap">
+        For Drivers
+      </a>
 
-  <!-- Login dropdown -->
-  <details class="relative">
-    <summary
-      class="list-none cursor-pointer px-3 py-2 text-sm rounded-xl border border-slate-300 hover:bg-slate-100 flex items-center gap-2 whitespace-nowrap">
-      Log in
-      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-        <path d="M5 7l5 6 5-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </summary>
+      <a href="#pricing" class="text-sm text-slate-700 hover:text-emerald-700 whitespace-nowrap">
+        Pricing
+      </a>
 
-    <div class="absolute right-0 mt-2 w-48 rounded-2xl border bg-white shadow-lg overflow-hidden z-50">
-      <button id="buyerLoginBtn"
-        class="w-full text-left px-4 py-3 text-sm hover:bg-slate-50">
+      <a href="#faq" class="text-sm text-slate-700 hover:text-emerald-700 whitespace-nowrap">
+        FAQ
+      </a>
+    </nav>
+
+    <!-- Right actions -->
+    <div class="flex items-center gap-2 shrink-0">
+      <!-- Mobile hamburger -->
+      <button id="mobileMenuBtn"
+        class="md:hidden p-2 rounded-lg border border-slate-300 active:scale-95 transition"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="mobileNavDropdown">
+        <svg id="mobileMenuIconOpen" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 6h16M4 12h16M4 18h16"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <svg id="mobileMenuIconClose" width="20" height="20" viewBox="0 0 24 24" class="hidden" fill="none" aria-hidden="true">
+          <path d="M6 6L18 18M6 18L18 6"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <!-- Desktop actions -->
+      <div class="hidden sm:flex items-center gap-2">
+        <a href="/dashboard?open=create"
+          class="px-3 py-2 text-sm rounded-xl border border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-semibold whitespace-nowrap">
+          Sell with YiThume
+        </a>
+
+        <!-- Driver stays a quiet utility link -->
+        <a href="#drivers"
+          class="px-3 py-2 text-sm rounded-xl border border-slate-300 hover:bg-slate-100 whitespace-nowrap">
+          Driver
+        </a>
+
+        <!-- Log in (quiet link style) -->
+        <details class="relative">
+          <summary
+            class="list-none cursor-pointer px-3 py-2 text-sm rounded-xl border border-slate-300 hover:bg-slate-100 flex items-center gap-2 whitespace-nowrap">
+            Log in
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M5 7l5 6 5-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </summary>
+
+          <div class="absolute right-0 mt-2 w-48 rounded-2xl border bg-white shadow-lg overflow-hidden z-50">
+            <button id="buyerLoginBtn"
+              class="w-full text-left px-4 py-3 text-sm hover:bg-slate-50">
+              Buyer login
+            </button>
+            <button id="sellerLoginBtn"
+              class="w-full text-left px-4 py-3 text-sm hover:bg-slate-50">
+              Seller login
+            </button>
+            <button id="adminLoginBtn"
+              class="w-full text-left px-4 py-3 text-sm hover:bg-slate-50">
+              Admin
+            </button>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile dropdown nav -->
+  <div id="mobileNavDropdown"
+       class="md:hidden hidden border-t border-slate-200 bg-white shadow-xl"
+       role="menu" aria-label="Mobile navigation">
+    <nav class="px-4 py-4 text-sm flex flex-col gap-2 max-w-6xl mx-auto w-full">
+      <a href="/marketplace" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link font-semibold" role="menuitem">Marketplace</a>
+      <a href="#network" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">Build a Network</a>
+      <a href="#drivers" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">For Drivers</a>
+      <a href="#pricing" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">Pricing</a>
+      <a href="#faq" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">FAQ</a>
+
+      <div class="h-px bg-slate-200 my-3"></div>
+
+      <a href="/dashboard?open=create"
+        class="w-full py-2 rounded-xl border border-emerald-600 text-emerald-700 text-center font-semibold active:scale-[.98] transition mobile-nav-link">
+        Sell with YiThume
+      </a>
+
+      <button id="openDriverModalTopMobile"
+        class="w-full py-2 rounded-xl border border-slate-300 text-center active:scale-[.98] transition mobile-nav-link">
+        Driver
+      </button>
+
+      <button id="buyerLoginBtnMobile"
+        class="w-full py-2 rounded-xl border border-slate-300 text-center text-xs active:scale-[.98] transition mobile-nav-link">
         Buyer login
       </button>
-      <button id="sellerLoginBtn"
-        class="w-full text-left px-4 py-3 text-sm hover:bg-slate-50">
+
+      <button id="sellerLoginBtnMobile"
+        class="w-full py-2 rounded-xl border border-slate-300 text-center text-xs active:scale-[.98] transition mobile-nav-link">
         Seller login
       </button>
-      <button id="adminLoginBtn"
-        class="w-full text-left px-4 py-3 text-sm hover:bg-slate-50">
+
+      <button id="adminLoginBtnMobile"
+        class="w-full py-2 rounded-xl border border-slate-300 text-center text-xs active:scale-[.98] transition mobile-nav-link">
         Admin
       </button>
-    </div>
-  </details>
-</div>
-
-<!-- Mobile dropdown nav -->
-<div id="mobileNavDropdown"
-     class="md:hidden hidden border-t border-slate-200 bg-white shadow-xl"
-     role="menu" aria-label="Mobile navigation">
-  <nav class="px-4 py-4 text-sm flex flex-col gap-2 max-w-6xl mx-auto w-full">
-    <a href="#how" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">How It Works</a>
-    <a href="#services" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">Services</a>
-    <a href="#network" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">Build a Network</a>
-    <a href="#pricing" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">Pricing</a>
-    <a href="#drivers" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">For Drivers</a>
-    <a href="#faq" class="py-2 rounded-lg hover:bg-slate-50 block mobile-nav-link" role="menuitem">FAQ</a>
-
-    <div class="h-px bg-slate-200 my-3"></div>
-
-    <a href="/dashboard?open=create"
-       class="w-full py-2 rounded-xl border border-emerald-600 text-emerald-700 text-center font-semibold active:scale-[.98] transition mobile-nav-link">
-      Sell with YiThume
-    </a>
-
-    <button id="openDriverModalTopMobile"
-      class="w-full py-2 rounded-xl border border-slate-300 text-center active:scale-[.98] transition mobile-nav-link">
-      Driver
-    </button>
-
-    <button id="buyerLoginBtnMobile"
-      class="w-full py-2 rounded-xl border border-slate-300 text-center text-xs active:scale-[.98] transition mobile-nav-link">
-      Buyer login
-    </button>
-
-    <button id="sellerLoginBtnMobile"
-      class="w-full py-2 rounded-xl border border-slate-300 text-center text-xs active:scale-[.98] transition mobile-nav-link">
-      Seller login
-    </button>
-
-    <button id="adminLoginBtnMobile"
-      class="w-full py-2 rounded-xl border border-slate-300 text-center text-xs active:scale-[.98] transition mobile-nav-link">
-      Admin
-    </button>
-  </nav>
-</div>
+    </nav>
+  </div>
 </header>
 
 <!-- Hero -->
