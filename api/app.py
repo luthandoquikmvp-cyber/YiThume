@@ -4393,7 +4393,40 @@ def v1_order_confirm():
         "delivery": {"mode": (store.get("delivery") or {}).get("mode", "manual"), "pickup": store.get("address")},
     }
 
-    _col(db, "saas_orders").insert_one(order_doc)
+    
+
+    # Create a logistics order record so drivers can see/accept/complete deliveries.
+    try:
+        lo = {
+            "_internal_id": str(uuid.uuid4()),
+            "order_id": order_id,
+            "store_id": store_id,
+            "customer": order_doc.get("customer"),
+            "items": order_doc.get("items"),
+            "subtotal": order_doc.get("subtotal"),
+            "delivery_fee": order_doc.get("delivery_fee"),
+            "total": order_doc.get("total"),
+            "currency": order_doc.get("currency"),
+            "status": "queued",
+            "created_at": _now_dt(),
+            "assigned_driver_id": None,
+            "source": order_doc.get("source") or "marketplace"
+        }
+        db.orders.insert_one(lo)
+    except Exception:
+        pass
+
+    # Attach payment info (optional)
+    pay = data.get("payment") if isinstance(data.get("payment"), dict) else {}
+    payment_mode = _str(pay.get("mode") or data.get("payment_mode") or "demo")
+    payment_provider = _str(pay.get("provider") or data.get("payment_provider") or "demo")
+    order_doc["payment"] = {
+        "mode": payment_mode,
+        "provider": payment_provider,
+        "status": "demo_pending" if payment_mode != "live" else "pending"
+    }
+
+_col(db, "saas_orders").insert_one(order_doc)
 
     # optionally mark the quote "converted"
     try:
@@ -6187,7 +6220,15 @@ def v1_register():
         store = _ensure_store_for_seller(db, user_id)
         store_id = str(store["_id"])
 
-    token, expires_at = _issue_session(db, user_id)
+    
+    # Auto-create driver profile for drivers
+    if primary_role == "driver":
+        try:
+            _ensure_driver_for_user(db, {"phone": phone, "email": email, "role": "driver"})
+        except Exception:
+            pass
+
+token, expires_at = _issue_session(db, user_id)
 
     return jsonify({
         "ok": True,
@@ -6197,6 +6238,22 @@ def v1_register():
         "store_id": store_id,
         "needs_role_select": True if not primary_role else False
     })
+
+
+@app.post("/v1/auth/logout")
+@app.post("/api/v1/auth/logout")
+def v1_logout():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+    token = _get_bearer_token(request)
+    try:
+        _sessions_col(db).delete_one({"token": token})
+    except Exception:
+        pass
+    return jsonify({"ok": True}), 200
 
 @app.post("/v1/auth/login")
 @app.post("/api/v1/auth/login")
@@ -6373,7 +6430,14 @@ def v1_account_profile_get():
         "billing_address": doc.get("billing_address") or {},
         "delivery_address": doc.get("delivery_address") or {}
     }
-    return jsonify({"ok": True, "profile": profile}), 200
+    
+    # Ensure driver profile exists when switching to driver
+    if role == "driver":
+        try:
+            _ensure_driver_for_user(db, user)
+        except Exception:
+            pass
+return jsonify({"ok": True, "profile": profile}), 200
 
 
 @app.post("/v1/account/profile")
@@ -6487,6 +6551,120 @@ def v1_storefront_upload(store_id):
     _stores_col(db).update_one({"_id": ObjectId(store_id)}, {"$set": {"storefront_file_id": file_id, "storefront_updated_at": _utcnow()}})
 
     return jsonify({"ok": True, "store_id": store_id, "file_id": str(file_id), "open_url": f"/s/{store_id}"})
+
+def _ensure_driver_for_user(db, user):
+    """
+    Ensure there is a drivers document for a user when their active role is driver.
+    Links by phone (preferred) or email if you later add email to drivers.
+    """
+    phone = _str(user.get("phone"))
+    if not phone:
+        return None
+    d = db.drivers.find_one({"phone": phone})
+    if d:
+        return d
+    # Create minimal driver profile
+    internal_id = str(uuid.uuid4())
+    doc = {
+        "_internal_id": internal_id,
+        "driver_id": f"DRV-{internal_id[:6].upper()}",
+        "name": _str(user.get("email") or user.get("phone") or "Driver"),
+        "phone": phone,
+        "vehicle": "car",
+        "active": True,
+        "available": True,
+        "current_location": {"lat": None, "lng": None, "updated_at": _now_dt()},
+        "weekly_payout_due": 0.0,
+        "earnings_history": [],
+        "ratings": {"count": 0, "avg": None},
+        "docs": {"id_doc_ref": None, "licence_ref": None, "vehicle_reg_ref": None},
+        "auth": {"pin_hash": None, "pin_expiry": None, "sessions": []},
+        "meta": {"zone": None},
+        "created_at": _now_dt(),
+    }
+    db.drivers.insert_one(doc)
+    return doc
+
+
+@app.get("/v1/driver/me")
+@app.get("/api/v1/driver/me")
+def v1_driver_me():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+    if (user.get("role") or "") != "driver":
+        return jsonify({"ok": False, "error": "Not a driver"}), 403
+    d = _ensure_driver_for_user(db, user)
+    if not d:
+        return jsonify({"ok": False, "error": "Driver profile missing phone"}), 400
+    return jsonify({"ok": True, "driver": safe_doc(d)}), 200
+
+
+@app.get("/v1/driver/kpis")
+@app.get("/api/v1/driver/kpis")
+def v1_driver_kpis():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+    if (user.get("role") or "") != "driver":
+        return jsonify({"ok": False, "error": "Not a driver"}), 403
+    d = _ensure_driver_for_user(db, user)
+    if not d:
+        return jsonify({"ok": False, "error": "Driver profile missing phone"}), 400
+
+    did = d.get("_internal_id")
+    now = _now_dt()
+    day_start = datetime(now.year, now.month, now.day)
+    week_ago = now - timedelta(days=7)
+
+    # Orders KPIs (logistics collection)
+    assigned_active = db.orders.count_documents({"assigned_driver_id": did, "status": {"$in": ["queued", "assigned", "picked_up", "dispatched"]}})
+    delivered_7d = db.orders.count_documents({"assigned_driver_id": did, "status": "delivered", "delivered_at": {"$gte": week_ago}})
+    delivered_today = db.orders.count_documents({"assigned_driver_id": did, "status": "delivered", "delivered_at": {"$gte": day_start}})
+    pending_pickups = db.orders.count_documents({"assigned_driver_id": did, "status": {"$in": ["assigned", "picked_up"]}})
+
+    # Earnings / ratings from driver doc
+    payout_due = float(d.get("weekly_payout_due") or 0.0)
+    rating_avg = (d.get("ratings") or {}).get("avg")
+    rating_cnt = int((d.get("ratings") or {}).get("count") or 0)
+
+    return jsonify({
+        "ok": True,
+        "driver": {"id": did, "name": d.get("name"), "phone": d.get("phone")},
+        "kpis": {
+            "assigned_active": assigned_active,
+            "pending_pickups": pending_pickups,
+            "delivered_today": delivered_today,
+            "delivered_7d": delivered_7d,
+            "payout_due": payout_due,
+            "rating_avg": rating_avg,
+            "rating_count": rating_cnt
+        }
+    }), 200
+
+
+@app.get("/v1/driver/orders")
+@app.get("/api/v1/driver/orders")
+def v1_driver_orders():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+    if (user.get("role") or "") != "driver":
+        return jsonify({"ok": False, "error": "Not a driver"}), 403
+    d = _ensure_driver_for_user(db, user)
+    if not d:
+        return jsonify({"ok": False, "error": "Driver profile missing phone"}), 400
+    did = d.get("_internal_id")
+    cur = db.orders.find({"assigned_driver_id": did}).sort("created_at", -1).limit(50)
+    return jsonify({"ok": True, "orders": [safe_doc(o) for o in cur]}), 200
+
+
 
 @app.get("/s/<store_id>")
 def public_storefront(store_id):
