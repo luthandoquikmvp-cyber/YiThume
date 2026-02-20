@@ -1408,6 +1408,71 @@ def marketplace_page():
     return send_from_directory(app.static_folder, "marketplace.html")
 
 
+
+# -----------------------------
+# Marketplace: stores
+# -----------------------------
+@app.route("/v1/marketplace/stores", methods=["GET"])
+@app.route("/api/v1/marketplace/stores", methods=["GET"])
+@app.route("/api/app/v1/marketplace/stores", methods=["GET"])
+def marketplace_stores():
+    """
+    Public list of stores for the marketplace.
+    Query params:
+      - q: search in name/city/province
+      - limit: max stores (default 200)
+    """
+    try:
+        db = get_db()
+        q = _str(request.args.get("q")).strip()
+        limit = _safe_int(request.args.get("limit"), 200)
+        if limit <= 0:
+            limit = 200
+        limit = min(limit, 1000)
+
+        store_filter = {"active": True}
+        if q:
+            store_filter["$or"] = [
+                {"name": {"$regex": re.escape(q), "$options": "i"}},
+                {"address.city": {"$regex": re.escape(q), "$options": "i"}},
+                {"address.province": {"$regex": re.escape(q), "$options": "i"}},
+            ]
+
+        stores = list(_col(db, "saas_stores").find(store_filter).sort("created_at", -1).limit(limit))
+
+        # Product counts (saas_products)
+        ids = [s.get("_internal_id") for s in stores if s.get("_internal_id")]
+        counts = {}
+        if ids:
+            try:
+                for row in _col(db, "saas_products").aggregate([
+                    {"$match": {"active": True, "store_id": {"$in": ids}}},
+                    {"$group": {"_id": "$store_id", "count": {"$sum": 1}}},
+                ]):
+                    counts[row.get("_id")] = int(row.get("count") or 0)
+            except Exception:
+                pass
+
+        out = []
+        for s in stores:
+            sid = s.get("_internal_id")
+            addr = s.get("address") if isinstance(s.get("address"), dict) else {}
+            out.append({
+                "store_id": sid,
+                "name": _str(s.get("name"), "Store"),
+                "template": _str(s.get("template"), "general"),
+                "currency": _str(s.get("currency"), "ZAR"),
+                "city": _str(addr.get("city")),
+                "province": _str(addr.get("province")),
+                "public_url": f"/s/{sid}" if sid else "",
+                "product_count": counts.get(sid, 0),
+            })
+
+        return jsonify({"ok": True, "stores": out})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route("/v1/marketplace/products", methods=["GET"])
 @app.route("/api/v1/marketplace/products", methods=["GET"])
 @app.route("/api/app/v1/marketplace/products", methods=["GET"])
@@ -1422,6 +1487,7 @@ def marketplace_products():
     Query params:
       - q: search in name/category/store
       - category: filter by category
+      - store_id: filter by store
       - limit: max items (default 400)
     """
     try:
@@ -1429,6 +1495,8 @@ def marketplace_products():
 
         q = _str(request.args.get("q"))
         cat = _str(request.args.get("category"))
+
+        store_id = _str(request.args.get("store_id"))
         limit = _safe_int(request.args.get("limit"), 400)
         if limit <= 0:
             limit = 400
@@ -1437,12 +1505,18 @@ def marketplace_products():
         # -------------------------
         # Legacy store items
         # -------------------------
-        legacy_items = list(db.store_items.find({"active": True}).sort("created_at", -1).limit(limit))
+        legacy_q = {"active": True}
+        if store_id:
+            legacy_q["store_id"] = store_id
+        legacy_items = list(db.store_items.find(legacy_q).sort("created_at", -1).limit(limit))
 
         # -------------------------
         # SaaS addon products
         # -------------------------
-        saas_items = list(_col(db, "saas_products").find({"active": True}).sort("created_at", -1).limit(limit))
+        saas_q = {"active": True}
+        if store_id:
+            saas_q["store_id"] = store_id
+        saas_items = list(_col(db, "saas_products").find(saas_q).sort("created_at", -1).limit(limit))
 
         # Collect store ids for name/slug hydration
         store_ids = set()
@@ -6214,6 +6288,21 @@ def v1_register():
     if role == "admin":
         return jsonify({"ok": False, "error": "Admin role cannot be registered here"}), 403
 
+
+    # If registering as SELLER, require store details and create a store immediately
+    store_payload = None
+    if role == "seller":
+        store_name = _str(data.get("store_name") or data.get("name") or "").strip()
+        if not store_name:
+            return jsonify({"ok": False, "error": "Seller registration requires store_name"}), 400
+        store_payload = {
+            "store_name": store_name,
+            "template": _str(data.get("template"), "general"),
+            "line1": _str(data.get("line1")),
+            "city": _str(data.get("city")),
+            "province": _str(data.get("province")),
+            "postal": _str(data.get("postal")),
+        }
     users = _users_col(db)
 
     # Basic uniqueness checks
@@ -6250,13 +6339,38 @@ def v1_register():
     res = users.insert_one(doc)
     user_id = str(res.inserted_id)
 
-    # Auto-create store for sellers (only once they have a seller role)
+    # Auto-create store for sellers (saas_stores)
     store_id = None
     if primary_role == "seller":
-        store = _ensure_store_for_seller(db, user_id)
-        store_id = str(store["_id"])
+        try:
+            # If seller provided store details, use them; otherwise create a minimal store.
+            sp = store_payload or {"store_name": "New Store", "template": "general", "line1": "", "city": "", "province": "", "postal": ""}
+            store_id = str(uuid.uuid4())
+            store_doc = {
+                "_internal_id": store_id,
+                "name": _str(sp.get("store_name"), "New Store"),
+                "template": _str(sp.get("template"), "general"),
+                "currency": "ZAR",
+                "address": {
+                    "line1": _str(sp.get("line1")),
+                    "line2": "",
+                    "city": _str(sp.get("city")),
+                    "province": _str(sp.get("province")),
+                    "postal": _str(sp.get("postal")),
+                    "country": "ZA",
+                },
+                "delivery": {"mode": "manual", "fee_flat": 35.0, "notes": ""},
+                "payment": {"method": "eft", "notes": ""},
+                "active": True,
+                "created_at": _now_dt(),
+                "owner_user_id": user_id,
+            }
+            _col(db, "saas_stores").insert_one(store_doc)
+            # Persist on user
+            users.update_one({"_id": res.inserted_id}, {"$set": {"store_id": store_id}})
+        except Exception:
+            store_id = None
 
-    
     # Auto-create driver profile for drivers
     if primary_role == "driver":
         try:
@@ -6474,6 +6588,70 @@ def v1_account_profile_get():
         except Exception:
             pass
     return jsonify({"ok": True, "profile": profile}), 200
+
+
+# -----------------------------
+# Seller onboarding: create store + grant seller role
+# -----------------------------
+@app.post("/v1/seller/onboard")
+@app.post("/api/v1/seller/onboard")
+def v1_seller_onboard():
+    """
+    Convert a logged-in user into a seller by creating a store.
+    Body:
+      { "store_name": "...", "city": "...", "province": "...", "template": "general" }
+    """
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+
+    data = request.get_json(silent=True) or {}
+    store_name = _str(data.get("store_name")).strip()
+    if not store_name:
+        return jsonify({"ok": False, "error": "Missing store_name"}), 400
+
+    template = _str(data.get("template"), "general")
+    city = _str(data.get("city"))
+    province = _str(data.get("province"))
+    line1 = _str(data.get("line1"))
+    postal = _str(data.get("postal"))
+
+    # Create store
+    store_id = str(uuid.uuid4())
+    store_doc = {
+        "_internal_id": store_id,
+        "name": store_name,
+        "template": template,
+        "currency": "ZAR",
+        "address": {"line1": line1, "city": city, "province": province, "postal": postal, "country": "ZA"},
+        "delivery": {"mode": "manual", "fee_flat": 35.0, "notes": ""},
+        "payment": {"method": "eft", "notes": ""},
+        "active": True,
+        "created_at": _now_dt(),
+        "owner_user_id": user.get("_internal_id") or _str(user.get("_id")),
+    }
+    _col(db, "saas_stores").insert_one(store_doc)
+
+    # Update user roles
+    roles = user.get("roles") if isinstance(user.get("roles"), list) else []
+    if "seller" not in roles:
+        roles.append("seller")
+
+    _users_col(db).update_one(
+        {"_id": user["_id"]},
+        {"$set": {"roles": roles, "role": "seller", "store_id": store_id}}
+    )
+
+    return jsonify({
+        "ok": True,
+        "role": "seller",
+        "roles": roles,
+        "store": _store_public(store_doc),
+        "dashboard_url": f"/dashboard?store_id={quote(store_id)}"
+    })
+
 
 
 @app.post("/v1/account/profile")
