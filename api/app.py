@@ -70,7 +70,8 @@ def get_db():
 
 
 def get_fs(db=None) -> GridFS:
-    db = db or get_db()
+    if db is None:
+        db = get_db()
     return GridFS(db)
 
 
@@ -5950,7 +5951,8 @@ def _utcnow():
     return datetime.utcnow()
 
 def _users_col(db=None):
-    db = db or get_db()
+    if db is None:
+        db = get_db()
     try:
         db["users"].create_index([("email", 1)], unique=True, sparse=True)
         db["users"].create_index([("phone", 1)], unique=True, sparse=True)
@@ -5959,7 +5961,8 @@ def _users_col(db=None):
     return db["users"]
 
 def _sessions_col(db=None):
-    db = db or get_db()
+    if db is None:
+        db = get_db()
     try:
         db["sessions"].create_index("expires_at", expireAfterSeconds=0)
         db["sessions"].create_index([("token", 1)], unique=True)
@@ -5969,7 +5972,8 @@ def _sessions_col(db=None):
     return db["sessions"]
 
 def _stores_col(db=None):
-    db = db or get_db()
+    if db is None:
+        db = get_db()
     try:
         db["stores"].create_index([("seller_id", 1)])
     except Exception:
@@ -6021,7 +6025,8 @@ def _get_bearer_token(req):
     return None
 
 def _require_auth(req, db=None):
-    db = db or get_db()
+    if db is None:
+        db = get_db()
     token = _get_bearer_token(req)
     if not token:
         return None, ("Missing Authorization Bearer token", 401)
