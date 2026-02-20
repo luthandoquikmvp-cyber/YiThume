@@ -1851,7 +1851,12 @@ def stats_overview():
 
 # ---------------- DASHBOARD COMBINED (stats + drivers) ---
 @app.get("/dashboard")
+@app.get("/dashboard.html")
+@app.get("/login")
+@app.get("/seller")
+@app.get("/driver")
 def dashboard():
+    # Always serve the same dashboard shell; role-based UI happens client-side.
     return send_from_directory(app.static_folder, "dashboard.html")
 @app.route("/api/app/dashboard", methods=["GET"])
 @app.route("/api/dashboard", methods=["GET"])
@@ -6347,6 +6352,78 @@ def v1_set_role():
         store_id = str(store["_id"])
 
     return jsonify({"ok": True, "role": role, "roles": roles, "store_id": store_id})
+# -----------------------------
+# Account (buyer settings)
+# -----------------------------
+@app.get("/v1/account/profile")
+@app.get("/api/v1/account/profile")
+def v1_account_profile_get():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+
+    users = _users_col(db)
+    doc = users.find_one({"_id": user["_id"]}) or {}
+    profile = {
+        "email": doc.get("email"),
+        "phone": doc.get("phone"),
+        "name": doc.get("name") or "",
+        "billing_address": doc.get("billing_address") or {},
+        "delivery_address": doc.get("delivery_address") or {}
+    }
+    return jsonify({"ok": True, "profile": profile}), 200
+
+
+@app.post("/v1/account/profile")
+@app.post("/api/v1/account/profile")
+def v1_account_profile_post():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+
+    data = request.get_json(force=True, silent=True) or {}
+    # Keep it flexible — UI can send partial updates.
+    patch = {}
+    for k in ("name", "phone"):
+        if k in data and isinstance(data.get(k), str):
+            patch[k] = data.get(k).strip()
+    for k in ("billing_address", "delivery_address"):
+        if k in data and isinstance(data.get(k), dict):
+            patch[k] = data.get(k)
+
+    if not patch:
+        return jsonify({"ok": True, "updated": False}), 200
+
+    users = _users_col(db)
+    users.update_one({"_id": user["_id"]}, {"$set": patch})
+    return jsonify({"ok": True, "updated": True}), 200
+
+
+@app.get("/v1/account/orders")
+@app.get("/api/v1/account/orders")
+def v1_account_orders():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+
+    email = (user.get("email") or "").lower().strip()
+    limit = int(request.args.get("limit", "50"))
+    limit = max(1, min(limit, 200))
+
+    q = {"customer_email": email} if email else {"user_id": str(user["_id"])}
+    try:
+        cur = db.orders.find(q).sort("created_at", DESCENDING).limit(limit)
+        orders = [safe_doc(o) for o in cur]
+        return jsonify({"ok": True, "orders": orders}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": "server_error", "details": str(e), "orders": []}), 500
+
 
 # -----------------------------
 # V1 STORE HELPERS
