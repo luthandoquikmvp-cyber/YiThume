@@ -6234,6 +6234,8 @@ def v1_register():
         "ok": True,
         "token": token,
         "expires_at": expires_at.isoformat() + "Z",
+        "role": primary_role,
+        "roles": roles,
         "user": {"id": user_id, "role": primary_role, "roles": roles, "email": email, "phone": phone},
         "store_id": store_id,
         "needs_role_select": True if not primary_role else False
@@ -6348,6 +6350,8 @@ def v1_login():
         "ok": True,
         "token": token,
         "expires_at": expires_at.isoformat() + "Z",
+        "role": active_role,
+        "roles": roles,
         "user": {"id": user_id, "role": active_role, "roles": roles, "email": user.get("email"), "phone": user.get("phone")},
         "store_id": store_id,
         "needs_role_select": needs_role_select
@@ -6844,3 +6848,83 @@ def v1_github_commit_storefront():
         html_url = ((payload2.get("content") or {}).get("html_url")) or None
         return jsonify({"ok": True, "commit_sha": commit_sha, "file_url": html_url, "path": path})
     return jsonify({"ok": False, "status": status2, "details": payload2}), 400
+
+
+# -----------------------------
+# Store products (manual add + list)
+# -----------------------------
+
+@app.get("/v1/store/<store_id>/products")
+@app.get("/api/v1/store/<store_id>/products")
+def v1_store_products(store_id):
+    db = get_db()
+    store = _get_store(db, store_id)
+    if not store:
+        return jsonify({"ok": False, "error": "Store not found"}), 404
+    prods = list(_col(db, "saas_products").find({"store_id": store_id, "active": True}).sort("created_at", -1).limit(5000))
+    out = []
+    for p in prods:
+        out.append({
+            "id": _str(p.get("_internal_id") or p.get("sku") or p.get("name")),
+            "name": _str(p.get("name")),
+            "category": _str(p.get("category"), "General"),
+            "sku": _str(p.get("sku")),
+            "price": float(p.get("price", 0.0) or 0.0),
+            "currency": _str((store.get("currency") or "ZAR")),
+            "stock": int(p.get("stock", 0) or 0),
+            "description": _str(p.get("description")),
+            "image_url": _str(p.get("image_url")),
+            "created_at": (p.get("created_at").isoformat() + "Z") if isinstance(p.get("created_at"), datetime) else None,
+        })
+    return jsonify({"ok": True, "store_id": store_id, "products": out}), 200
+
+
+@app.post("/v1/store/<store_id>/product")
+@app.post("/api/v1/store/<store_id>/product")
+def v1_store_add_product(store_id):
+    """Manual single-product add.
+    JSON: {name, price, category?, sku?, stock?, description?, image_url?}
+    """
+    db = get_db()
+    store = _get_store(db, store_id)
+    if not store:
+        return jsonify({"ok": False, "error": "Store not found"}), 404
+
+    data = request.get_json(force=True, silent=True) or {}
+    name = _str(data.get("name"))
+    price = _safe_float(data.get("price"), None)
+    if not name or price is None:
+        return jsonify({"ok": False, "error": "name and price are required"}), 400
+
+    category = _str(data.get("category"), "General")
+    sku = _str(data.get("sku"))
+    stock = _safe_int(data.get("stock"), 999999)
+    desc = _str(data.get("description"))
+    image_url = _str(data.get("image_url"))
+
+    key = {"store_id": store_id, "sku": sku} if sku else {"store_id": store_id, "name": name, "category": category}
+    existing = _col(db, "saas_products").find_one(key)
+
+    base_doc = {
+        "store_id": store_id,
+        "name": name,
+        "slug": _slug(name),
+        "category": category,
+        "sku": sku or None,
+        "price": float(price),
+        "stock": int(stock),
+        "description": desc,
+        "image_url": image_url,
+        "active": True,
+        "updated_at": _now_dt(),
+    }
+
+    if existing:
+        _col(db, "saas_products").update_one({"_id": existing["_id"]}, {"$set": base_doc})
+        pid = _str(existing.get("_internal_id") or existing.get("sku") or existing.get("name"))
+        return jsonify({"ok": True, "store_id": store_id, "product_id": pid, "updated": True}), 200
+
+    base_doc["_internal_id"] = str(uuid.uuid4())
+    base_doc["created_at"] = _now_dt()
+    _col(db, "saas_products").insert_one(base_doc)
+    return jsonify({"ok": True, "store_id": store_id, "product_id": base_doc["_internal_id"], "updated": False}), 201
