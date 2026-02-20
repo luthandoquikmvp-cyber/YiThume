@@ -1408,6 +1408,7 @@ def marketplace_page():
 
 
 @app.route("/v1/marketplace/products", methods=["GET"])
+@app.route("/api/v1/marketplace/products", methods=["GET"])
 @app.route("/api/app/v1/marketplace/products", methods=["GET"])
 def marketplace_products():
     """
@@ -3837,6 +3838,7 @@ def _order_public(o):
 # Store creation (wizard step 1)
 # -----------------------------
 @app.post("/v1/store/create")
+@app.post("/api/v1/store/create")
 def v1_store_create():
     """
     Creates a store with delivery + payment config.
@@ -3903,6 +3905,7 @@ def v1_store_create():
 # CSV import (wizard step 2)
 # -----------------------------
 @app.post("/v1/store/<store_id>/import_csv")
+@app.post("/api/v1/store/<store_id>/import_csv")
 def v1_store_import_csv(store_id):
     """
     Multipart form-data:
@@ -4217,6 +4220,7 @@ def s_storefront(store_id):
 # Quote (build preview; does NOT create order)
 # -----------------------------
 @app.post("/v1/order/quote")
+@app.post("/api/v1/order/quote")
 def v1_order_quote():
     db = get_db()
     data = request.get_json(silent=True) or {}
@@ -4325,6 +4329,7 @@ def v1_order_quote():
 # CONFIRM gating (creates order ONLY if confirm == "CONFIRM")
 # -----------------------------
 @app.post("/v1/order/confirm")
+@app.post("/api/v1/order/confirm")
 def v1_order_confirm():
     db = get_db()
     data = request.get_json(silent=True) or {}
@@ -4401,6 +4406,7 @@ def v1_order_confirm():
 # Orders list (dashboard JS)
 # -----------------------------
 @app.get("/v1/store/<store_id>/orders")
+@app.get("/api/v1/store/<store_id>/orders")
 def v1_store_orders(store_id):
     db = get_db()
     store = _get_store(db, store_id)
@@ -4435,6 +4441,7 @@ def _store_public_url(public_slug: str) -> str:
     return f"/shop/{public_slug}"
 
 @app.route("/v1/store/<store_id>/status", methods=["GET"])
+@app.route("/api/v1/store/<store_id>/status", methods=["GET"])
 @app.route("/api/app/v1/store/<store_id>/status", methods=["GET"])
 def store_status(store_id):
     try:
@@ -4459,6 +4466,7 @@ def store_status(store_id):
         return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
 
 @app.route("/v1/store/<store_id>/activate", methods=["POST"])
+@app.route("/api/v1/store/<store_id>/activate", methods=["POST"])
 @app.route("/api/app/v1/store/<store_id>/activate", methods=["POST"])
 def store_activate_billing(store_id):
     # Admin-only activation (Stripe payment links use-case)
@@ -4493,6 +4501,7 @@ def store_activate_billing(store_id):
         return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
 
 @app.route("/v1/store/<store_id>/publish", methods=["POST"])
+@app.route("/api/v1/store/<store_id>/publish", methods=["POST"])
 @app.route("/api/app/v1/store/<store_id>/publish", methods=["POST"])
 def store_publish(store_id):
     try:
@@ -4639,6 +4648,7 @@ window.YITHUME.store = {{
 # Product image upload (GridFS)
 # -----------------------------
 @app.route("/v1/store/<store_id>/product/<product_id>/image", methods=["POST"])
+@app.route("/api/v1/store/<store_id>/product/<product_id>/image", methods=["POST"])
 @app.route("/api/app/v1/store/<store_id>/product/<product_id>/image", methods=["POST"])
 def upload_product_image(store_id, product_id):
     # Admin-only for now (avoid abuse). You can loosen later.
@@ -5233,6 +5243,7 @@ def _require_node_admin():
 # Nodes CRUD (admin for now)
 # -----------------------------
 @app.route("/v1/nodes", methods=["GET", "POST"])
+@app.route("/api/v1/nodes", methods=["GET", "POST"])
 @app.route("/api/app/v1/nodes", methods=["GET", "POST"])
 def v1_nodes():
     db = get_db()
@@ -5283,6 +5294,7 @@ def v1_nodes():
     return jsonify({"ok": True, "node_id": node_id, "public_slug": slug}), 201
 
 @app.route("/v1/nodes/<node_id>", methods=["GET", "PATCH"])
+@app.route("/api/v1/nodes/<node_id>", methods=["GET", "PATCH"])
 @app.route("/api/app/v1/nodes/<node_id>", methods=["GET", "PATCH"])
 def v1_node_detail(node_id):
     db = get_db()
@@ -5333,6 +5345,7 @@ def v1_node_detail(node_id):
 # Store ↔ Node assignment
 # -----------------------------
 @app.route("/v1/store/<store_id>/assign_node", methods=["POST"])
+@app.route("/api/v1/store/<store_id>/assign_node", methods=["POST"])
 @app.route("/api/app/v1/store/<store_id>/assign_node", methods=["POST"])
 def v1_store_assign_node(store_id):
     if not _require_node_admin():
@@ -5403,6 +5416,7 @@ def _ensure_full_html_document(html_text: str, title: str = "YiThume Store") -> 
 # Custom storefront upload (HTML + optional assets)
 # -----------------------------
 @app.route("/v1/store/<store_id>/frontend/upload", methods=["POST"])
+@app.route("/api/v1/store/<store_id>/frontend/upload", methods=["POST"])
 @app.route("/api/app/v1/store/<store_id>/frontend/upload", methods=["POST"])
 def v1_storefront_upload_frontend(store_id):
     """
@@ -5535,6 +5549,7 @@ def _store_by_public_slug(db, public_slug: str):
     return db.stores.find_one({"public_slug": public_slug, "published": True})
 
 @app.route("/v1/storefront/<public_slug>/products", methods=["GET"])
+@app.route("/api/v1/storefront/<public_slug>/products", methods=["GET"])
 @app.route("/api/app/v1/storefront/<public_slug>/products", methods=["GET"])
 def storefront_products(public_slug):
     db = get_db()
@@ -5582,6 +5597,7 @@ def _calc_delivery_fee_for_store(db, store_doc, customer_coords=None) -> float:
     return round(base, 2)
 
 @app.route("/v1/storefront/<public_slug>/quote", methods=["POST"])
+@app.route("/api/v1/storefront/<public_slug>/quote", methods=["POST"])
 @app.route("/api/app/v1/storefront/<public_slug>/quote", methods=["POST"])
 def storefront_quote(public_slug):
     """
@@ -5633,6 +5649,7 @@ def storefront_quote(public_slug):
     }), 200
 
 @app.route("/v1/storefront/<public_slug>/checkout", methods=["POST"])
+@app.route("/api/v1/storefront/<public_slug>/checkout", methods=["POST"])
 @app.route("/api/app/v1/storefront/<public_slug>/checkout", methods=["POST"])
 def storefront_checkout(public_slug):
     """
@@ -5849,6 +5866,7 @@ def storefront_checkout(public_slug):
 
 
 @app.route("/v1/storefront/<public_slug>/order/<order_id>", methods=["GET"])
+@app.route("/api/v1/storefront/<public_slug>/order/<order_id>", methods=["GET"])
 
 @app.route("/api/app/v1/storefront/<public_slug>/order/<order_id>", methods=["GET"])
 def storefront_order_status(public_slug, order_id):
@@ -5873,6 +5891,7 @@ def storefront_order_status(public_slug, order_id):
 # Stripe webhook (optional)
 # -----------------------------
 @app.route("/v1/stripe/webhook", methods=["POST"])
+@app.route("/api/v1/stripe/webhook", methods=["POST"])
 @app.route("/api/app/v1/stripe/webhook", methods=["POST"])
 def stripe_webhook():
     if not _stripe_ready():
@@ -6098,11 +6117,12 @@ def _gh_request(method: str, url: str, token: str, body: dict = None):
 # V1 AUTH
 # -----------------------------
 @app.post("/v1/auth/register")
+@app.post("/api/v1/auth/register")
 def v1_register():
     db = get_db()
     data = request.get_json(force=True, silent=True) or {}
 
-    # Role is optional at registration; if omitted, user can pick after login.
+    # Role is OPTIONAL at registration. If omitted, the user will pick after login.
     role = (data.get("role") or "").lower().strip()
     if role and role not in {"admin", "seller", "driver", "network_operator", "buyer"}:
         return jsonify({"ok": False, "error": "Invalid role"}), 400
@@ -6119,6 +6139,7 @@ def v1_register():
         return jsonify({"ok": False, "error": "Admin role cannot be registered here"}), 403
 
     users = _users_col(db)
+
     # Basic uniqueness checks
     if email and users.find_one({"email": email}):
         return jsonify({"ok": False, "error": "Email already registered"}), 409
@@ -6168,6 +6189,7 @@ def v1_register():
     })
 
 @app.post("/v1/auth/login")
+@app.post("/api/v1/auth/login")
 def v1_login():
     db = get_db()
     data = request.get_json(force=True, silent=True) or {}
@@ -6226,34 +6248,30 @@ def v1_login():
     if not user.get("password_hash") or not _pbkdf2_verify_password(password, user["password_hash"]):
         return jsonify({"ok": False, "error": "Invalid credentials"}), 401
 
-    users.update_one({"_id": user["_id"]}, {"$set": {"last_login": _utcnow()}})
-
-    user_id = str(user["_id"])
-
-    # Multi-role support: accept legacy 'role' and new 'roles'
+    # Normalize roles for older users
     roles = user.get("roles") or []
-    legacy_role = user.get("role")
+    legacy_role = (user.get("role") or None)
     if legacy_role and legacy_role not in roles:
-        roles = list(dict.fromkeys([legacy_role] + roles))  # preserve order, unique
+        roles = roles + [legacy_role]
 
-    # If user requested a role but doesn't have it yet, don't hard-fail.
-    # Let them pick a role after login (or add role if allowed).
-    needs_role_select = False
-    active_role = legacy_role if legacy_role else (roles[0] if roles else None)
-
+    # If caller requested a role, it must be one the user has (or we'll ask them to pick)
+    active_role = legacy_role
     if requested_role:
         if requested_role in roles:
             active_role = requested_role
-        elif not active_role:
-            # user hasn't picked any role yet; we'll let them set it
-            needs_role_select = True
         else:
-            # They have a role already, but requested a different one
-            # Return success and tell UI to prompt role selection/switch.
-            needs_role_select = True
+            return jsonify({"ok": False, "error": "Role not allowed for this account", "roles": roles}), 403
 
+    # If the user has no active role yet, force role selection after login
+    needs_role_select = False
+    if not active_role:
+        needs_role_select = True
+
+    users.update_one({"_id": user["_id"]}, {"$set": {"last_login": _utcnow(), "roles": roles, "role": active_role}})
+
+    user_id = str(user["_id"])
     store_id = None
-    if active_role == "seller" or ("seller" in roles and requested_role == "seller"):
+    if active_role == "seller":
         store = _ensure_store_for_seller(db, user_id)
         store_id = str(store["_id"])
 
@@ -6263,37 +6281,73 @@ def v1_login():
         "ok": True,
         "token": token,
         "expires_at": expires_at.isoformat() + "Z",
-        "user": {
-            "id": user_id,
-            "role": active_role,
-            "roles": roles,
-            "email": user.get("email"),
-            "phone": user.get("phone"),
-        },
+        "user": {"id": user_id, "role": active_role, "roles": roles, "email": user.get("email"), "phone": user.get("phone")},
         "store_id": store_id,
-        "needs_role_select": True if (needs_role_select or not active_role) else False
+        "needs_role_select": needs_role_select
     })
 
 @app.get("/v1/auth/me")
+@app.get("/api/v1/auth/me")
 def v1_me():
     db = get_db()
     user, err = _require_auth(request, db)
     if err:
         msg, code = err
         return jsonify({"ok": False, "error": msg}), code
+
     roles = user.get("roles") or []
-    if user.get("role") and user.get("role") not in roles:
-        roles = list(dict.fromkeys([user.get("role")] + roles))
+    legacy_role = user.get("role") or None
+    if legacy_role and legacy_role not in roles:
+        roles = roles + [legacy_role]
+
     out = {
         "id": str(user["_id"]),
-        "role": user.get("role"),
+        "role": legacy_role,
         "roles": roles,
         "email": user.get("email"),
         "phone": user.get("phone")
     }
     return jsonify({"ok": True, "user": out})
 
+
+@app.post("/v1/auth/set_role")
+@app.post("/api/v1/auth/set_role")
+def v1_set_role():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+
+    data = request.get_json(force=True, silent=True) or {}
+    role = (data.get("role") or "").lower().strip()
+    if role not in {"seller", "driver", "network_operator", "buyer"}:
+        return jsonify({"ok": False, "error": "Invalid role"}), 400
+
+    users = _users_col(db)
+
+    roles = user.get("roles") or []
+    legacy_role = user.get("role") or None
+    if legacy_role and legacy_role not in roles:
+        roles = roles + [legacy_role]
+    if role not in roles:
+        roles = roles + [role]
+
+    # Set active role (legacy field) for compatibility
+    users.update_one({"_id": user["_id"]}, {"$set": {"role": role, "roles": roles}})
+
+    store_id = None
+    if role == "seller":
+        store = _ensure_store_for_seller(db, str(user["_id"]))
+        store_id = str(store["_id"])
+
+    return jsonify({"ok": True, "role": role, "roles": roles, "store_id": store_id})
+
+# -----------------------------
+# V1 STORE HELPERS
+# -----------------------------
 @app.get("/v1/store/my")
+@app.get("/api/v1/store/my")
 def v1_store_my():
     db = get_db()
     user, err = _require_auth(request, db)
@@ -6309,6 +6363,7 @@ def v1_store_my():
 # STOREFRONT HTML UPLOAD (BUG FIX)
 # -----------------------------
 @app.post("/v1/store/<store_id>/storefront_html")
+@app.post("/api/v1/store/<store_id>/storefront_html")
 def v1_storefront_upload(store_id):
     db = get_db()
     user, err = _require_auth(request, db)
@@ -6366,6 +6421,7 @@ def public_storefront(store_id):
 # GITHUB CONNECT
 # -----------------------------
 @app.post("/v1/github/connect")
+@app.post("/api/v1/github/connect")
 def v1_github_connect():
     db = get_db()
     user, err = _require_auth(request, db)
@@ -6408,6 +6464,7 @@ def v1_github_connect():
     return jsonify({"ok": True, "connected": True, "repo": {"username": gh_user, "repo": repo, "branch": branch}})
 
 @app.get("/v1/github/status")
+@app.get("/api/v1/github/status")
 def v1_github_status():
     db = get_db()
     user, err = _require_auth(request, db)
@@ -6430,6 +6487,7 @@ def v1_github_status():
     return jsonify({"ok": True, "connected": bool(gh.get("connected")), "repo": {"username": gh.get("username"), "repo": gh.get("repo"), "branch": gh.get("branch")}})
 
 @app.post("/v1/github/test")
+@app.post("/api/v1/github/test")
 def v1_github_test():
     db = get_db()
     user, err = _require_auth(request, db)
@@ -6464,6 +6522,7 @@ def v1_github_test():
     return jsonify({"ok": False, "status": status, "details": payload}), 400
 
 @app.post("/v1/github/commit_storefront")
+@app.post("/api/v1/github/commit_storefront")
 def v1_github_commit_storefront():
     db = get_db()
     user, err = _require_auth(request, db)
@@ -6524,38 +6583,4 @@ def v1_github_commit_storefront():
         commit_sha = (payload2.get("commit") or {}).get("sha")
         html_url = ((payload2.get("content") or {}).get("html_url")) or None
         return jsonify({"ok": True, "commit_sha": commit_sha, "file_url": html_url, "path": path})
-    return jsonify({"ok": False, "status": status2, "details": payload2}), 400@app.post("/v1/auth/set_role")
-def v1_set_role():
-    db = get_db()
-    user, err = _require_auth(request, db)
-    if err:
-        msg, code = err
-        return jsonify({"ok": False, "error": msg}), code
-
-    data = request.get_json(force=True, silent=True) or {}
-    role = (data.get("role") or "").lower().strip()
-    if role not in {"seller", "driver", "network_operator", "buyer"}:
-        return jsonify({"ok": False, "error": "Invalid role"}), 400
-
-    users = _users_col(db)
-    roles = user.get("roles") or []
-    if role not in roles:
-        roles = roles + [role]
-
-    # Set active role (legacy field) for compatibility
-    users.update_one({"_id": user["_id"]}, {"$set": {"role": role, "roles": roles}})
-
-    store_id = None
-    if role == "seller":
-        store = _ensure_store_for_seller(db, str(user["_id"]))
-        store_id = str(store["_id"])
-
-    return jsonify({
-        "ok": True,
-        "role": role,
-        "roles": roles,
-        "store_id": store_id
-    })
-
-
-
+    return jsonify({"ok": False, "status": status2, "details": payload2}), 400
