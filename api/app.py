@@ -4426,7 +4426,7 @@ def v1_order_confirm():
         "status": "demo_pending" if payment_mode != "live" else "pending"
     }
 
-_col(db, "saas_orders").insert_one(order_doc)
+    _col(db, "saas_orders").insert_one(order_doc)
 
     # optionally mark the quote "converted"
     try:
@@ -6228,7 +6228,7 @@ def v1_register():
         except Exception:
             pass
 
-token, expires_at = _issue_session(db, user_id)
+    token, expires_at = _issue_session(db, user_id)
 
     return jsonify({
         "ok": True,
@@ -6437,7 +6437,7 @@ def v1_account_profile_get():
             _ensure_driver_for_user(db, user)
         except Exception:
             pass
-return jsonify({"ok": True, "profile": profile}), 200
+    return jsonify({"ok": True, "profile": profile}), 200
 
 
 @app.post("/v1/account/profile")
