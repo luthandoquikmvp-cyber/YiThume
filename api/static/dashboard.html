@@ -106,46 +106,8 @@
           </div>
         </div>
 
-
         <button id="refreshBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-white text-sm">
           Refresh
-        </button>
-
-        <!-- NEW: Demo/Live toggle -->
-        <button id="modeToggleBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">
-          Mode: Demo
-        </button>
-
-        <div class="relative">
-          <button id="accountBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold">
-            <span id="accountLabel">Account</span>
-          </button>
-          <div id="accountMenu" class="hidden absolute right-0 mt-2 w-72 rounded-2xl border border-slate-200 bg-white shadow-lg p-2">
-            <div class="px-3 py-2">
-              <div class="text-xs text-slate-500">Signed in as</div>
-              <div id="accountName" class="font-semibold truncate">—</div>
-              <div id="accountRole" class="text-xs text-slate-600 mt-0.5">—</div>
-            </div>
-            <div class="h-px bg-slate-100 my-2"></div>
-            <button id="menuIntegrations" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm">Integrations</button>
-            <button id="menuSettings" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm">Account settings</button>
-            <div class="h-px bg-slate-100 my-2"></div>
-            <button id="logoutBtn" class="w-full text-left px-3 py-2 rounded-xl hover:bg-red-50 text-sm text-red-700">Log out</button>
-          </div>
-        </div>
-
-
-        <!-- NEW: Upload custom storefront HTML -->
-        <button id="storefrontUploadBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-white text-sm">
-          Storefront HTML
-        </button>
-<!-- NEW: Theme toggle -->
-        <button id="themeToggleBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-white text-sm">
-          Theme: Dark
-        </button>
-
-        <button id="adminAssistantBtn" class="hidden px-3 py-2 rounded-xl border border-emerald-600/40 bg-emerald-600/10 hover:bg-emerald-600/20 text-sm font-semibold">
-          Admin Assistant
         </button>
       </div>
     </div>
@@ -153,18 +115,17 @@
 
   <div class="max-w-7xl mx-auto px-4 py-6">
     <!-- Alerts -->
-    <div id="alert" class="hidden mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200"></div>
-    <div id="success" class="hidden mb-4 rounded-2xl border border-emerald-600/30 bg-emerald-600/10 p-4 text-sm text-emerald-200"></div>
+    <div id="alert" class="hidden mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"></div>
+    <div id="success" class="hidden mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"></div>
 
     <!-- Stepper / State -->
     <div class="rounded-3xl border border-slate-200 bg-white/40 p-5">
       <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <div class="text-xs text-slate-600">Setup flow</div>
-          <div class="text-2xl font-semibold mt-1">CSV → Live storefront → Orders with CONFIRM gating</div>
+          <div class="text-2xl font-semibold mt-1">Get your store live in minutes</div>
           <div class="text-sm text-slate-600 mt-2 max-w-3xl">
-            This dashboard creates a store, imports your products from CSV, publishes a storefront link, and supports a strict order flow:
-            quote → <b>CONFIRM</b> → order created.
+            Create a store, add products (one-by-one or in bulk), then publish your storefront. Orders show up here as customers check out.
           </div>
         </div>
 
@@ -206,15 +167,16 @@
           <div class="flex items-center justify-between">
             <div>
               <div class="text-xs text-slate-600">Step 2</div>
-              <div class="text-lg font-semibold mt-1">Import CSV</div>
+              <div class="text-lg font-semibold mt-1">Add products</div>
             </div>
             <span id="step2Badge" class="text-xs px-2 py-1 rounded-full border border-slate-300 bg-white text-slate-700">locked</span>
           </div>
           <div class="text-sm text-slate-600 mt-2">
-            Upload your product CSV. Required columns: <code class="text-slate-800">name</code>, <code class="text-slate-800">price</code>.
+            Add products manually or upload a CSV to add many at once. CSV columns: <code class="text-slate-800">name</code>, <code class="text-slate-800">price</code>.
           </div>
 
           <div class="mt-3 space-y-2">
+            <button id="openAddProductBtn" class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold">+ Add a product</button>
             <input id="csvFile" type="file" accept=".csv" class="block w-full text-sm text-slate-700
               file:mr-4 file:py-2 file:px-3 file:rounded-xl file:border-0
               file:bg-white file:text-slate-800 hover:file:bg-white
@@ -284,7 +246,9 @@
 
     <!-- Store loader (no extra API needed) -->
     <div class="mt-6 rounded-3xl border border-slate-200 bg-white/40 p-5">
-      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+      <details class="mt-4">
+        <summary class="cursor-pointer select-none text-sm font-semibold text-slate-700">Advanced: load a store by ID</summary>
+        <div class="mt-4 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
           <div class="text-lg font-semibold">Load an existing store</div>
           <div class="text-sm text-slate-600 mt-1">
@@ -301,10 +265,11 @@
         </div>
       </div>
 
-      <div class="mt-4 text-xs text-slate-500">
-        Tip: the storefront URL is always <code class="text-slate-700">/s/&lt;store_id&gt;</code>
-      </div>
+      
     </div>
+      </div>
+      <div class="mt-3 text-xs text-slate-500">Tip: you can also access any storefront via <code class="text-slate-700">/s/&lt;store_id&gt;</code>.</div>
+    </details>
 
     <!-- Live Ops: Orders -->
     <div class="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -312,7 +277,7 @@
         <div class="flex items-center justify-between gap-3">
           <div>
             <div class="text-lg font-semibold">Orders</div>
-            <div class="text-sm text-slate-600 mt-1">Only confirmed orders appear here (created after CONFIRM).</div>
+            <div class="text-sm text-slate-600 mt-1">New orders appear here as customers check out.</div>
           </div>
           <div class="text-xs text-slate-500">
             Auto-refresh every <span class="text-slate-700">5s</span>
@@ -331,20 +296,20 @@
           <div class="text-sm text-slate-600 mt-1">What you do to test end-to-end.</div>
 
           <div class="mt-4 space-y-2">
-            <div class="rounded-2xl border border-slate-200 bg-white/40 p-3">
-              <div class="text-sm font-semibold">1) Open storefront</div>
-              <div class="text-xs text-slate-600 mt-1">Add items → Get quote → CONFIRM</div>
-            </div>
+            <button id="qaOpenStorefront" class="w-full text-left rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50">
+              <div class="text-sm font-semibold">Open your storefront</div>
+              <div class="text-xs text-slate-600 mt-1">Preview what customers see and place a test order.</div>
+            </button>
 
-            <div class="rounded-2xl border border-slate-200 bg-white/40 p-3">
-              <div class="text-sm font-semibold">2) Confirm gating test</div>
-              <div class="text-xs text-slate-600 mt-1">Try confirming without “CONFIRM” to see it reject.</div>
-            </div>
+            <button id="qaAddProducts" class="w-full text-left rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50">
+              <div class="text-sm font-semibold">Add products</div>
+              <div class="text-xs text-slate-600 mt-1">Add one product now, or upload a CSV to add many.</div>
+            </button>
 
-            <div class="rounded-2xl border border-slate-200 bg-white/40 p-3">
-              <div class="text-sm font-semibold">3) Watch orders appear</div>
-              <div class="text-xs text-slate-600 mt-1">Confirmed orders show instantly in this dashboard.</div>
-            </div>
+            <button id="qaScrollOrders" class="w-full text-left rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50">
+              <div class="text-sm font-semibold">Watch orders</div>
+              <div class="text-xs text-slate-600 mt-1">See new orders and status updates in real-time.</div>
+            </button>
           </div>
         </div>
 
@@ -1657,6 +1622,197 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
   </div>
 </div>
 
+  <!-- Account Settings Modal -->
+  <div id="accountSettingsModal" class="hidden fixed inset-0 z-[80]">
+    <div class="absolute inset-0 bg-black/40"></div>
+    <div class="relative max-w-3xl mx-auto mt-8 sm:mt-14 px-4">
+      <div class="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+        <div class="p-5 sm:p-6 border-b border-slate-100 flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-sm text-slate-500">Account</div>
+            <div class="text-xl font-semibold leading-tight">Settings & integrations</div>
+            <div id="acctModalSub" class="text-sm text-slate-600 mt-1 truncate">—</div>
+          </div>
+          <button id="closeAccountSettings" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">Close</button>
+        </div>
+
+        <div class="p-5 sm:p-6">
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+            <div class="md:col-span-4">
+              <div class="space-y-2">
+                <button data-acct-tab="profile" class="acctTabBtn w-full text-left px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold">Profile</button>
+                <button data-acct-tab="logistics" class="acctTabBtn w-full text-left px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm font-semibold">Logistics</button>
+                <button data-acct-tab="payouts" class="acctTabBtn w-full text-left px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm font-semibold">Payouts</button>
+                <button data-acct-tab="integrations" class="acctTabBtn w-full text-left px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm font-semibold">Integrations</button>
+              </div>
+
+              <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div class="text-xs text-slate-500">Mode</div>
+                <div class="mt-2 flex items-center justify-between gap-3">
+                  <div class="text-sm font-semibold">Payments</div>
+                  <div class="flex items-center gap-2">
+                    <span id="acctModePill" class="text-xs px-2 py-1 rounded-full border border-slate-200 bg-white text-slate-700">Demo</span>
+                    <button id="acctToggleMode" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-white text-sm">Change</button>
+                  </div>
+                </div>
+                <div class="text-xs text-slate-600 mt-2">
+                  Demo lets you test checkout without charging. Live connects real payments.
+                </div>
+              </div>
+
+              <div class="mt-3">
+                <button id="acctLogoutBtn" class="w-full px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 text-sm font-semibold">Log out</button>
+              </div>
+            </div>
+
+            <div class="md:col-span-8">
+              <!-- Profile -->
+              <div id="acctTab_profile" class="acctTabPanel">
+                <div class="rounded-2xl border border-slate-200 p-4">
+                  <div class="text-sm font-semibold">Signed in</div>
+                  <div class="text-sm text-slate-600 mt-1">You’re signed in as:</div>
+                  <div class="mt-2 flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                      <div id="acctEmail" class="font-semibold truncate">—</div>
+                      <div id="acctRole" class="text-xs text-slate-500 mt-0.5">—</div>
+                    </div>
+                    <button id="openSellerAuthFromAcct" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">Switch account</button>
+                  </div>
+                </div>
+
+                <div class="mt-4 rounded-2xl border border-slate-200 p-4">
+                  <div class="text-sm font-semibold">Your stores</div>
+                  <div class="text-xs text-slate-600 mt-1">Pick a store to manage in the dashboard.</div>
+                  <div id="acctStores" class="mt-3 space-y-2 text-sm text-slate-700">
+                    <div class="text-sm text-slate-500">Loading…</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Logistics -->
+              <div id="acctTab_logistics" class="acctTabPanel hidden">
+                <div class="rounded-2xl border border-slate-200 p-4">
+                  <div class="text-sm font-semibold">Pickup & delivery defaults</div>
+                  <div class="text-xs text-slate-600 mt-1">These help speed up store setup and driver routing.</div>
+
+                  <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="text-xs text-slate-600">Default pickup address</label>
+                      <input id="acctPickup" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. 12 High St, Port Alfred" />
+                    </div>
+                    <div>
+                      <label class="text-xs text-slate-600">Default drop-off area</label>
+                      <input id="acctDropoff" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. Port Alfred / Bathurst" />
+                    </div>
+                  </div>
+
+                  <button id="acctSaveLogistics" class="mt-4 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Save</button>
+                  <div id="acctLogisticsNote" class="text-xs text-slate-500 mt-2">Saved to your account profile.</div>
+                </div>
+              </div>
+
+              <!-- Payouts -->
+              <div id="acctTab_payouts" class="acctTabPanel hidden">
+                <div class="rounded-2xl border border-slate-200 p-4">
+                  <div class="text-sm font-semibold">How you get paid</div>
+                  <div class="text-xs text-slate-600 mt-1">Add payout details for driver earnings or store revenue.</div>
+
+                  <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="text-xs text-slate-600">Bank name</label>
+                      <input id="acctBank" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. FNB" />
+                    </div>
+                    <div>
+                      <label class="text-xs text-slate-600">Account number</label>
+                      <input id="acctBankAcc" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="••••••••" />
+                    </div>
+                  </div>
+
+                  <button id="acctSavePayouts" class="mt-4 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Save</button>
+                  <div id="acctPayoutsNote" class="text-xs text-slate-500 mt-2">Saved to your account profile.</div>
+                </div>
+              </div>
+
+              <!-- Integrations -->
+              <div id="acctTab_integrations" class="acctTabPanel hidden">
+                <div class="rounded-2xl border border-slate-200 p-4">
+                  <div class="text-sm font-semibold">Integrations</div>
+                  <div class="text-xs text-slate-600 mt-1">Connect services to power your store and operations.</div>
+
+                  <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button id="acctConnectStripe" class="text-left px-4 py-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50">
+                      <div class="text-sm font-semibold">Stripe</div>
+                      <div class="text-xs text-slate-600 mt-1">Payments (Live mode)</div>
+                      <div class="text-xs text-slate-400 mt-2">Coming next update</div>
+                    </button>
+
+                    <button id="acctConnectGitHub" class="text-left px-4 py-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50">
+                      <div class="text-sm font-semibold">GitHub</div>
+                      <div class="text-xs text-slate-600 mt-1">Publish storefront code</div>
+                      <div class="text-xs text-slate-400 mt-2">Coming next update</div>
+                    </button>
+
+                    <button disabled class="text-left px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 opacity-80">
+                      <div class="text-sm font-semibold">Google</div>
+                      <div class="text-xs text-slate-600 mt-1">Drive, Sheets, Maps</div>
+                      <div class="text-xs text-slate-400 mt-2">Coming next update</div>
+                    </button>
+
+                    <button disabled class="text-left px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 opacity-80">
+                      <div class="text-sm font-semibold">WhatsApp</div>
+                      <div class="text-xs text-slate-600 mt-1">Order notifications</div>
+                      <div class="text-xs text-slate-400 mt-2">Coming next update</div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Product Modal -->
+  <div id="addProductModal" class="hidden fixed inset-0 z-[81]">
+    <div class="absolute inset-0 bg-black/40"></div>
+    <div class="relative max-w-lg mx-auto mt-10 sm:mt-16 px-4">
+      <div class="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+        <div class="p-5 border-b border-slate-100 flex items-start justify-between gap-3">
+          <div>
+            <div class="text-sm text-slate-500">Products</div>
+            <div class="text-xl font-semibold">Add a product</div>
+          </div>
+          <button id="closeAddProduct" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">Close</button>
+        </div>
+        <div class="p-5 space-y-3">
+          <div>
+            <label class="text-xs text-slate-600">Name</label>
+            <input id="prodName" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. Milk 2L" />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-slate-600">Price</label>
+              <input id="prodPrice" type="number" step="0.01" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. 49.99" />
+            </div>
+            <div>
+              <label class="text-xs text-slate-600">Category (optional)</label>
+              <input id="prodCategory" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. Groceries" />
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-slate-600">Description (optional)</label>
+            <textarea id="prodDesc" rows="3" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="Short description"></textarea>
+          </div>
+
+          <button id="saveProductBtn" class="w-full px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Save product</button>
+          <div id="addProdNote" class="text-xs text-slate-500"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <script>
 (function(){
   const TOKEN_KEY = "yithume_token";
@@ -1903,6 +2059,170 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
     });
 
 
+    // -----------------------------
+    // Account Settings modal wiring
+    // -----------------------------
+    const acctModal = $("accountSettingsModal");
+    const acctClose = $("closeAccountSettings");
+    function openAcctModal(tab="profile"){
+      if(!acctModal) return;
+      acctModal.classList.remove("hidden");
+      selectAcctTab(tab);
+      hydrateAcctModal();
+    }
+    function closeAcctModal(){ acctModal?.classList.add("hidden"); }
+    acctClose?.addEventListener("click", closeAcctModal);
+    acctModal?.addEventListener("click", (e)=>{ if(e.target === acctModal) closeAcctModal(); });
+
+    // menu buttons
+    $("menuSettings")?.addEventListener("click", ()=>openAcctModal("profile"));
+    $("menuIntegrations")?.addEventListener("click", ()=>openAcctModal("integrations"));
+    $("acctLogoutBtn")?.addEventListener("click", ()=>$("logoutBtn")?.click());
+
+    // Tabs
+    function selectAcctTab(tab){
+      document.querySelectorAll(".acctTabBtn").forEach(btn=>{
+        const isActive = btn.getAttribute("data-acct-tab") === tab;
+        btn.classList.toggle("bg-slate-900", isActive);
+        btn.classList.toggle("text-white", isActive);
+        btn.classList.toggle("border", !isActive);
+        btn.classList.toggle("border-slate-200", !isActive);
+        btn.classList.toggle("hover:bg-slate-50", !isActive);
+      });
+      document.querySelectorAll(".acctTabPanel").forEach(p=>p.classList.add("hidden"));
+      $("acctTab_"+tab)?.classList.remove("hidden");
+    }
+    document.querySelectorAll(".acctTabBtn").forEach(btn=>{
+      btn.addEventListener("click", ()=>selectAcctTab(btn.getAttribute("data-acct-tab")));
+    });
+
+    // Mode pill (reads existing localStorage, falls back to Demo)
+    function getMode(){
+      return (localStorage.getItem("yithume_mode") || "demo").toLowerCase();
+    }
+    function setMode(mode){
+      localStorage.setItem("yithume_mode", mode);
+      const pill = $("acctModePill");
+      if(pill){
+        pill.textContent = mode === "live" ? "Live" : "Demo";
+        pill.className = mode === "live"
+          ? "text-xs px-2 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800"
+          : "text-xs px-2 py-1 rounded-full border border-slate-200 bg-white text-slate-700";
+      }
+      // keep existing page toggle if present
+      $("modeToggleBtn")?.dispatchEvent(new Event("change"));
+    }
+    $("acctToggleMode")?.addEventListener("click", ()=>{
+      const next = getMode() === "live" ? "demo" : "live";
+      setMode(next);
+    });
+
+    // hydrate account info in modal
+    async function hydrateAcctModal(){
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("yithume_token") || "";
+      $("acctModalSub") && ($("acctModalSub").textContent = token ? "Manage your account, payouts and integrations." : "Sign in to manage your account.");
+      // show email/role using existing header fields if available
+      $("acctEmail") && ($("acctEmail").textContent = ($("accountName")?.textContent || "—"));
+      $("acctRole") && ($("acctRole").textContent = ($("accountRole")?.textContent || "—"));
+
+      // stores: best-effort list, fallback to current store_id
+      const storesBox = $("acctStores");
+      if(!storesBox) return;
+      storesBox.innerHTML = "";
+      const current = getStoreId();
+      if(current){
+        const btn = document.createElement("button");
+        btn.className = "w-full text-left px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50";
+        btn.innerHTML = `<div class="text-sm font-semibold truncate">${current}</div><div class="text-xs text-slate-500 mt-0.5">Current store</div>`;
+        btn.addEventListener("click", ()=>{ setStoreId(current); closeAcctModal(); showSuccess("Store selected"); });
+        storesBox.appendChild(btn);
+      } else {
+        storesBox.innerHTML = `<div class="text-sm text-slate-500">No store selected yet. Create a store first.</div>`;
+      }
+
+      // mode pill
+      setMode(getMode());
+    }
+
+    // Save logistics/payouts (local-only for now)
+    function loadProfileDraft(){
+      try { return JSON.parse(localStorage.getItem("yithume_profile") || "{}"); } catch(e){ return {}; }
+    }
+    function saveProfileDraft(p){
+      localStorage.setItem("yithume_profile", JSON.stringify(p || {}));
+    }
+    $("acctSaveLogistics")?.addEventListener("click", ()=>{
+      const p = loadProfileDraft();
+      p.pickup_default = $("acctPickup")?.value || "";
+      p.dropoff_default = $("acctDropoff")?.value || "";
+      saveProfileDraft(p);
+      $("acctLogisticsNote") && ($("acctLogisticsNote").textContent = "Saved.");
+    });
+    $("acctSavePayouts")?.addEventListener("click", ()=>{
+      const p = loadProfileDraft();
+      p.bank_name = $("acctBank")?.value || "";
+      p.bank_account = $("acctBankAcc")?.value || "";
+      saveProfileDraft(p);
+      $("acctPayoutsNote") && ($("acctPayoutsNote").textContent = "Saved.");
+    });
+
+    // Switch account opens existing auth modal
+    $("openSellerAuthFromAcct")?.addEventListener("click", ()=>{
+      closeAcctModal();
+      $("sellerAuthModal")?.classList.remove("hidden");
+    });
+
+    // Integrations buttons (placeholders)
+    $("acctConnectStripe")?.addEventListener("click", ()=>showSuccess("Stripe live payments are coming next update."));
+    $("acctConnectGitHub")?.addEventListener("click", ()=>showSuccess("GitHub publishing is coming next update."));
+
+    // -----------------------------
+    // Add Product modal wiring
+    // -----------------------------
+    const addProdModal = $("addProductModal");
+    function openAddProduct(){ addProdModal?.classList.remove("hidden"); $("addProdNote") && ($("addProdNote").textContent = ""); }
+    function closeAddProduct(){ addProdModal?.classList.add("hidden"); }
+    $("openAddProductBtn")?.addEventListener("click", openAddProduct);
+    $("closeAddProduct")?.addEventListener("click", closeAddProduct);
+    addProdModal?.addEventListener("click", (e)=>{ if(e.target === addProdModal) closeAddProduct(); });
+
+    $("qaAddProducts")?.addEventListener("click", openAddProduct);
+    $("qaScrollOrders")?.addEventListener("click", ()=>$("orders")?.scrollIntoView({behavior:"smooth", block:"start"}));
+    $("qaOpenStorefront")?.addEventListener("click", ()=>{
+      const sid = getStoreId();
+      if(!sid) return showAlert("Create or load a store first.");
+      window.open(`/s/${sid}`, "_blank");
+    });
+
+    $("saveProductBtn")?.addEventListener("click", async ()=>{
+      const sid = getStoreId();
+      if(!sid) return showAlert("Create or load a store first.");
+      const name = ($("prodName")?.value || "").trim();
+      const price = parseFloat(($("prodPrice")?.value || "").trim() || "0");
+      const description = ($("prodDesc")?.value || "").trim();
+      const category = ($("prodCategory")?.value || "").trim();
+      if(!name || !(price>0)) return showAlert("Please enter a name and a price.");
+
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("yithume_token") || "";
+      try{
+        const res = await fetch(`/api/v1/store/${sid}/product`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? {"Authorization": "Bearer "+token} : {})
+          },
+          body: JSON.stringify({ name, price, description, category })
+        });
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(data?.error || data?.message || "Failed to save product");
+        $("addProdNote") && ($("addProdNote").textContent = "Saved. Refreshing…");
+        closeAddProduct();
+        // best effort refresh products KPI
+        $("refreshBtn")?.click();
+      }catch(e){
+        showAlert(String(e?.message || e));
+      }
+    });
 </script>
 </body>
 </html>
