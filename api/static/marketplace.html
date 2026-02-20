@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YiThume — Marketplace</title>
+  <meta name="description" content="Browse items across YiThume stores by category. Shop online, then confirm via WhatsApp." />
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    :root{ --emerald-600:#059669; --emerald-500:#10b981; }
+    .clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  </style>
+</head>
+
+<body class="min-h-screen bg-gradient-to-b from-white to-slate-50 text-slate-900">
+
+  <!-- Header (matches landing style) -->
+  <header class="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2">
+        <svg width="36" height="36" viewBox="0 0 36 36" class="rounded-2xl" aria-label="YiThume logo">
+          <defs>
+            <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#059669"/>
+            </linearGradient>
+          </defs>
+          <rect rx="12" width="36" height="36" fill="url(#g)"/>
+          <path d="M10 10h4l4 4 4-4h4l-8 8v8h-4v-8z" fill="#fff"/>
+        </svg>
+        <div class="leading-tight">
+          <div class="font-semibold">YiThume</div>
+          <div class="text-xs text-slate-500 -mt-0.5">Marketplace</div>
+        </div>
+      </a>
+
+      <div class="flex items-center gap-2">
+        <button class="hidden sm:inline-flex px-3 py-2 rounded-xl text-sm border border-slate-200 bg-white hover:bg-slate-50" onclick="openCart()">Basket</button>
+
+        <button id="settingsBtn" class="inline-flex px-3 py-2 rounded-xl text-sm border border-slate-200 bg-white hover:bg-slate-50">
+          Settings
+        </button>
+
+        <div id="userPill" class="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white">
+          <div class="w-7 h-7 rounded-full bg-emerald-600/15 border border-emerald-600/30 flex items-center justify-center text-xs font-bold">Y</div>
+          <div class="text-sm font-medium truncate max-w-[160px]" id="userLabel">Guest</div>
+        </div>
+
+        <a href="/" class="hidden sm:inline-flex px-3 py-2 rounded-xl text-sm border border-slate-200 bg-white hover:bg-slate-50">Back to Home</a>
+        <a id="loginLink" href="/dashboard" class="inline-flex px-3 py-2 rounded-xl text-sm bg-emerald-600 text-white hover:bg-emerald-700">Login</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight">Browse the Marketplace</h1>
+        <p class="text-slate-600 mt-1">Items uploaded by sellers across categories. Shop online, then confirm in WhatsApp.</p>
+      </div>
+      <div class="w-full sm:w-[420px]">
+        <label class="text-xs text-slate-500">Search</label>
+        <div class="mt-1 flex gap-2">
+          <input id="q" class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200" placeholder="Search items, categories, stores..." />
+          <button id="btnSearch" class="px-4 py-3 rounded-2xl bg-slate-900 text-white hover:bg-black">Go</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category chips -->
+    <div class="mt-6">
+      <div class="flex items-center justify-between">
+        <div class="text-sm font-medium">Categories</div>
+        <div id="count" class="text-xs text-slate-500">Loading…</div>
+      </div>
+      <div id="cats" class="mt-3 flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- Grid -->
+    <div class="mt-6">
+      <div id="state" class="hidden px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm text-slate-600"></div>
+      <div id="grid" class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+  </main>
+
+  <footer class="border-t border-slate-200 bg-white/70">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-6 text-sm text-slate-600 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div>© <span id="yr"></span> YiThume</div>
+      <div class="text-xs">Tip: Sellers can list products in minutes — items appear here under categories.</div>
+    </div>
+  </footer>
+
+  
+  <!-- Settings modal -->
+  <div id="settingsModal" class="fixed inset-0 z-[70] hidden">
+    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"></div>
+    <div class="relative h-full w-full flex items-center justify-center p-4">
+      <div class="w-full max-w-2xl rounded-3xl bg-white border border-slate-200 shadow-xl overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+          <div>
+            <div class="text-sm text-slate-500">Account</div>
+            <div class="text-lg font-semibold">Settings</div>
+          </div>
+          <button id="settingsClose" class="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm">Close</button>
+        </div>
+
+        <div class="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <!-- Auth -->
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="font-semibold">Login</div>
+            <div class="text-sm text-slate-600 mt-1">Sign in to save addresses and see order history.</div>
+
+            <div class="mt-3 space-y-2">
+              <input id="acctEmail" class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white" placeholder="Email" />
+              <input id="acctPass" type="password" class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white" placeholder="Password" />
+              <div class="flex gap-2">
+                <button id="acctLoginBtn" class="flex-1 px-4 py-3 rounded-2xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700">Login</button>
+                <button id="acctRegBtn" class="flex-1 px-4 py-3 rounded-2xl border border-slate-200 bg-white font-semibold hover:bg-slate-50">Register</button>
+              </div>
+              <div id="acctStatus" class="text-xs text-slate-600"></div>
+            </div>
+          </div>
+
+          <!-- Profile -->
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="font-semibold">Addresses</div>
+            <div class="text-sm text-slate-600 mt-1">Used for delivery + billing.</div>
+
+            <div class="mt-3 space-y-3">
+              <div>
+                <div class="text-xs text-slate-500">Delivery address</div>
+                <input id="delLine1" class="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white" placeholder="Line 1" />
+                <div class="mt-2 grid grid-cols-2 gap-2">
+                  <input id="delCity" class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white" placeholder="City" />
+                  <input id="delCode" class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white" placeholder="Postal code" />
+                </div>
+              </div>
+
+              <div>
+                <div class="text-xs text-slate-500">Billing address</div>
+                <input id="billLine1" class="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white" placeholder="Line 1" />
+                <div class="mt-2 grid grid-cols-2 gap-2">
+                  <input id="billCity" class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white" placeholder="City" />
+                  <input id="billCode" class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white" placeholder="Postal code" />
+                </div>
+              </div>
+
+              <button id="saveProfileBtn" class="w-full px-4 py-3 rounded-2xl bg-slate-900 text-white font-semibold hover:bg-black">Save</button>
+              <div id="profileStatus" class="text-xs text-slate-600"></div>
+            </div>
+          </div>
+
+          <!-- Orders -->
+          <div class="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-4">
+            <div class="flex items-center justify-between">
+              <div class="font-semibold">Order history</div>
+              <button id="refreshOrdersBtn" class="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm">Refresh</button>
+            </div>
+            <div id="ordersList" class="mt-3 text-sm text-slate-600">Login to see your orders.</div>
+
+            <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <div class="text-sm font-semibold">Need help?</div>
+                <div class="text-xs text-slate-600">Chat to support and we’ll sort it out.</div>
+              </div>
+              <a class="px-3 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700" href="https://wa.me/" target="_blank" rel="noreferrer">WhatsApp Support</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+<script>
+    const $ = (id) => document.getElementById(id);
+    const state = $("state");
+    const grid = $("grid");
+    const cats = $("cats");
+    const countEl = $("count");
+    const qInput = $("q");
+
+    const API_BASE = (window.location.origin || "").replace(/\/$/, "");
+    const ENDPOINT = API_BASE + "/v1/marketplace/products";
+
+    let currentCategory = "";
+
+    function escAttr(s){
+      return String(s||"")
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function esc(s){
+      return String(s || "")
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function money(x, ccy){
+      const n = Number(x || 0);
+      if (!isFinite(n)) return "";
+      const cur = (ccy || "ZAR");
+      try { return new Intl.NumberFormat(undefined, { style:"currency", currency:cur, maximumFractionDigits: 2 }).format(n); }
+      catch(e){ return `${cur} ${n.toFixed(2)}`; }
+    }
+
+    function setState(msg, show=true){
+      if(!show){ state.classList.add("hidden"); state.textContent = ""; return; }
+      state.classList.remove("hidden");
+      state.textContent = msg;
+    }
+
+    function chip(label, active, onClick){
+      const b = document.createElement("button");
+      b.className = "px-3 py-1.5 rounded-full text-sm border " + (active ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-slate-200 bg-white hover:bg-slate-50");
+      b.textContent = label;
+      b.onclick = onClick;
+      return b;
+    }
+
+    function card(p){
+      const pid = String(p && (p.product_id || p._id || p.id || p.sku) || "");
+      const img = p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}" class="w-full h-44 object-cover rounded-2xl bg-slate-100" />` :
+        `<div class="w-full h-44 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 text-sm">No image</div>`;
+
+      const storeLine = p.store_public_url
+        ? `<a class="text-xs text-emerald-700 hover:underline" href="${esc(p.store_public_url)}">${esc(p.store_name || "Store")} →</a>`
+        : `<div class="text-xs text-slate-500">${esc(p.store_name || "Store")}</div>`;
+
+      return `
+        <div class="p-4 rounded-3xl border border-slate-200 bg-white hover:shadow-sm transition">
+          ${img}
+          <div class="mt-3 flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="font-semibold truncate">${esc(p.name || "Item")}</div>
+              <div class="text-xs text-slate-500 mt-0.5">${esc(p.category || "General")}</div>
+            </div>
+            <div class="shrink-0 text-sm font-semibold">${esc(money(p.price, p.currency))}</div>
+          </div>
+          ${p.description ? `<div class="mt-2 text-sm text-slate-600 clamp2">${esc(p.description)}</div>` : ``}
+          <div class="mt-3 flex items-center justify-between">
+            ${storeLine}
+            <button class="px-3 py-1.5 rounded-xl bg-slate-900 text-white text-sm hover:bg-black" data-pid="${escAttr(pid)}" onclick="addToCartById(this.dataset.pid)">Add</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function render({products=[], categories=[]}={}){
+      countEl.textContent = `${products.length} item${products.length===1?'':'s'}`;
+      cats.innerHTML = "";
+      cats.appendChild(chip("All", !currentCategory, () => { currentCategory = ""; load(); }));
+      (categories || []).forEach((c) => {
+        const active = (currentCategory || "").toLowerCase() === String(c||"").toLowerCase();
+        cats.appendChild(chip(c, active, () => { currentCategory = c; load(); }));
+      });
+
+      if(!products.length){
+        grid.innerHTML = "";
+        setState("No items yet. Upload products in the dashboard (CSV import) and they will appear here.");
+        return;
+      }
+      setState("", false);
+      window.__productsById = window.__productsById || {};
+      (products || []).forEach((p)=>{ const pid = String(p && (p.product_id || p._id || p.id || p.sku) || ""); if(pid) window.__productsById[pid]=p; });
+      grid.innerHTML = products.map(card).join("");
+    }
+
+    async function load(){
+      try{
+        setState("Loading marketplace…");
+        const q = (qInput.value || "").trim();
+        const url = new URL(ENDPOINT);
+        if(q) url.searchParams.set("q", q);
+        if(currentCategory) url.searchParams.set("category", currentCategory);
+        url.searchParams.set("limit", "600");
+
+        const res = await fetch(url.toString(), { headers: { "Accept": "application/json" }});
+        const json = await res.json().catch(() => ({}));
+        if(!res.ok || !json.ok){
+          throw new Error(json.error || `HTTP ${res.status}`);
+        }
+        render(json);
+      }catch(e){
+        grid.innerHTML = "";
+        setState(`Could not load marketplace: ${e.message || e}`);
+        countEl.textContent = "—";
+      }
+    }
+
+    $("btnSearch").addEventListener("click", load);
+    qInput.addEventListener("keydown", (ev) => { if(ev.key === "Enter") load(); });
+    $("yr").textContent = new Date().getFullYear();
+    
+    // -----------------------------
+    // Basket / Checkout (client-side)
+    // -----------------------------
+    const CART_KEY = "yth_cart_v1";
+    function loadCart(){
+      try{ return JSON.parse(localStorage.getItem(CART_KEY) || "[]") || []; }catch(e){ return []; }
+    }
+    function saveCart(items){
+      localStorage.setItem(CART_KEY, JSON.stringify(items || []));
+    }
+    function formatZAR(n){
+      const num = Number(n || 0);
+      return "R" + (isFinite(num) ? num.toFixed(0) : "0");
+    }
+    function guessPrice(p){
+      // If price is missing, show 0 and keep flow lightweight.
+      const raw = p && (p.price || p.price_zar || p.amount || p.cost);
+      const num = Number(raw);
+      return isFinite(num) ? num : 0;
+    }
+    function addToCartById(pid){
+      const p = (window.__productsById && window.__productsById[String(pid||"")]) || null;
+      if(!p) { openCart(); return; }
+
+      const cart = loadCart();
+      const id = String(pid || "");
+      const name = String(p && (p.name || p.title || "Item") || "Item");
+      const price = guessPrice(p);
+      const existing = cart.find(x => x.id === id);
+      if(existing){ existing.qty += 1; }
+      else { cart.push({ id, name, price, qty: 1, store: (p && (p.store_name || p.store || "")) || "", category: (p && (p.category || "")) || "", store_id: (p && (p.store_id || p.storeId || "")) || "" }); }
+      saveCart(cart);
+      openCart();
+      renderCart();
+    }
+    function openCart(){
+      document.getElementById("cartModal").classList.remove("hidden");
+      renderCart();
+    }
+    function closeCart(){
+      document.getElementById("cartModal").classList.add("hidden");
+    }
+    function clearCart(){
+      saveCart([]);
+      renderCart();
+    }
+    function cartTotal(cart){
+      return (cart || []).reduce((sum, it) => sum + (Number(it.price||0) * Number(it.qty||0)), 0);
+    }
+    function renderCart(){
+      const cart = loadCart();
+      const list = document.getElementById("cartList");
+      const empty = document.getElementById("cartEmpty");
+      const totalEl = document.getElementById("cartTotal");
+      if(!list || !empty || !totalEl) return;
+
+      if(!cart.length){
+        list.innerHTML = "";
+        empty.classList.remove("hidden");
+        totalEl.textContent = "R0";
+        return;
+      }
+      empty.classList.add("hidden");
+      list.innerHTML = cart.map((it, idx) => {
+        const storeLine = it.store ? `<div class="text-xs text-slate-500">${esc(it.store)}</div>` : "";
+        return `
+          <div class="p-4 rounded-2xl border border-slate-200 bg-white">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="font-semibold truncate">${esc(it.name)}</div>
+                ${storeLine}
+                <div class="text-xs text-slate-500 mt-1">${formatZAR(it.price)} each</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button class="w-9 h-9 rounded-xl border border-slate-200 hover:bg-slate-50" onclick="decQty(${idx})">−</button>
+                <div class="w-8 text-center font-semibold">${it.qty}</div>
+                <button class="w-9 h-9 rounded-xl border border-slate-200 hover:bg-slate-50" onclick="incQty(${idx})">+</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      totalEl.textContent = formatZAR(cartTotal(cart));
+    }
+    function incQty(idx){
+      const cart = loadCart();
+      if(cart[idx]) cart[idx].qty = Number(cart[idx].qty||0) + 1;
+      saveCart(cart); renderCart();
+    }
+    function decQty(idx){
+      const cart = loadCart();
+      if(!cart[idx]) return;
+      cart[idx].qty = Number(cart[idx].qty||0) - 1;
+      if(cart[idx].qty <= 0) cart.splice(idx,1);
+      saveCart(cart); renderCart();
+    }
+    function openCheckout(){
+      const cart = loadCart();
+      if(!cart.length){ openCart(); return; }
+
+      // enforce single-store checkout
+      const storeIds = Array.from(new Set(cart.map(x => String(x.store_id||"")).filter(Boolean)));
+      if(storeIds.length !== 1){
+        alert("Please checkout items from one store at a time (separate baskets).");
+        return;
+      }
+      document.getElementById("checkoutStoreHint").textContent = cart[0].store ? `Store: ${cart[0].store}` : "Store";
+      document.getElementById("checkoutModal").classList.remove("hidden");
+      // default to demo provider
+      selectProvider("demo");
+    }
+
+    function closeCheckout(){
+      document.getElementById("checkoutModal").classList.add("hidden");
+    }
+
+    let __selectedProvider = "demo";
+    function selectProvider(p){
+      __selectedProvider = p;
+      document.querySelectorAll("[data-pay]").forEach(btn=>{
+        const isOn = btn.getAttribute("data-pay")==p;
+        btn.classList.toggle("ring-2", isOn);
+        btn.classList.toggle("ring-emerald-300", isOn);
+      });
+    }
+
+    async function placeOrder(){
+      const cart = loadCart();
+      if(!cart.length){ closeCheckout(); openCart(); return; }
+
+      const store_id = String(cart[0].store_id||"");
+      if(!store_id){
+        alert("This store is missing an id. Refresh the marketplace.");
+        return;
+      }
+
+      const name = (document.getElementById("custName")?.value || "").trim();
+      const phone = (document.getElementById("custPhone")?.value || "").trim();
+      const addr = (document.getElementById("custAddr")?.value || "").trim();
+
+      const customer = {
+        name,
+        phone,
+        address: { text: addr }
+      };
+
+      const items = cart.map(it => ({ name: it.name, qty: Number(it.qty||1) }));
+
+      // Step 1: quote
+      const qRes = await fetch(`${API_BASE}/api/v1/order/quote`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ store_id, items })
+      });
+      const qJson = await qRes.json().catch(()=>({}));
+      if(!qRes.ok || !qJson.ok){
+        alert(qJson.error || `Quote failed (HTTP ${qRes.status})`);
+        return;
+      }
+
+      // Step 2: confirm (in-app)
+      const cRes = await fetch(`${API_BASE}/api/v1/order/confirm`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          store_id,
+          quote_id: qJson.quote_id,
+          confirm: "CONFIRM",
+          customer,
+          source: "marketplace",
+          payment: { mode: "demo", provider: __selectedProvider }
+        })
+      });
+      const cJson = await cRes.json().catch(()=>({}));
+      if(!cRes.ok || !cJson.ok){
+        alert(cJson.error || `Order failed (HTTP ${cRes.status})`);
+        return;
+      }
+
+      // Success
+      closeCheckout();
+      saveCart([]);
+      renderCart();
+      document.getElementById("orderSuccessId").textContent = cJson.order_id || "—";
+      document.getElementById("orderSuccessModal").classList.remove("hidden");
+    }
+load();
+  
+    // -----------------------------
+    // Account / Settings
+    // -----------------------------
+    const TOKEN_KEY = "yithume_token";
+
+    function openSettings(){ document.getElementById("settingsModal").classList.remove("hidden"); hydrateAccount(); }
+    function closeSettings(){ document.getElementById("settingsModal").classList.add("hidden"); }
+
+    async function api(url, opts={}){
+      opts.headers = opts.headers || {};
+      const token = localStorage.getItem(TOKEN_KEY);
+      if(token) opts.headers["Authorization"] = "Bearer " + token;
+      return fetch(url, opts);
+    }
+    async function logout(){
+      try{
+        const token = localStorage.getItem(TOKEN_KEY);
+        if(token){
+          await fetch(`${API_BASE}/api/v1/auth/logout`, { method:"POST", headers: { "Authorization": "Bearer " + token } }).catch(()=>{});
+        }
+      }catch(e){}
+      localStorage.removeItem(TOKEN_KEY);
+      setAcctStatus("Logged out.");
+      closeSettings();
+      // stay on marketplace
+      hydrateAccount();
+    }
+
+
+
+    function setAcctStatus(msg){ const x=document.getElementById("acctStatus"); if(x) x.textContent = msg||""; }
+    function setProfileStatus(msg){ const x=document.getElementById("profileStatus"); if(x) x.textContent = msg||""; }
+
+    async function hydrateAccount(){
+      // Update pill + load profile if signed in
+      const token = localStorage.getItem(TOKEN_KEY);
+      const userPill = document.getElementById("userPill");
+      const userLabel = document.getElementById("userLabel");
+      const loginLink = document.getElementById("loginLink");
+
+      if(!token){
+        if(userPill) userPill.classList.add("hidden");
+        if(loginLink) loginLink.textContent = "Login";
+        return;
+      }
+
+      const meRes = await api("/api/v1/auth/me");
+      const me = await meRes.json().catch(()=>({}));
+      if(!meRes.ok || !me.ok){
+        localStorage.removeItem(TOKEN_KEY);
+        if(userPill) userPill.classList.add("hidden");
+        return;
+      }
+
+      const email = (me.user && me.user.email) ? me.user.email : "Account";
+      if(userPill) userPill.classList.remove("hidden");
+      if(userLabel) userLabel.textContent = email;
+      if(loginLink) loginLink.textContent = "Dashboard";
+
+      // Ensure role buyer for marketplace users (non-blocking)
+      try{
+        const role = (me.user && (me.user.role || "")) || "";
+        if(role && role !== "buyer"){
+          // allow multi-role; no forced change
+        }else if(!role){
+          await api("/api/v1/auth/set_role", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({role:"buyer"})});
+        }
+      }catch(e){}
+
+      // Load profile
+      const prRes = await api("/api/v1/account/profile");
+      const pr = await prRes.json().catch(()=>({}));
+      if(prRes.ok && pr.ok && pr.profile){
+        const p = pr.profile;
+        document.getElementById("delLine1").value = (p.delivery_address && p.delivery_address.line1) || "";
+        document.getElementById("delCity").value  = (p.delivery_address && p.delivery_address.city) || "";
+        document.getElementById("delCode").value  = (p.delivery_address && p.delivery_address.postal_code) || "";
+        document.getElementById("billLine1").value = (p.billing_address && p.billing_address.line1) || "";
+        document.getElementById("billCity").value  = (p.billing_address && p.billing_address.city) || "";
+        document.getElementById("billCode").value  = (p.billing_address && p.billing_address.postal_code) || "";
+      }
+
+      await loadOrderHistory();
+    }
+
+    async function loginOrRegister(kind){
+      const email = (document.getElementById("acctEmail").value || "").trim();
+      const password = (document.getElementById("acctPass").value || "");
+      if(!email || !password){ setAcctStatus("Email + password required."); return; }
+
+      setAcctStatus(kind==="login" ? "Logging in..." : "Creating account...");
+      const endpoint = kind==="login" ? "/api/v1/auth/login" : "/api/v1/auth/register";
+      const res = await fetch(endpoint, {
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json().catch(()=> ({}));
+      if(!res.ok || !data.token){
+        setAcctStatus(data.error || "Auth failed.");
+        return;
+      }
+      localStorage.setItem(TOKEN_KEY, data.token);
+      setAcctStatus("Success ✅");
+      await hydrateAccount();
+    }
+
+    async function saveProfile(){
+      const token = localStorage.getItem(TOKEN_KEY);
+      if(!token){ setProfileStatus("Login first."); return; }
+      setProfileStatus("Saving...");
+      const payload = {
+        delivery_address: {
+          line1: document.getElementById("delLine1").value || "",
+          city: document.getElementById("delCity").value || "",
+          postal_code: document.getElementById("delCode").value || ""
+        },
+        billing_address: {
+          line1: document.getElementById("billLine1").value || "",
+          city: document.getElementById("billCity").value || "",
+          postal_code: document.getElementById("billCode").value || ""
+        }
+      };
+      const res = await api("/api/v1/account/profile", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)});
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok || !data.ok){ setProfileStatus(data.error || "Save failed."); return; }
+      setProfileStatus("Saved ✅");
+    }
+
+    async function loadOrderHistory(){
+      const token = localStorage.getItem(TOKEN_KEY);
+      const out = document.getElementById("ordersList");
+      if(!token){ if(out) out.textContent = "Login to see your orders."; return; }
+      if(out) out.textContent = "Loading…";
+      const res = await api("/api/v1/account/orders?limit=20");
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok || !data.ok){ if(out) out.textContent = data.error || "Could not load orders."; return; }
+      const orders = data.orders || [];
+      if(!orders.length){ if(out) out.textContent = "No orders yet."; return; }
+      out.innerHTML = orders.slice(0,20).map(o=>{
+        const id = (o.order_id || o._id || "order");
+        const st = (o.status || "created");
+        const amt = (o.total || o.amount || "");
+        return `<div class="flex items-center justify-between border-t border-slate-200 py-2">
+          <div class="min-w-0">
+            <div class="font-medium truncate">${id}</div>
+            <div class="text-xs text-slate-500">${st}</div>
+          </div>
+          <div class="text-sm font-semibold">${amt ? esc(amt) : ""}</div>
+        </div>`;
+      }).join("");
+    }
+
+    document.getElementById("settingsBtn").addEventListener("click", openSettings);
+    document.getElementById("settingsClose").addEventListener("click", closeSettings);
+    document.getElementById("acctLoginBtn").addEventListener("click", ()=>loginOrRegister("login"));
+    document.getElementById("acctRegBtn").addEventListener("click", ()=>loginOrRegister("register"));
+    document.getElementById("saveProfileBtn").addEventListener("click", saveProfile);
+    document.getElementById("refreshOrdersBtn").addEventListener("click", loadOrderHistory);
+
+    // Initialize pill on load
+    hydrateAccount();
+
+</script>
+
+  <!-- Cart / Checkout -->
+  <div id="cartModal" class="hidden fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/40" onclick="closeCart()"></div>
+    <div class="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-white shadow-2xl border-l border-slate-200 flex flex-col">
+      <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+        <div>
+          <div class="text-sm text-slate-500">Your basket</div>
+          <div class="text-lg font-semibold tracking-tight">Checkout</div>
+        </div>
+        <button class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50" onclick="closeCart()">Close</button>
+      </div>
+
+      <div class="p-5 flex-1 overflow-auto">
+        <div id="cartEmpty" class="hidden p-4 rounded-2xl border border-slate-200 bg-white text-slate-600 text-sm">
+          Your basket is empty. Add items from the marketplace to start an order.
+        </div>
+
+        <div id="cartList" class="space-y-3"></div>
+
+        <div class="mt-5 p-4 rounded-2xl border border-slate-200 bg-slate-50">
+          <div class="flex items-center justify-between">
+            <div class="text-sm text-slate-600">Estimated total</div>
+            <div class="text-lg font-semibold" id="cartTotal">R0</div>
+          </div>
+          <div class="mt-2 text-xs text-slate-500">
+            Checkout happens right here. Choose delivery + payment, then place your order.
+          </div>
+        </div>
+
+        <div class="mt-5 grid grid-cols-1 gap-3">
+          <div>
+            <label class="text-xs text-slate-500">Your name</label>
+            <input id="custName" class="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200" placeholder="e.g., Luthando" />
+          </div>
+          <div>
+            <label class="text-xs text-slate-500">Phone (WhatsApp)</label>
+            <input id="custPhone" class="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200" placeholder="e.g., 27XXXXXXXXX" />
+            <div class="mt-1 text-[11px] text-slate-500">Use country code (e.g., 27...) for best results.</div>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500">Delivery address</label>
+            <textarea id="custAddr" rows="3" class="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200" placeholder="Street, suburb, city/town"></textarea>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button class="px-4 py-3 rounded-2xl border border-slate-200 hover:bg-slate-50 font-medium" onclick="clearCart()">Clear basket</button>
+            <button class="px-4 py-3 rounded-2xl bg-emerald-600 text-white hover:bg-emerald-700 font-semibold" onclick="openCheckout()">Proceed to payment</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-5 border-t border-slate-200 text-xs text-slate-500">
+        Delivery coverage includes remote areas where drivers are available. Fees may vary by distance and availability.
+      </div>
+    </div>
+  </div>
+
+
+  <button onclick="openCart()" class="fixed bottom-4 right-4 z-40 px-4 py-3 rounded-2xl bg-emerald-600 text-white shadow-lg hover:bg-emerald-700 sm:hidden">
+    Basket
+  </button>
+
+
+  <!-- Checkout Modal -->
+  <div id="checkoutModal" class="hidden fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/40" onclick="closeCheckout()"></div>
+    <div class="relative max-w-xl mx-auto mt-16 bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+      <div class="p-5 flex items-start justify-between gap-3">
+        <div>
+          <div class="text-xs text-slate-500">Checkout</div>
+          <div class="text-lg font-semibold">Pay & place your order</div>
+          <div id="checkoutStoreHint" class="text-xs text-slate-500 mt-1">Store</div>
+        </div>
+        <button class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm" onclick="closeCheckout()">Close</button>
+      </div>
+      <div class="p-5 border-t border-slate-200">
+        <div class="text-sm font-semibold mb-2">Payment method</div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button data-pay="demo" onclick="selectProvider('demo')" class="text-left p-4 rounded-2xl border border-slate-200 hover:bg-slate-50">
+            <div class="font-semibold">Demo payment</div>
+            <div class="text-xs text-slate-500 mt-1">Use this while we’re in demo mode.</div>
+          </button>
+
+          <button data-pay="stripe" class="relative text-left p-4 rounded-2xl border border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed">
+            <div class="font-semibold">Card (Stripe)</div>
+            <div class="text-xs text-slate-500 mt-1">Coming in the next update.</div>
+            <div class="absolute inset-0 rounded-2xl"></div>
+          </button>
+
+          <button data-pay="eft" class="relative text-left p-4 rounded-2xl border border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed">
+            <div class="font-semibold">EFT</div>
+            <div class="text-xs text-slate-500 mt-1">Coming in the next update.</div>
+            <div class="absolute inset-0 rounded-2xl"></div>
+          </button>
+
+          <button data-pay="cod" class="relative text-left p-4 rounded-2xl border border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed">
+            <div class="font-semibold">Cash on delivery</div>
+            <div class="text-xs text-slate-500 mt-1">Coming in the next update.</div>
+            <div class="absolute inset-0 rounded-2xl"></div>
+          </button>
+        </div>
+
+        <div class="mt-4 p-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-sm text-emerald-900">
+          Demo mode: payments are simulated. Your order will be created and queued for delivery.
+        </div>
+
+        <div class="mt-4 flex items-center justify-end gap-2">
+          <button class="px-4 py-3 rounded-2xl border border-slate-200 hover:bg-slate-50 font-medium" onclick="closeCheckout()">Back</button>
+          <button class="px-4 py-3 rounded-2xl bg-emerald-600 text-white hover:bg-emerald-700 font-semibold" onclick="placeOrder()">Place order</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Order Success Modal -->
+  <div id="orderSuccessModal" class="hidden fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/40" onclick="document.getElementById('orderSuccessModal').classList.add('hidden')"></div>
+    <div class="relative max-w-lg mx-auto mt-24 bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+      <div class="p-6">
+        <div class="text-sm text-slate-500">Order created</div>
+        <div class="text-2xl font-bold mt-1">You're all set 🎉</div>
+        <div class="mt-3 text-sm text-slate-600">Order ID: <span id="orderSuccessId" class="font-mono">—</span></div>
+        <div class="mt-4 text-sm text-slate-600">You can track this in Settings → Orders.</div>
+        <div class="mt-6 flex justify-end">
+          <button class="px-4 py-3 rounded-2xl bg-emerald-600 text-white hover:bg-emerald-700 font-semibold" onclick="document.getElementById('orderSuccessModal').classList.add('hidden')">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
