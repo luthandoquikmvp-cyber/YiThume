@@ -6101,8 +6101,10 @@ def _gh_request(method: str, url: str, token: str, body: dict = None):
 def v1_register():
     db = get_db()
     data = request.get_json(force=True, silent=True) or {}
-    role = (data.get("role") or "buyer").lower().strip()
-    if role not in {"admin", "seller", "driver", "network_operator", "buyer"}:
+
+    # Role is optional at registration; if omitted, user can pick after login.
+    role = (data.get("role") or "").lower().strip()
+    if role and role not in {"admin", "seller", "driver", "network_operator", "buyer"}:
         return jsonify({"ok": False, "error": "Invalid role"}), 400
 
     email = (data.get("email") or "").strip().lower()
@@ -6128,20 +6130,29 @@ def v1_register():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
 
+    roles = []
+    primary_role = None
+    if role:
+        roles = [role]
+        primary_role = role
+
     doc = {
         "email": email or None,
         "phone": phone or None,
         "password_hash": pw_hash,
-        "role": role,
+        # Backward compatible single-role field (nullable until user picks)
+        "role": primary_role,
+        # Multi-role support going forward
+        "roles": roles,
         "created_at": _utcnow(),
         "last_login": None,
     }
     res = users.insert_one(doc)
     user_id = str(res.inserted_id)
 
-    # Auto-create store for sellers
+    # Auto-create store for sellers (only once they have a seller role)
     store_id = None
-    if role == "seller":
+    if primary_role == "seller":
         store = _ensure_store_for_seller(db, user_id)
         store_id = str(store["_id"])
 
@@ -6151,8 +6162,9 @@ def v1_register():
         "ok": True,
         "token": token,
         "expires_at": expires_at.isoformat() + "Z",
-        "user": {"id": user_id, "role": role, "email": email, "phone": phone},
-        "store_id": store_id
+        "user": {"id": user_id, "role": primary_role, "roles": roles, "email": email, "phone": phone},
+        "store_id": store_id,
+        "needs_role_select": True if not primary_role else False
     })
 
 @app.post("/v1/auth/login")
@@ -6160,13 +6172,13 @@ def v1_login():
     db = get_db()
     data = request.get_json(force=True, silent=True) or {}
 
-    role = (data.get("role") or "").lower().strip()
+    requested_role = (data.get("role") or "").lower().strip()
     email = (data.get("email") or "").strip().lower()
     phone = (data.get("phone") or "").strip()
     password = (data.get("password") or "")
 
     # Admin login is via ADMIN_SECRET (PIN) for backward compatibility
-    if role == "admin":
+    if requested_role == "admin":
         pin = (data.get("admin_secret") or data.get("pin") or "").strip()
         if not ADMIN_SECRET:
             return jsonify({"ok": False, "error": "ADMIN_SECRET not set"}), 500
@@ -6181,6 +6193,7 @@ def v1_login():
                 "phone": None,
                 "password_hash": None,
                 "role": "admin",
+                "roles": ["admin"],
                 "created_at": _utcnow(),
                 "last_login": _utcnow(),
             })
@@ -6189,7 +6202,12 @@ def v1_login():
             admin_id = str(admin["_id"])
             users.update_one({"_id": admin["_id"]}, {"$set": {"last_login": _utcnow()}})
         token, expires_at = _issue_session(db, admin_id)
-        return jsonify({"ok": True, "token": token, "expires_at": expires_at.isoformat() + "Z", "user": {"id": admin_id, "role": "admin"}})
+        return jsonify({
+            "ok": True,
+            "token": token,
+            "expires_at": expires_at.isoformat() + "Z",
+            "user": {"id": admin_id, "role": "admin", "roles": ["admin"]}
+        })
 
     users = _users_col(db)
 
@@ -6205,17 +6223,37 @@ def v1_login():
     if not user:
         return jsonify({"ok": False, "error": "Invalid credentials"}), 401
 
-    if role and user.get("role") != role:
-        return jsonify({"ok": False, "error": "Role mismatch"}), 403
-
     if not user.get("password_hash") or not _pbkdf2_verify_password(password, user["password_hash"]):
         return jsonify({"ok": False, "error": "Invalid credentials"}), 401
 
     users.update_one({"_id": user["_id"]}, {"$set": {"last_login": _utcnow()}})
 
     user_id = str(user["_id"])
+
+    # Multi-role support: accept legacy 'role' and new 'roles'
+    roles = user.get("roles") or []
+    legacy_role = user.get("role")
+    if legacy_role and legacy_role not in roles:
+        roles = list(dict.fromkeys([legacy_role] + roles))  # preserve order, unique
+
+    # If user requested a role but doesn't have it yet, don't hard-fail.
+    # Let them pick a role after login (or add role if allowed).
+    needs_role_select = False
+    active_role = legacy_role if legacy_role else (roles[0] if roles else None)
+
+    if requested_role:
+        if requested_role in roles:
+            active_role = requested_role
+        elif not active_role:
+            # user hasn't picked any role yet; we'll let them set it
+            needs_role_select = True
+        else:
+            # They have a role already, but requested a different one
+            # Return success and tell UI to prompt role selection/switch.
+            needs_role_select = True
+
     store_id = None
-    if user.get("role") == "seller":
+    if active_role == "seller" or ("seller" in roles and requested_role == "seller"):
         store = _ensure_store_for_seller(db, user_id)
         store_id = str(store["_id"])
 
@@ -6225,8 +6263,15 @@ def v1_login():
         "ok": True,
         "token": token,
         "expires_at": expires_at.isoformat() + "Z",
-        "user": {"id": user_id, "role": user.get("role"), "email": user.get("email"), "phone": user.get("phone")},
-        "store_id": store_id
+        "user": {
+            "id": user_id,
+            "role": active_role,
+            "roles": roles,
+            "email": user.get("email"),
+            "phone": user.get("phone"),
+        },
+        "store_id": store_id,
+        "needs_role_select": True if (needs_role_select or not active_role) else False
     })
 
 @app.get("/v1/auth/me")
@@ -6236,12 +6281,18 @@ def v1_me():
     if err:
         msg, code = err
         return jsonify({"ok": False, "error": msg}), code
-    out = {"id": str(user["_id"]), "role": user.get("role"), "email": user.get("email"), "phone": user.get("phone")}
+    roles = user.get("roles") or []
+    if user.get("role") and user.get("role") not in roles:
+        roles = list(dict.fromkeys([user.get("role")] + roles))
+    out = {
+        "id": str(user["_id"]),
+        "role": user.get("role"),
+        "roles": roles,
+        "email": user.get("email"),
+        "phone": user.get("phone")
+    }
     return jsonify({"ok": True, "user": out})
 
-# -----------------------------
-# V1 STORE HELPERS
-# -----------------------------
 @app.get("/v1/store/my")
 def v1_store_my():
     db = get_db()
@@ -6473,4 +6524,38 @@ def v1_github_commit_storefront():
         commit_sha = (payload2.get("commit") or {}).get("sha")
         html_url = ((payload2.get("content") or {}).get("html_url")) or None
         return jsonify({"ok": True, "commit_sha": commit_sha, "file_url": html_url, "path": path})
-    return jsonify({"ok": False, "status": status2, "details": payload2}), 400
+    return jsonify({"ok": False, "status": status2, "details": payload2}), 400@app.post("/v1/auth/set_role")
+def v1_set_role():
+    db = get_db()
+    user, err = _require_auth(request, db)
+    if err:
+        msg, code = err
+        return jsonify({"ok": False, "error": msg}), code
+
+    data = request.get_json(force=True, silent=True) or {}
+    role = (data.get("role") or "").lower().strip()
+    if role not in {"seller", "driver", "network_operator", "buyer"}:
+        return jsonify({"ok": False, "error": "Invalid role"}), 400
+
+    users = _users_col(db)
+    roles = user.get("roles") or []
+    if role not in roles:
+        roles = roles + [role]
+
+    # Set active role (legacy field) for compatibility
+    users.update_one({"_id": user["_id"]}, {"$set": {"role": role, "roles": roles}})
+
+    store_id = None
+    if role == "seller":
+        store = _ensure_store_for_seller(db, str(user["_id"]))
+        store_id = str(store["_id"])
+
+    return jsonify({
+        "ok": True,
+        "role": role,
+        "roles": roles,
+        "store_id": store_id
+    })
+
+
+
