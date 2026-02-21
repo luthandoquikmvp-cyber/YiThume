@@ -1923,12 +1923,27 @@ def stats_overview():
         return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
 
 
+
+# -----------------------------
+# Driver Portal Pages (UI)
+# -----------------------------
+@app.get("/driver")
+@app.get("/driver/portal")
+def driver_portal_page():
+    """Serves: api/static/driver_portal.html"""
+    return send_from_directory(app.static_folder, "driver_portal.html")
+
+@app.get("/driver/dashboard")
+def driver_dashboard_page():
+    """Serves: api/static/driver_dashboard.html"""
+    return send_from_directory(app.static_folder, "driver_dashboard.html")
+
+
 # ---------------- DASHBOARD COMBINED (stats + drivers) ---
 @app.get("/dashboard")
 @app.get("/dashboard.html")
 @app.get("/login")
 @app.get("/seller")
-@app.get("/driver")
 def dashboard():
     # Always serve the same dashboard shell; role-based UI happens client-side.
     return send_from_directory(app.static_folder, "dashboard.html")
@@ -2271,6 +2286,88 @@ def get_driver(driver_id):
         return jsonify({"ok": True, "driver": safe_doc(d)}), 200
     except mongo_errors.PyMongoError as e:
         return jsonify({"ok": False, "error": "db_read_failed", "details": str(e)}), 500
+    except Exception as e:
+        return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
+
+
+
+# ----- Driver profile update (driver token required) -----
+@app.route("/drivers/<driver_id>/update", methods=["POST"])
+@app.route("/api/app/drivers/<driver_id>/update", methods=["POST"])
+def update_driver_profile(driver_id):
+    """Update basic driver profile + payout details. Driver token required (same-driver)."""
+    token = request.headers.get("X-Driver-Token")
+    body = request.json or {}
+    try:
+        db = get_db()
+
+        # Auth: token must match this driver
+        if not token:
+            return jsonify({"ok": False, "error": "auth_required"}), 401
+        d = db.drivers.find_one({
+            "_internal_id": driver_id,
+            "auth.sessions": {
+                "$elemMatch": {"token": token, "expires_at": {"$gte": _now_dt()}}
+            }
+        })
+        if not d:
+            return jsonify({"ok": False, "error": "forbidden"}), 403
+
+        updates = {"updated_at": _now_dt()}
+
+        def take_str(field, maxlen=200):
+            v = body.get(field)
+            if v is None:
+                return None
+            v = str(v).strip()
+            return v[:maxlen] if v else ""
+
+        name = take_str("name", 120)
+        email = take_str("email", 160)
+        vehicle = take_str("vehicle", 40)
+        available = body.get("available")
+
+        if name is not None:
+            updates["name"] = name
+        if email is not None:
+            updates["email"] = email
+        if vehicle is not None:
+            updates["vehicle"] = vehicle
+        if isinstance(available, bool):
+            updates["available"] = available
+
+        # Optional structured fields
+        licence = body.get("licence") or {}
+        if isinstance(licence, dict):
+            if "country" in licence:
+                updates["licence.country"] = str(licence.get("country") or "").strip()[:12]
+            if "number" in licence:
+                updates["licence.number"] = str(licence.get("number") or "").strip()[:64]
+
+        for k in ["vehicle_reg", "id_number"]:
+            v = take_str(k, 64)
+            if v is not None:
+                updates[k] = v
+
+        # Payment
+        payment = body.get("payment") or {}
+        if isinstance(payment, dict):
+            pm = {}
+            for pk, lim in [("bank_name", 80), ("account_number", 64), ("account_holder", 120), ("branch_code", 16)]:
+                if pk in payment:
+                    pm[pk] = str(payment.get(pk) or "").strip()[:lim]
+            if pm:
+                for pk, pv in pm.items():
+                    updates[f"payment.{pk}"] = pv
+
+        if len(updates) == 1:  # only updated_at
+            return jsonify({"ok": False, "error": "no_changes"}), 400
+
+        db.drivers.update_one({"_internal_id": driver_id}, {"$set": updates})
+        d2 = db.drivers.find_one({"_internal_id": driver_id})
+        return jsonify({"ok": True, "driver": safe_doc(d2)}), 200
+    except mongo_errors.PyMongoError as e:
+        return jsonify({"ok": False, "error": "db_write_failed", "details": str(e)}), 500
     except Exception as e:
         return jsonify({"ok": False, "error": "server_error", "details": str(e)}), 500
 
