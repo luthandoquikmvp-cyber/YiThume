@@ -336,31 +336,57 @@
           </div>
         </div>
 
-        <!-- Feedback / Request -->
+        <!-- Admin chat / feedback -->
         <div class="rounded-3xl border border-slate-200 bg-white shadow-sm p-5">
           <div class="flex items-start justify-between gap-3">
             <div>
-              <div class="text-lg font-semibold">Feedback / Request</div>
-              <div class="text-sm text-slate-600 mt-1">Send bugs + feature requests directly to the YiThume team (Beta).</div>
+              <div class="text-lg font-semibold">Assistant</div>
+              <div class="text-sm text-slate-600 mt-1">Quick ops chat + feedback to trigger GPT update requests (admin only).</div>
             </div>
             <span class="text-xs px-2 py-1 rounded-full border border-slate-300 bg-white shadow-sm text-slate-700">beta</span>
           </div>
 
-          <div class="mt-4">
-            <label class="text-xs text-slate-600">Message</label>
-            <textarea id="feedbackMessage" rows="5"
-              class="mt-2 w-full rounded-2xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm"
-              placeholder="Tell us what’s broken, what you want next, or what would make this a 10/10…"></textarea>
-            <div class="mt-2 flex items-center justify-between gap-2">
-              <div id="feedbackNote" class="text-xs text-slate-500 truncate">Includes your account email + current store (if loaded).</div>
-              <button id="feedbackSend" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-sm font-semibold text-white">
-                Send
-              </button>
-            </div>
+          <div id="chatBox" class="mt-4 rounded-2xl border border-slate-200 bg-white shadow-sm p-3 h-52 overflow-auto text-sm space-y-2">
+            <div class="text-slate-600 text-sm">Open dashboard with <code class="px-1 py-0.5 rounded bg-white border border-slate-200">?admin_pin=YOUR_PIN</code> to enable sending.</div>
+          </div>
+
+          <div class="mt-3 flex gap-2">
+            <input id="chatInput" class="flex-1 px-3 py-2 rounded-xl bg-white/50 border border-slate-200 text-sm" placeholder="Type feedback or an update request…" />
+            <button id="chatSend" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-sm font-semibold">
+              Send
+            </button>
+          </div>
+
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <button id="chatCreateUpdate" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">
+              Create update request
+            </button>
+            <button id="chatOpenConsole2" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm" disabled>
+              Open update console
+            </button>
+          </div>
+
+          <div class="mt-3 text-xs text-slate-500">
+            Works best when backend supports <code class="text-slate-700">/manager/api/self_update/*</code>. If not enabled yet, this will show an error message.
           </div>
         </div>
 
-        
+        <!-- CSV Help -->
+        <div class="rounded-3xl border border-slate-200 bg-white shadow-sm p-5">
+          <div class="text-lg font-semibold">CSV format</div>
+          <div class="text-sm text-slate-600 mt-1">Minimum viable columns.</div>
+
+          <div class="mt-3 rounded-2xl border border-slate-200 bg-white shadow-sm p-3 text-xs text-slate-700 overflow-auto">
+            <div class="text-slate-600 mb-2">Required:</div>
+            <pre>name,price</pre>
+            <div class="text-slate-600 mt-3 mb-2">Optional:</div>
+            <pre>category,sku,stock,description,image_url</pre>
+          </div>
+
+          <button id="copyCsvExampleBtn" class="mt-3 w-full px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">
+            Copy sample CSV
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -933,8 +959,6 @@
     `;
   }
 
-  let __lastHeaderStoreId = null;
-
   async function loadOrders() {
     const storeId = getStoreId();
     if (!storeId) {
@@ -946,9 +970,10 @@
       return;
     }
 
-    // Keep Control Center stable (no header flashing)
-    // Do NOT rewrite header subtitle on polling loops.
-// Apply mode UI from local storage
+    // Keep header stable (no layout shift)
+    el("storeBadge").textContent = storeId;
+
+    // Apply mode UI from local storage
     applyModeUI(getMode(storeId));
 
     // Enable storefront buttons
@@ -978,13 +1003,10 @@
     const meta = [addr.line1, addr.city, addr.province].filter(Boolean).join(" • ");
     const mEl = el("storeMeta");
     if (mEl) mEl.textContent = meta || "—";
-    // Only update header subtitle when store changes (prevents flashing)
-    if (__lastHeaderStoreId !== storeId) {
-      const navSub = el("navSub");
-      if (navSub) navSub.textContent = storeName + (meta ? (" — " + meta) : "");
-      __lastHeaderStoreId = storeId;
-    }
-// If there are orders, show them
+    const navSub = el("navSub");
+    if (navSub) navSub.textContent = storeName + (meta ? (" — " + meta) : "");
+
+    // If there are orders, show them
     const orders = out.json.orders || [];
     updateKPIsFromLocal();
     updateKPIsFromOrders(orders);
@@ -1913,38 +1935,7 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
             <textarea id="prodDesc" rows="3" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="Short description"></textarea>
           </div>
 
-          
-          <!-- CSV Helper (moved here from main page) -->
-          <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-            <div class="flex items-center justify-between gap-2">
-              <div>
-                <div class="text-sm font-semibold">CSV helper</div>
-                <div class="text-xs text-slate-600">Paste CSV here (same format as uploader). Minimum headers: <code class="text-slate-800">name,price</code>.</div>
-              </div>
-              <button id="copyCsvTemplateBtn" class="px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-xs font-semibold">
-                Copy CSV template
-              </button>
-            </div>
-
-            <div class="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700 overflow-auto">
-              <div class="text-slate-500 mb-1">Example</div>
-              <pre id="csvTemplateText">name,price,category,sku,stock,description,image_url
-Example Product,99.99,General,SKU123,10,Short description,https://example.com/image.jpg</pre>
-            </div>
-
-            <textarea id="csvPasteArea" rows="5"
-              class="mt-3 w-full rounded-xl bg-white border border-slate-200 px-3 py-2 text-sm"
-              placeholder="Paste CSV content here…"></textarea>
-
-            <div class="mt-2 flex items-center justify-between gap-2">
-              <div id="csvPasteNote" class="text-xs text-slate-500 truncate"></div>
-              <button id="importPastedCsvBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold">
-                Import pasted CSV
-              </button>
-            </div>
-          </div>
-
-<button id="saveProductBtn" class="w-full px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">Save product</button>
+          <button id="saveProductBtn" class="w-full px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">Save product</button>
           <div id="addProdNote" class="text-xs text-slate-500"></div>
         </div>
       </div>
@@ -2164,8 +2155,6 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
   }
 
   document.addEventListener("DOMContentLoaded", async function(){
-    // Account dropdown: open settings
-    el("accountSettingsBtn")?.addEventListener("click", (e)=>{ try{ e.preventDefault(); }catch(_){ } el("accountMenu")?.classList.add("hidden"); window.__openAcctModal && window.__openAcctModal("profile"); });
     // Close account menu on outside click
     document.addEventListener("click", ()=>{ try{ el("accountMenu")?.classList.add("hidden"); }catch(_){ } });
 
@@ -2186,55 +2175,6 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
     const commitBtn = el("commitStorefrontBtn");
     if(commitBtn) commitBtn.addEventListener("click", commitStorefront);
 
-
-    // Feedback / request sender (best-effort; backend can implement /api/v1/feedback)
-    el("feedbackSend")?.addEventListener("click", async ()=>{
-      const msg = (el("feedbackMessage")?.value || "").trim();
-      if(!msg) return showAlert("Please type a message first.");
-      const storeId = getStoreId();
-      const token = localStorage.getItem("auth_token") || localStorage.getItem("yithume_token") || "";
-      el("feedbackSend").disabled = true;
-      try{
-        const res = await fetch("/api/v1/feedback", {
-          method: "POST",
-          headers: {
-            "Content-Type":"application/json",
-            ...(token ? {"Authorization":"Bearer "+token} : {})
-          },
-          body: JSON.stringify({
-            message: msg,
-            store_id: storeId || null,
-            page: "dashboard",
-            at: (new Date()).toISOString()
-          })
-        });
-        const data = await res.json().catch(()=> ({}));
-        if(!res.ok || !data || data.ok === false){
-          // Fallback: save locally so you don’t lose it
-          try{
-            const k = "yithume_feedback_outbox";
-            const arr = JSON.parse(localStorage.getItem(k) || "[]");
-            arr.unshift({ message: msg, store_id: storeId||null, at: (new Date()).toISOString(), page:"dashboard" });
-            localStorage.setItem(k, JSON.stringify(arr.slice(0, 50)));
-          }catch(_){}
-          showAlert(data.error || `Could not send to server (${res.status}). Saved locally.`);
-        } else {
-          showSuccess("Feedback sent ✅");
-          if(el("feedbackMessage")) el("feedbackMessage").value = "";
-        }
-      } catch(err){
-        try{
-          const k = "yithume_feedback_outbox";
-          const arr = JSON.parse(localStorage.getItem(k) || "[]");
-          arr.unshift({ message: msg, store_id: storeId||null, at: (new Date()).toISOString(), page:"dashboard" });
-          localStorage.setItem(k, JSON.stringify(arr.slice(0, 50)));
-        }catch(_){}
-        showAlert("Network error. Saved locally.");
-      } finally {
-        el("feedbackSend").disabled = false;
-      }
-    });
-
     // Require auth (seller)
     const ok = await requireSellerAuth();
     if(ok){
@@ -2246,261 +2186,98 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
       }
     }
   });
-})();
-    // SAFETY: define helpers locally so this block never crashes if earlier scripts change.
-    const $$ = (id)=>document.getElementById(id);
-    function __safeGetStoreId(){ return (new URLSearchParams(location.search).get("store_id")) || localStorage.getItem("yithume_store_id") || ""; }
-    function __safeSetStoreId(v){ if(!v) return; localStorage.setItem("yithume_store_id", v); }
-    // -----------------------------
-    // Account menu
-    // -----------------------------
-    const accountBtn = $$("accountBtn");
-    const accountMenu = $$("accountMenu");
-    function closeAccountMenu(){ if(accountMenu) accountMenu.classList.add("hidden"); }
-    if(accountBtn && accountMenu){
-      accountBtn.addEventListener("click", (e)=>{ e.stopPropagation(); accountMenu.classList.toggle("hidden"); });
-      document.addEventListener("click", ()=>closeAccountMenu());
-    }
-    $$("logoutBtn")?.addEventListener("click", ()=>{
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("yithume_token");
-      localStorage.removeItem("yithume_role");
-      localStorage.removeItem("yithume_store_id");
-      window.location.href = "/"; // landing
+})()
+// ------------------------------------------------------------
+// SAFETY FIX: Account + Account Settings wiring (no $ helper)
+// This replaces a broken block that referenced `$` before defined,
+// which caused ALL JS to stop running (especially on iPad Safari).
+// ------------------------------------------------------------
+document.addEventListener("DOMContentLoaded", () => {
+  const gid = (id) => document.getElementById(id);
+
+  // Account dropdown
+  const accountBtn = gid("accountBtn");
+  const accountMenu = gid("accountMenu");
+  const closeAccountMenu = () => { try { accountMenu && accountMenu.classList.add("hidden"); } catch(_){} };
+
+  if (accountBtn && accountMenu) {
+    accountBtn.addEventListener("click", (e) => {
+      try { e.preventDefault(); e.stopPropagation(); } catch(_) {}
+      accountMenu.classList.toggle("hidden");
     });
 
+    // Close on outside click
+    document.addEventListener("click", closeAccountMenu);
+  }
 
+  // Logout (must always work)
+  const logoutBtn = gid("logoutBtn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      try {
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("yithume_token");
+        localStorage.removeItem("yithume_role");
+        localStorage.removeItem("yithume_store_id");
+      } catch(_) {}
+      window.location.href = "/";
+    });
+  }
 
-    // -----------------------------
-    // Account Settings modal wiring
-    // -----------------------------
-    const acctModal = $$("accountSettingsModal");
-    const acctClose = $$("closeAccountSettings");
-    function openAcctModal(tab="profile"){
-      if(!acctModal) return;
-      acctModal.classList.remove("hidden");
-      selectAcctTab(tab);
-      hydrateAcctModal();
-    }
-    function closeAcctModal(){ acctModal?.classList.add("hidden"); }
-    // expose for header menu click
-    window.__openAcctModal = openAcctModal;
+  // Account settings modal (must never trap user)
+  const acctModal = gid("accountSettingsModal");
+  const acctClose = gid("closeAccountSettings");
+  const acctOpenBtn = gid("accountSettingsBtn");
 
-    acctClose?.addEventListener("click", closeAcctModal);
-    acctModal?.addEventListener("click", (e)=>{ if(e.target === acctModal) closeAcctModal(); });
+  const closeAcctModal = () => { try { acctModal && acctModal.classList.add("hidden"); } catch(_){} };
 
-    // menu buttons
-    $$("menuSettings")?.addEventListener("click", ()=>openAcctModal("profile"));
-    $$("menuIntegrations")?.addEventListener("click", ()=>openAcctModal("integrations"));
-    $$("acctLogoutBtn")?.addEventListener("click", ()=>$$("logoutBtn")?.click());
-
-    // Tabs
-    function selectAcctTab(tab){
-      document.querySelectorAll(".acctTabBtn").forEach(btn=>{
-        const isActive = btn.getAttribute("data-acct-tab") === tab;
+  const selectAcctTab = (tab) => {
+    try {
+      document.querySelectorAll(".acctTabBtn").forEach(btn => {
+        const isActive = (btn.getAttribute("data-acct-tab") === tab);
         btn.classList.toggle("bg-slate-900", isActive);
         btn.classList.toggle("text-white", isActive);
         btn.classList.toggle("border", !isActive);
         btn.classList.toggle("border-slate-200", !isActive);
         btn.classList.toggle("hover:bg-slate-50", !isActive);
       });
-      document.querySelectorAll(".acctTabPanel").forEach(p=>p.classList.add("hidden"));
-      $$("acctTab_"+tab)?.classList.remove("hidden");
-    }
-    document.querySelectorAll(".acctTabBtn").forEach(btn=>{
-      btn.addEventListener("click", ()=>selectAcctTab(btn.getAttribute("data-acct-tab")));
+      document.querySelectorAll(".acctTabPanel").forEach(p => p.classList.add("hidden"));
+      const panel = gid("acctTab_" + tab);
+      if (panel) panel.classList.remove("hidden");
+    } catch(_) {}
+  };
+
+  const hydrateSignedIn = () => {
+    // Best-effort: copy header "Signed in as" into modal if modal fields exist
+    try {
+      const headerEmail = (gid("accEmail")?.textContent || "").trim();
+      const targets = [
+        gid("acctSignedInAs"),
+        ...Array.from(document.querySelectorAll(".acctSignedInAs"))
+      ].filter(Boolean);
+      targets.forEach(t => t.textContent = headerEmail || "—");
+    } catch(_) {}
+  };
+
+  const openAcctModal = (tab = "profile") => {
+    if (!acctModal) return;
+    try { acctModal.classList.remove("hidden"); } catch(_) {}
+    selectAcctTab(tab);
+    hydrateSignedIn();
+  };
+
+  // Wire open/close
+  if (acctClose) acctClose.addEventListener("click", closeAcctModal);
+  if (acctModal) acctModal.addEventListener("click", (e) => { if (e.target === acctModal) closeAcctModal(); });
+  if (acctOpenBtn) acctOpenBtn.addEventListener("click", () => { closeAccountMenu(); openAcctModal("profile"); });
+
+  // Tab buttons
+  try {
+    document.querySelectorAll(".acctTabBtn").forEach(btn => {
+      btn.addEventListener("click", () => selectAcctTab(btn.getAttribute("data-acct-tab") || "profile"));
     });
-
-    // Mode pill (reads existing localStorage, falls back to Demo)
-    function getMode(){
-      return (localStorage.getItem("yithume_mode") || "demo").toLowerCase();
-    }
-    function setMode(mode){
-      localStorage.setItem("yithume_mode", mode);
-      const pill = $$("acctModePill");
-      if(pill){
-        pill.textContent = mode === "live" ? "Live" : "Demo";
-        pill.className = mode === "live"
-          ? "text-xs px-2 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800"
-          : "text-xs px-2 py-1 rounded-full border border-slate-200 bg-white text-slate-700";
-      }
-      // keep existing page toggle if present
-      $$("modeToggleBtn")?.dispatchEvent(new Event("change"));
-    }
-    $$("acctToggleMode")?.addEventListener("click", ()=>{
-      const next = getMode() === "live" ? "demo" : "live";
-      setMode(next);
-    });
-
-    // hydrate account info in modal
-    async function hydrateAcctModal(){
-      const token = localStorage.getItem("auth_token") || localStorage.getItem("yithume_token") || "";
-      $$("acctModalSub") && ($$("acctModalSub").textContent = token ? "Manage your account, payouts and integrations." : "Sign in to manage your account.");
-      // show email/role using existing header fields if available
-      $$("acctEmail") && ($$("acctEmail").textContent = ($$("accountName")?.textContent || "—"));
-      $$("acctRole") && ($$("acctRole").textContent = ($$("accountRole")?.textContent || "—"));
-
-      // stores: best-effort list, fallback to current store_id
-      const storesBox = $$("acctStores");
-      if(!storesBox) return;
-      storesBox.innerHTML = "";
-      const current = __safeGetStoreId();
-      if(current){
-        const btn = document.createElement("button");
-        btn.className = "w-full text-left px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50";
-        btn.innerHTML = `<div class="text-sm font-semibold truncate">${current}</div><div class="text-xs text-slate-500 mt-0.5">Current store</div>`;
-        btn.addEventListener("click", ()=>{ __safeSetStoreId(current); closeAcctModal(); showSuccess("Store selected"); });
-        storesBox.appendChild(btn);
-      } else {
-        storesBox.innerHTML = `<div class="text-sm text-slate-500">No store selected yet. Create a store first.</div>`;
-      }
-
-      // mode pill
-      setMode(getMode());
-    }
-
-    // Save logistics/payouts (local-only for now)
-    function loadProfileDraft(){
-      try { return JSON.parse(localStorage.getItem("yithume_profile") || "{}"); } catch(e){ return {}; }
-    }
-    function saveProfileDraft(p){
-      localStorage.setItem("yithume_profile", JSON.stringify(p || {}));
-    }
-    $$("acctSaveLogistics")?.addEventListener("click", ()=>{
-      const p = loadProfileDraft();
-      p.pickup_default = $$("acctPickup")?.value || "";
-      p.dropoff_default = $$("acctDropoff")?.value || "";
-      saveProfileDraft(p);
-      $$("acctLogisticsNote") && ($$("acctLogisticsNote").textContent = "Saved.");
-    });
-    $$("acctSavePayouts")?.addEventListener("click", ()=>{
-      const p = loadProfileDraft();
-      p.bank_name = $$("acctBank")?.value || "";
-      p.bank_account = $$("acctBankAcc")?.value || "";
-      saveProfileDraft(p);
-      $$("acctPayoutsNote") && ($$("acctPayoutsNote").textContent = "Saved.");
-    });
-
-    // Switch account opens existing auth modal
-    $$("openSellerAuthFromAcct")?.addEventListener("click", ()=>{
-      closeAcctModal();
-      $$("sellerAuthModal")?.classList.remove("hidden");
-    });
-
-    // Integrations buttons (placeholders)
-    $$("acctConnectStripe")?.addEventListener("click", ()=>showSuccess("Stripe live payments are coming next update."));
-    $$("acctConnectGitHub")?.addEventListener("click", ()=>showSuccess("GitHub publishing is coming next update."));
-
-    // -----------------------------
-    // Add Product modal wiring
-    // -----------------------------
-    const addProdModal = $$("addProductModal");
-    function openAddProduct(){ addProdModal?.classList.remove("hidden"); $$("addProdNote") && ($$("addProdNote").textContent = ""); }
-    function closeAddProduct(){ addProdModal?.classList.add("hidden"); }
-    $$("openAddProductBtn")?.addEventListener("click", openAddProduct);
-    $$("closeAddProduct")?.addEventListener("click", closeAddProduct);
-    addProdModal?.addEventListener("click", (e)=>{ if(e.target === addProdModal) closeAddProduct(); });
-
-    $$("qaAddProducts")?.addEventListener("click", openAddProduct);
-    $$("qaScrollOrders")?.addEventListener("click", ()=>$$("orders")?.scrollIntoView({behavior:"smooth", block:"start"}));
-    
-    // CSV helper inside Add Product modal
-    const csvTemplate = `name,price,category,sku,stock,description,image_url
-Example Product,99.99,General,SKU123,10,Short description,https://example.com/image.jpg`;
-    $$("copyCsvTemplateBtn")?.addEventListener("click", async ()=>{
-      try{
-        await navigator.clipboard.writeText(csvTemplate);
-        $$("csvPasteNote") && ($$("csvPasteNote").textContent = "CSV copied ✅");
-        showSuccess("CSV copied ✅");
-      } catch(e){
-        // fallback: select text
-        const t = $$("csvTemplateText");
-        if(t){
-          const r = document.createRange();
-          r.selectNodeContents(t);
-          const sel = window.getSelection();
-          sel.removeAllRanges();
-          sel.addRange(r);
-          document.execCommand("copy");
-          sel.removeAllRanges();
-          $$("csvPasteNote") && ($$("csvPasteNote").textContent = "CSV copied ✅");
-          showSuccess("CSV copied ✅");
-        } else {
-          showAlert("Could not copy CSV.");
-        }
-      }
-    });
-
-    $$("importPastedCsvBtn")?.addEventListener("click", async ()=>{
-      const sid = __safeGetStoreId();
-      if(!sid) return showAlert("Create or load a store first.");
-      const raw = ($$("csvPasteArea")?.value || "").trim();
-      if(!raw) return showAlert("Paste your CSV content first.");
-      try{
-        // Route through same endpoint as file uploader by creating a Blob file
-        const blob = new Blob([raw], { type: "text/csv" });
-        const file = new File([blob], "pasted.csv", { type: "text/csv" });
-        const fd = new FormData();
-        fd.append("file", file);
-        const token = localStorage.getItem("auth_token") || localStorage.getItem("yithume_token") || "";
-        const res = await fetch(`/v1/store/${encodeURIComponent(sid)}/import_csv`, {
-          method: "POST",
-          headers: token ? {"Authorization":"Bearer "+token} : {},
-          body: fd
-        });
-        const data = await res.json().catch(()=> ({}));
-        if(!res.ok || !data || !data.ok){
-          return showAlert(data.error || `CSV import failed (${res.status}).`);
-        }
-        $$("csvPasteNote") && ($$("csvPasteNote").textContent = `Imported ${data.inserted || 0} products ✅`);
-        showSuccess(`Imported ${data.inserted || 0} products ✅`);
-        try{
-          // Update local stats for step unlocking
-          const stats = { inserted: data.inserted || 0, at: (new Date()).toISOString() };
-          setLocalImportStats(sid, stats);
-        }catch(_){}
-        // Refresh KPIs + orders
-        loadOrders();
-      } catch(err){
-        showAlert("CSV import error.");
-      }
-    });
-
-$$("qaOpenStorefront")?.addEventListener("click", ()=>{
-      const sid = __safeGetStoreId();
-      if(!sid) return showAlert("Create or load a store first.");
-      window.open(`/s/${sid}`, "_blank");
-    });
-
-    $$("saveProductBtn")?.addEventListener("click", async ()=>{
-      const sid = __safeGetStoreId();
-      if(!sid) return showAlert("Create or load a store first.");
-      const name = ($$("prodName")?.value || "").trim();
-      const price = parseFloat(($$("prodPrice")?.value || "").trim() || "0");
-      const description = ($$("prodDesc")?.value || "").trim();
-      const category = ($$("prodCategory")?.value || "").trim();
-      if(!name || !(price>0)) return showAlert("Please enter a name and a price.");
-
-      const token = localStorage.getItem("auth_token") || localStorage.getItem("yithume_token") || "";
-      try{
-        const res = await fetch(`/api/v1/store/${sid}/product`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? {"Authorization": "Bearer "+token} : {})
-          },
-          body: JSON.stringify({ name, price, description, category, barcode: ($$("prodBarcode")?.value||"").trim(), stock: Number(($$("prodStock")?.value||"").trim()||0) || undefined })
-        });
-        const data = await res.json().catch(()=>({}));
-        if(!res.ok) throw new Error(data?.error || data?.message || "Failed to save product");
-        $$("addProdNote") && ($$("addProdNote").textContent = "Saved. Refreshing…");
-        closeAddProduct();
-        // refresh UI
-        window.__reloadDashboard && window.__reloadDashboard();
-      }catch(e){
-        showAlert(String(e?.message || e));
-      }
-    });
+  } catch(_) {}
+});
 </script>
 
 <script>
@@ -2662,7 +2439,7 @@ $$("qaOpenStorefront")?.addEventListener("click", ()=>{
   el("closeAiScan")?.addEventListener("click", ()=>hide("aiScanModal"));
   el("closeAiPaywall")?.addEventListener("click", ()=>hide("aiPaywallModal"));
   el("goToBillingBtn")?.addEventListener("click", async ()=>{
-    const storeId = __safeGetStoreId();
+    const storeId = getStoreId();
     if(!storeId){
       showAlert("Create or select a store first, then try again.");
       return;
