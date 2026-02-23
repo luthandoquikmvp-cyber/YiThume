@@ -98,6 +98,19 @@ BUILD_TS = datetime.utcnow().isoformat() + "Z"
 # FLASK
 # -------------------------------------------------
 app = Flask(__name__)
+
+# -------------------------------------------------
+# Static helpers
+# -------------------------------------------------
+
+@app.get("/favicon.ico")
+def favicon_ico():
+    """Serve favicon for browsers."""
+    # We keep a PNG in /api/static and serve it as .ico for simplicity.
+    try:
+        return send_from_directory(app.static_folder, "favicon.png")
+    except Exception:
+        return ("", 204)
 CORS(app)
 
 # -----------------------------
@@ -4162,6 +4175,480 @@ def v1_store_import_csv(store_id):
     })
 
 
+
+# -----------------------------
+# Manual product add/update (works with the same saas_products collection as CSV)
+# POST /v1/store/<store_id>/product
+# -----------------------------
+@app.post("/v1/store/<store_id>/product")
+@app.post("/api/v1/store/<store_id>/product")
+def v1_store_add_product(store_id):
+    """
+    JSON body:
+      required: name, price
+      optional: category, sku, stock, description, image_url, barcode, brand, unit, cost_price
+    """
+    db = get_db()
+    store = _get_store(db, store_id)
+    if not store:
+        return jsonify({"ok": False, "error": "Store not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    name = _str(data.get("name"))
+    price = _safe_float(data.get("price"), None)
+    if not name or price is None:
+        return jsonify({"ok": False, "error": "Missing required fields: name, price"}), 400
+
+    category = _str(data.get("category"), "General") or "General"
+    sku = _str(data.get("sku"))
+    barcode = _str(data.get("barcode"))
+    stock = _safe_int(data.get("stock"), 999999)
+    desc = _str(data.get("description"))
+    image_url = _str(data.get("image_url"))
+    brand = _str(data.get("brand"))
+    unit = _str(data.get("unit"))
+    cost_price = _safe_float(data.get("cost_price"), None)
+
+    # Upsert key preference: sku > barcode > (name+category)
+    if sku:
+        key = {"store_id": store_id, "sku": sku}
+    elif barcode:
+        key = {"store_id": store_id, "barcode": barcode}
+    else:
+        key = {"store_id": store_id, "name": name, "category": category}
+
+    existing = _col(db, "saas_products").find_one(key)
+
+    base_doc = {
+        "store_id": store_id,
+        "name": name,
+        "slug": _slug(name),
+        "category": category,
+        "sku": sku or None,
+        "barcode": barcode or None,
+        "brand": brand or None,
+        "unit": unit or None,
+        "price": float(price),
+        "cost_price": float(cost_price) if cost_price is not None else None,
+        "stock": int(stock),
+        "description": desc,
+        "image_url": image_url,
+        "active": True,
+        "updated_at": _now_dt(),
+    }
+
+    if existing:
+        _col(db, "saas_products").update_one({"_id": existing["_id"]}, {"$set": base_doc})
+        return jsonify({"ok": True, "store_id": store_id, "updated": True, "product_id": str(existing.get("_id"))})
+    else:
+        base_doc["_internal_id"] = str(uuid.uuid4())
+        base_doc["created_at"] = _now_dt()
+        r = _col(db, "saas_products").insert_one(base_doc)
+        return jsonify({"ok": True, "store_id": store_id, "created": True, "product_id": str(r.inserted_id)}), 201
+
+
+# -----------------------------
+# Billing / AI credits (simple + safe)
+# - No payment provider here yet; this is the enforcement layer.
+# - You can toggle plans via admin endpoint for now.
+# -----------------------------
+AI_CREDITS_BY_PLAN = {
+    "pro": int(os.environ.get("AI_CREDITS_PRO", "50")),
+    "business": int(os.environ.get("AI_CREDITS_BUSINESS", "300")),
+    "enterprise": int(os.environ.get("AI_CREDITS_ENTERPRISE", "2000")),
+}
+
+AI_SCAN_COST_CREDITS = int(os.environ.get("AI_SCAN_COST_CREDITS", "2"))
+
+def _next_month_reset(dt: datetime) -> datetime:
+    # naive UTC month roll-over
+    y = dt.year
+    m = dt.month + 1
+    if m == 13:
+        y += 1
+        m = 1
+    return datetime(y, m, 1)
+
+def _ensure_store_credits(db, store_id: str):
+    """
+    Ensures store has credit fields and resets monthly.
+    Stores:
+      plan: "free"|"pro"|"business"|"enterprise"
+      ai_enabled: bool
+      ai_credits_limit: int
+      ai_credits_used: int
+      ai_credits_reset_at: datetime (UTC)
+    """
+    now = _now_dt()
+    store = _get_store(db, store_id)
+    if not store:
+        return None
+
+    plan = (store.get("plan") or "free").lower()
+    ai_enabled = bool(store.get("ai_enabled", False))
+    limit = int(store.get("ai_credits_limit") or AI_CREDITS_BY_PLAN.get(plan, 0))
+    used = int(store.get("ai_credits_used") or 0)
+    reset_at = store.get("ai_credits_reset_at")
+
+    # initialize if missing
+    dirty = False
+    if reset_at is None:
+        reset_at = _next_month_reset(now)
+        used = 0
+        dirty = True
+
+    # monthly reset
+    try:
+        if isinstance(reset_at, datetime) and now >= reset_at:
+            used = 0
+            reset_at = _next_month_reset(now)
+            dirty = True
+    except Exception:
+        reset_at = _next_month_reset(now)
+        used = 0
+        dirty = True
+
+    # keep limit in sync with plan unless explicitly overridden
+    desired_limit = int(store.get("ai_credits_limit") or AI_CREDITS_BY_PLAN.get(plan, 0))
+    if desired_limit != limit:
+        limit = desired_limit
+        dirty = True
+
+    if dirty:
+        _col(db, "saas_stores").update_one({"_id": store["_id"]}, {"$set": {
+            "plan": plan,
+            "ai_enabled": ai_enabled,
+            "ai_credits_limit": limit,
+            "ai_credits_used": used,
+            "ai_credits_reset_at": reset_at,
+            "updated_at": _now_dt(),
+        }})
+        store = _get_store(db, store_id)
+
+    # compute remaining
+    remaining = max(0, int(limit) - int(used))
+    return {
+        "store": store,
+        "plan": plan,
+        "ai_enabled": ai_enabled,
+        "limit": int(limit),
+        "used": int(used),
+        "remaining": int(remaining),
+        "reset_at": reset_at.isoformat() + "Z" if isinstance(reset_at, datetime) else None,
+    }
+
+def _require_ai_entitlement(db, store_id: str, cost_credits: int):
+    st = _ensure_store_credits(db, store_id)
+    if not st:
+        return False, (jsonify({"ok": False, "error": "Store not found"}), 404)
+    if not st["ai_enabled"] or st["plan"] not in ("pro", "business", "enterprise"):
+        return False, (jsonify({"ok": False, "error": "AI locked. Please purchase/subscribe to unlock AI Stock Take."}), 402)
+    if st["remaining"] < cost_credits:
+        return False, (jsonify({"ok": False, "error": "AI credits exhausted for this month. Upgrade plan or wait for reset.", "reset_at": st["reset_at"]}), 429)
+    return True, st
+
+def _deduct_ai_credits(db, store_id: str, cost_credits: int):
+    _col(db, "saas_stores").update_one(
+        {"_id": ObjectId(store_id) if ObjectId.is_valid(store_id) else store_id},
+        {"$inc": {"ai_credits_used": int(cost_credits)}, "$set": {"updated_at": _now_dt()}}
+    )
+
+@app.get("/v1/billing/status")
+@app.get("/api/v1/billing/status")
+def v1_billing_status():
+    store_id = request.args.get("store_id") or ""
+    if not store_id:
+        return jsonify({"ok": False, "error": "Missing store_id"}), 400
+    db = get_db()
+    st = _ensure_store_credits(db, store_id)
+    if not st:
+        return jsonify({"ok": False, "error": "Store not found"}), 404
+    return jsonify({
+        "ok": True,
+        "store_id": store_id,
+        "plan": st["plan"],
+        "ai_enabled": st["ai_enabled"],
+        "ai_credits_limit": st["limit"],
+        "ai_credits_used": st["used"],
+        "ai_credits_remaining": st["remaining"],
+        "ai_credits_reset_at": st["reset_at"],
+        "ai_scan_cost_credits": AI_SCAN_COST_CREDITS,
+    })
+
+# -----------------------------
+# Stripe Billing (Checkout + Webhooks)
+# -----------------------------
+@app.post("/v1/billing/checkout")
+@app.post("/api/v1/billing/checkout")
+def v1_billing_checkout():
+    '''Create a Stripe Checkout Session for a plan and return {url}.'''
+    if not _stripe_ready():
+        return jsonify({"ok": False, "error": "Stripe not configured. Missing STRIPE_SECRET_KEY."}), 500
+
+    data = request.get_json(force=True, silent=True) or {}
+    store_id = (data.get("store_id") or "").strip()
+    plan = (data.get("plan") or "pro").strip().lower()
+
+    if not store_id:
+        return jsonify({"ok": False, "error": "Missing store_id"}), 400
+
+    price_id = ""
+    if plan == "pro":
+        price_id = STRIPE_PRICE_PRO_MONTHLY
+    elif plan == "business":
+        price_id = STRIPE_PRICE_BUSINESS_MONTHLY
+    else:
+        return jsonify({"ok": False, "error": "Unsupported plan"}), 400
+
+    if not price_id:
+        return jsonify({"ok": False, "error": f"Missing Stripe price id for plan '{plan}'. Set STRIPE_PRICE_{plan.upper()}_MONTHLY."}), 500
+
+    _stripe_init()
+
+    base = (PUBLIC_BASE_URL or request.host_url.rstrip("/")).rstrip("/")
+    success_url = f"{base}/dashboard.html?paid=1&session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{base}/dashboard.html?paid=0"
+
+    db = get_db()
+    st = _get_store(db, store_id) or {}
+    customer_id = st.get("stripe_customer_id") if isinstance(st, dict) else None
+
+    try:
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            line_items=[{"price": price_id, "quantity": 1}],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            allow_promotion_codes=True,
+            customer=customer_id or None,
+            metadata={
+                "store_id": store_id,
+                "plan": plan,
+            },
+        )
+        return jsonify({"ok": True, "url": session.get("url")})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Stripe error: {str(e)}"}), 500
+
+
+@app.post("/v1/billing/portal")
+@app.post("/api/v1/billing/portal")
+def v1_billing_portal():
+    '''Create a Stripe Customer Portal session for managing the subscription.'''
+    if not _stripe_ready():
+        return jsonify({"ok": False, "error": "Stripe not configured. Missing STRIPE_SECRET_KEY."}), 500
+
+    data = request.get_json(force=True, silent=True) or {}
+    store_id = (data.get("store_id") or "").strip()
+    if not store_id:
+        return jsonify({"ok": False, "error": "Missing store_id"}), 400
+
+    db = get_db()
+    st = _get_store(db, store_id) or {}
+    customer_id = st.get("stripe_customer_id")
+
+    if not customer_id:
+        return jsonify({"ok": False, "error": "No Stripe customer for this store yet."}), 400
+
+    _stripe_init()
+    base = (PUBLIC_BASE_URL or request.host_url.rstrip("/")).rstrip("/")
+    return_url = f"{base}/dashboard.html"
+
+    try:
+        ps = stripe.billing_portal.Session.create(
+            customer=customer_id,
+            return_url=return_url,
+        )
+        return jsonify({"ok": True, "url": ps.get("url")})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Stripe error: {str(e)}"}), 500
+
+
+@app.post("/v1/billing/webhook")
+@app.post("/api/v1/billing/webhook")
+def v1_billing_webhook():
+    '''Stripe webhook endpoint. Verifies signature and provisions plan access.'''
+    if not stripe:
+        return ("stripe_not_installed", 400)
+    if not STRIPE_WEBHOOK_SECRET:
+        return ("missing_webhook_secret", 500)
+
+    payload = request.data  # raw body required for signature verification
+    sig_header = request.headers.get("Stripe-Signature") or ""
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except Exception:
+        return ("invalid_signature", 400)
+
+    etype = event.get("type") or ""
+
+    db = get_db()
+    stores = db["saas_stores"]
+
+    if etype == "checkout.session.completed":
+        session = (event.get("data") or {}).get("object") or {}
+        meta = session.get("metadata") or {}
+        store_id = (meta.get("store_id") or "").strip()
+        plan = (meta.get("plan") or "pro").strip().lower()
+
+        if store_id:
+            limit = int(AI_CREDITS_BY_PLAN.get(plan, AI_CREDITS_BY_PLAN.get("pro", 50)))
+            now = _now_dt()
+            reset_at = _next_month_reset(now)
+
+            stores.update_one(
+                {"store_id": store_id},
+                {"$set": {
+                    "plan": plan,
+                    "ai_enabled": True,
+                    "ai_credits_limit": limit,
+                    "ai_credits_used": 0,
+                    "ai_credits_reset_at": reset_at,
+                    "stripe_customer_id": session.get("customer"),
+                    "stripe_subscription_id": session.get("subscription"),
+                    "updated_at": now,
+                }},
+                upsert=True
+            )
+
+    if etype == "customer.subscription.deleted":
+        sub = (event.get("data") or {}).get("object") or {}
+        sub_id = sub.get("id")
+        if sub_id:
+            stores.update_one(
+                {"stripe_subscription_id": sub_id},
+                {"$set": {
+                    "plan": "free",
+                    "ai_enabled": False,
+                    "updated_at": _now_dt(),
+                }}
+            )
+
+    return ("ok", 200)
+
+
+
+
+# Admin helper to toggle plan (temporary until Stripe is wired)
+@app.post("/v1/admin/store/<store_id>/set_plan")
+@app.post("/api/v1/admin/store/<store_id>/set_plan")
+def v1_admin_set_plan(store_id):
+    if not require_admin():
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+    db = get_db()
+    store = _get_store(db, store_id)
+    if not store:
+        return jsonify({"ok": False, "error": "Store not found"}), 404
+    data = request.get_json(silent=True) or {}
+    plan = _str(data.get("plan"), "free").lower()
+    ai_enabled = bool(data.get("ai_enabled", plan in ("pro", "business", "enterprise")))
+    limit = int(data.get("ai_credits_limit") or AI_CREDITS_BY_PLAN.get(plan, 0))
+    reset_at = _next_month_reset(_now_dt())
+    _col(db, "saas_stores").update_one({"_id": store["_id"]}, {"$set": {
+        "plan": plan,
+        "ai_enabled": ai_enabled,
+        "ai_credits_limit": limit,
+        "ai_credits_used": 0,
+        "ai_credits_reset_at": reset_at,
+        "updated_at": _now_dt(),
+    }})
+    return jsonify({"ok": True, "store_id": store_id, "plan": plan, "ai_enabled": ai_enabled, "ai_credits_limit": limit, "ai_credits_reset_at": reset_at.isoformat()+"Z"})
+
+
+# -----------------------------
+# AI Stock Take (paid-only) — image -> {name, barcode, count}
+# -----------------------------
+@app.post("/v1/inventory/ai_scan")
+@app.post("/api/v1/inventory/ai_scan")
+def v1_inventory_ai_scan():
+    db = get_db()
+    data = request.get_json(silent=True) or {}
+
+    store_id = _str(data.get("store_id"))
+    image_b64 = _str(data.get("image_base64"))
+    mime = _str(data.get("mime"), "image/jpeg")
+    hint_barcode = _str(data.get("hint_barcode"))
+
+    if not store_id or not image_b64:
+        return jsonify({"ok": False, "error": "Missing store_id or image_base64"}), 400
+
+    ok, st_or_resp = _require_ai_entitlement(db, store_id, AI_SCAN_COST_CREDITS)
+    if not ok:
+        return st_or_resp
+
+    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not key:
+        return jsonify({"ok": False, "error": "Missing OPENAI_API_KEY on server"}), 500
+
+    model = os.environ.get("OPENAI_VISION_MODEL", "gpt-4o-mini")
+
+    # keep payload small
+    if image_b64.startswith("data:"):
+        # already data url
+        data_url = image_b64
+    else:
+        data_url = f"data:{mime};base64,{image_b64}"
+
+    system = (
+        "You are an inventory assistant for a retail operating system. "
+        "You MUST return a single JSON object only (no markdown)."
+    )
+    user_prompt = (
+        "From the image, identify the main product shown and count how many identical items are visible. "
+        "If a barcode/EAN/UPC is visible, extract it (digits only). "
+        "If not visible, set barcode to empty string. "
+        "Return JSON with keys: name (string), barcode (string), count (integer), notes (string), confidence (0..1)."
+    )
+    if hint_barcode:
+        user_prompt += f" The user already scanned barcode hint: {hint_barcode}. Prefer that barcode if plausible."
+
+    payload = {
+        "model": model,
+        "input": [
+            {"role": "system", "content": [{"type": "text", "text": system}]},
+            {"role": "user", "content": [
+                {"type": "text", "text": user_prompt},
+                {"type": "input_image", "image_url": data_url},
+            ]},
+        ],
+        "text": {"format": {"type": "json_object"}},
+    }
+
+    try:
+        req = urllib.request.Request(
+            "https://api.openai.com/v1/responses",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+        out = json.loads(raw)
+        out_text = out.get("output_text") or ""
+        parsed = {}
+        try:
+            parsed = json.loads(out_text) if isinstance(out_text, str) else {}
+        except Exception:
+            parsed = {"name": "", "barcode": "", "count": 0, "notes": "Failed to parse model output", "confidence": 0}
+
+        # deduct credits after a successful model call
+        try:
+            _col(db, "saas_stores").update_one({"_id": st_or_resp["store"]["_id"]}, {"$inc": {"ai_credits_used": int(AI_SCAN_COST_CREDITS)}})
+        except Exception:
+            pass
+
+        return jsonify({"ok": True, "result": parsed})
+    except urllib.error.HTTPError as e:
+        try:
+            err = e.read().decode("utf-8", errors="replace")
+            return jsonify({"ok": False, "error": "OpenAI request failed", "raw": err}), 502
+        except Exception:
+            return jsonify({"ok": False, "error": "OpenAI request failed"}), 502
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # -----------------------------
 # Public storefront (simple + nice)
 # GET /s/<store_id>?q=panado&cat=Pain%20Relief
@@ -5415,6 +5902,11 @@ except Exception:
 
 STRIPE_SECRET_KEY = (os.environ.get("STRIPE_SECRET_KEY") or "").strip()
 STRIPE_WEBHOOK_SECRET = (os.environ.get("STRIPE_WEBHOOK_SECRET") or "").strip()
+PUBLIC_BASE_URL = (os.environ.get("PUBLIC_BASE_URL") or "").strip()
+
+# Stripe Price IDs (create in Stripe dashboard)
+STRIPE_PRICE_PRO_MONTHLY = (os.environ.get("STRIPE_PRICE_PRO_MONTHLY") or "").strip()
+STRIPE_PRICE_BUSINESS_MONTHLY = (os.environ.get("STRIPE_PRICE_BUSINESS_MONTHLY") or "").strip()
 
 def _stripe_ready() -> bool:
     return bool(stripe) and bool(STRIPE_SECRET_KEY)
