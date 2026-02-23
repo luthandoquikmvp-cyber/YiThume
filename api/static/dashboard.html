@@ -1631,6 +1631,28 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
   }
 
   // Boot
+  //
+  // Expose selected helper functions on the global `window` object.  
+  // Later scripts (e.g. barcode/AI modules) call functions such as
+  // `qs()`, `setQs()`, `getStoreId()`, and `showAlert()` that are defined
+  // inside this module. Because those functions are scoped to this
+  // immediately invoked function expression (IIFE), they would not be
+  // available globally and would cause ReferenceErrors when called from
+  // other scripts.  To prevent that, explicitly export them here.  
+  window.qs = qs;
+  window.setQs = setQs;
+  window.getStoreId = getStoreId;
+  window.setStoreId = setStoreId;
+  window.getAdminPin = getAdminPin;
+  window.setAdminPin = setAdminPin;
+  window.getMode = getMode;
+  window.setModeLocal = setModeLocal;
+  window.applyModeUI = applyModeUI;
+  window.showAlert = showAlert;
+  window.showSuccess = showSuccess;
+  window.clearMsgs = clearMsgs;
+  window.fetchJSON = fetchJSON;
+  //
   initTheme();
   initFromUrlOrStorage();
   loadOrders();
@@ -2478,7 +2500,15 @@ document.addEventListener("DOMContentLoaded", () => {
   el("scanBarcodeBtn")?.addEventListener("click", (e)=>{ e.preventDefault(); startBarcodeScan(); });
 
   // ---------- AI gating + modal ----------
+  // Local billing status. Mirror this onto the global window so that
+  // other modules (e.g. the global refreshBillingUI function) can read
+  // the latest billing information. Without exporting, later scripts
+  // attempting to access `billing` or call `loadBilling` would throw
+  // reference errors.
   let billing = null;
+  // Expose a global placeholder so assignments to `billing` below
+  // update the same object visible via `window.billing`.  
+  window.billing = null;
   async function loadBilling(){
     const sid = localStorage.getItem(STORE_KEY) || "";
     if(!sid) return null;
@@ -2487,6 +2517,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const j = await r.json().catch(()=>null);
       if(r.ok && j && j.ok){
         billing = j;
+        // Keep the global billing reference in sync with the local one.
+        window.billing = billing;
         const pill = el("aiCreditsPill");
         if(pill){
           pill.classList.remove("hidden");
@@ -2643,19 +2675,29 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Make the loadBilling function available globally.  The global
+  // refreshBillingUI() and Stripe-return polling below call
+  // window.loadBilling(), so exporting it here prevents a
+  // ReferenceError when those functions run.
+  window.loadBilling = loadBilling;
+
 
 })();
 
   // Paywall: manage subscription (only shown when already active)
   async function refreshBillingUI(){
     try{
-      await loadBilling();
-      if(billing && billing.ok){
+      // Call the exported loadBilling from the global window to avoid
+      // reference errors. Use window.billing (set by loadBilling)
+      // instead of a potentially undefined local variable.
+      await (window.loadBilling && window.loadBilling());
+      const currentBilling = window.billing;
+      if(currentBilling && currentBilling.ok){
         // Credits shown in header pill already; mirror in settings
-        const left = (billing.ai_credits_limit||0) - (billing.ai_credits_used||0);
+        const left = (currentBilling.ai_credits_limit||0) - (currentBilling.ai_credits_used||0);
         if(el("acctCreditsLeft")) el("acctCreditsLeft").textContent = String(Math.max(0,left));
         // If already enabled, show manage subscription button in paywall
-        const enabled = !!billing.ai_enabled;
+        const enabled = !!currentBilling.ai_enabled;
         if(el("manageSubBtn")) el("manageSubBtn").classList.toggle("hidden", !enabled);
       }
     }catch(e){}
@@ -2680,9 +2722,14 @@ document.addEventListener("DOMContentLoaded", () => {
       // Poll up to ~10s for webhook provisioning
       for(let i=0;i<8;i++){
         try{
-          billing = null;
-          await loadBilling();
-          if(billing && billing.ok && billing.ai_enabled){
+          // Reset global billing status, then reload it.  Use the
+          // exported window.loadBilling() so the function exists in
+          // global scope.  Billing information is stored on
+          // window.billing.
+          window.billing = null;
+          if(window.loadBilling) await window.loadBilling();
+          const bInfo = window.billing;
+          if(bInfo && bInfo.ok && bInfo.ai_enabled){
             break;
           }
         }catch(e){}
