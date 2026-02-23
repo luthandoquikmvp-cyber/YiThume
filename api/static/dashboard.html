@@ -2248,20 +2248,20 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
   });
 })();
     // SAFETY: define helpers locally so this block never crashes if earlier scripts change.
-    const $ = (id)=>document.getElementById(id);
+    const $$ = (id)=>document.getElementById(id);
     function __safeGetStoreId(){ return (new URLSearchParams(location.search).get("store_id")) || localStorage.getItem("yithume_store_id") || ""; }
     function __safeSetStoreId(v){ if(!v) return; localStorage.setItem("yithume_store_id", v); }
     // -----------------------------
     // Account menu
     // -----------------------------
-    const accountBtn = $("accountBtn");
-    const accountMenu = $("accountMenu");
+    const accountBtn = $$("accountBtn");
+    const accountMenu = $$("accountMenu");
     function closeAccountMenu(){ if(accountMenu) accountMenu.classList.add("hidden"); }
     if(accountBtn && accountMenu){
       accountBtn.addEventListener("click", (e)=>{ e.stopPropagation(); accountMenu.classList.toggle("hidden"); });
       document.addEventListener("click", ()=>closeAccountMenu());
     }
-    $("logoutBtn")?.addEventListener("click", ()=>{
+    $$("logoutBtn")?.addEventListener("click", ()=>{
       localStorage.removeItem("auth_token");
       localStorage.removeItem("yithume_token");
       localStorage.removeItem("yithume_role");
@@ -2274,8 +2274,8 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
     // -----------------------------
     // Account Settings modal wiring
     // -----------------------------
-    const acctModal = $("accountSettingsModal");
-    const acctClose = $("closeAccountSettings");
+    const acctModal = $$("accountSettingsModal");
+    const acctClose = $$("closeAccountSettings");
     function openAcctModal(tab="profile"){
       if(!acctModal) return;
       acctModal.classList.remove("hidden");
@@ -2290,9 +2290,9 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
     acctModal?.addEventListener("click", (e)=>{ if(e.target === acctModal) closeAcctModal(); });
 
     // menu buttons
-    $("menuSettings")?.addEventListener("click", ()=>openAcctModal("profile"));
-    $("menuIntegrations")?.addEventListener("click", ()=>openAcctModal("integrations"));
-    $("acctLogoutBtn")?.addEventListener("click", ()=>$("logoutBtn")?.click());
+    $$("menuSettings")?.addEventListener("click", ()=>openAcctModal("profile"));
+    $$("menuIntegrations")?.addEventListener("click", ()=>openAcctModal("integrations"));
+    $$("acctLogoutBtn")?.addEventListener("click", ()=>$$("logoutBtn")?.click());
 
     // Tabs
     function selectAcctTab(tab){
@@ -2305,7 +2305,7 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
         btn.classList.toggle("hover:bg-slate-50", !isActive);
       });
       document.querySelectorAll(".acctTabPanel").forEach(p=>p.classList.add("hidden"));
-      $("acctTab_"+tab)?.classList.remove("hidden");
+      $$("acctTab_"+tab)?.classList.remove("hidden");
     }
     document.querySelectorAll(".acctTabBtn").forEach(btn=>{
       btn.addEventListener("click", ()=>selectAcctTab(btn.getAttribute("data-acct-tab")));
@@ -2317,7 +2317,7 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
     }
     function setMode(mode){
       localStorage.setItem("yithume_mode", mode);
-      const pill = $("acctModePill");
+      const pill = $$("acctModePill");
       if(pill){
         pill.textContent = mode === "live" ? "Live" : "Demo";
         pill.className = mode === "live"
@@ -2325,9 +2325,9 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
           : "text-xs px-2 py-1 rounded-full border border-slate-200 bg-white text-slate-700";
       }
       // keep existing page toggle if present
-      $("modeToggleBtn")?.dispatchEvent(new Event("change"));
+      $$("modeToggleBtn")?.dispatchEvent(new Event("change"));
     }
-    $("acctToggleMode")?.addEventListener("click", ()=>{
+    $$("acctToggleMode")?.addEventListener("click", ()=>{
       const next = getMode() === "live" ? "demo" : "live";
       setMode(next);
     });
@@ -2335,13 +2335,13 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
     // hydrate account info in modal
     async function hydrateAcctModal(){
       const token = localStorage.getItem("auth_token") || localStorage.getItem("yithume_token") || "";
-      $("acctModalSub") && ($("acctModalSub").textContent = token ? "Manage your account, payouts and integrations." : "Sign in to manage your account.");
+      $$("acctModalSub") && ($$("acctModalSub").textContent = token ? "Manage your account, payouts and integrations." : "Sign in to manage your account.");
       // show email/role using existing header fields if available
-      $("acctEmail") && ($("acctEmail").textContent = ($("accountName")?.textContent || "—"));
-      $("acctRole") && ($("acctRole").textContent = ($("accountRole")?.textContent || "—"));
+      $$("acctEmail") && ($$("acctEmail").textContent = ($$("accountName")?.textContent || "—"));
+      $$("acctRole") && ($$("acctRole").textContent = ($$("accountRole")?.textContent || "—"));
 
       // stores: best-effort list, fallback to current store_id
-      const storesBox = $("acctStores");
+      const storesBox = $$("acctStores");
       if(!storesBox) return;
       storesBox.innerHTML = "";
       const current = __safeGetStoreId();
@@ -2366,55 +2366,55 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
     function saveProfileDraft(p){
       localStorage.setItem("yithume_profile", JSON.stringify(p || {}));
     }
-    $("acctSaveLogistics")?.addEventListener("click", ()=>{
+    $$("acctSaveLogistics")?.addEventListener("click", ()=>{
       const p = loadProfileDraft();
-      p.pickup_default = $("acctPickup")?.value || "";
-      p.dropoff_default = $("acctDropoff")?.value || "";
+      p.pickup_default = $$("acctPickup")?.value || "";
+      p.dropoff_default = $$("acctDropoff")?.value || "";
       saveProfileDraft(p);
-      $("acctLogisticsNote") && ($("acctLogisticsNote").textContent = "Saved.");
+      $$("acctLogisticsNote") && ($$("acctLogisticsNote").textContent = "Saved.");
     });
-    $("acctSavePayouts")?.addEventListener("click", ()=>{
+    $$("acctSavePayouts")?.addEventListener("click", ()=>{
       const p = loadProfileDraft();
-      p.bank_name = $("acctBank")?.value || "";
-      p.bank_account = $("acctBankAcc")?.value || "";
+      p.bank_name = $$("acctBank")?.value || "";
+      p.bank_account = $$("acctBankAcc")?.value || "";
       saveProfileDraft(p);
-      $("acctPayoutsNote") && ($("acctPayoutsNote").textContent = "Saved.");
+      $$("acctPayoutsNote") && ($$("acctPayoutsNote").textContent = "Saved.");
     });
 
     // Switch account opens existing auth modal
-    $("openSellerAuthFromAcct")?.addEventListener("click", ()=>{
+    $$("openSellerAuthFromAcct")?.addEventListener("click", ()=>{
       closeAcctModal();
-      $("sellerAuthModal")?.classList.remove("hidden");
+      $$("sellerAuthModal")?.classList.remove("hidden");
     });
 
     // Integrations buttons (placeholders)
-    $("acctConnectStripe")?.addEventListener("click", ()=>showSuccess("Stripe live payments are coming next update."));
-    $("acctConnectGitHub")?.addEventListener("click", ()=>showSuccess("GitHub publishing is coming next update."));
+    $$("acctConnectStripe")?.addEventListener("click", ()=>showSuccess("Stripe live payments are coming next update."));
+    $$("acctConnectGitHub")?.addEventListener("click", ()=>showSuccess("GitHub publishing is coming next update."));
 
     // -----------------------------
     // Add Product modal wiring
     // -----------------------------
-    const addProdModal = $("addProductModal");
-    function openAddProduct(){ addProdModal?.classList.remove("hidden"); $("addProdNote") && ($("addProdNote").textContent = ""); }
+    const addProdModal = $$("addProductModal");
+    function openAddProduct(){ addProdModal?.classList.remove("hidden"); $$("addProdNote") && ($$("addProdNote").textContent = ""); }
     function closeAddProduct(){ addProdModal?.classList.add("hidden"); }
-    $("openAddProductBtn")?.addEventListener("click", openAddProduct);
-    $("closeAddProduct")?.addEventListener("click", closeAddProduct);
+    $$("openAddProductBtn")?.addEventListener("click", openAddProduct);
+    $$("closeAddProduct")?.addEventListener("click", closeAddProduct);
     addProdModal?.addEventListener("click", (e)=>{ if(e.target === addProdModal) closeAddProduct(); });
 
-    $("qaAddProducts")?.addEventListener("click", openAddProduct);
-    $("qaScrollOrders")?.addEventListener("click", ()=>$("orders")?.scrollIntoView({behavior:"smooth", block:"start"}));
+    $$("qaAddProducts")?.addEventListener("click", openAddProduct);
+    $$("qaScrollOrders")?.addEventListener("click", ()=>$$("orders")?.scrollIntoView({behavior:"smooth", block:"start"}));
     
     // CSV helper inside Add Product modal
     const csvTemplate = `name,price,category,sku,stock,description,image_url
 Example Product,99.99,General,SKU123,10,Short description,https://example.com/image.jpg`;
-    $("copyCsvTemplateBtn")?.addEventListener("click", async ()=>{
+    $$("copyCsvTemplateBtn")?.addEventListener("click", async ()=>{
       try{
         await navigator.clipboard.writeText(csvTemplate);
-        $("csvPasteNote") && ($("csvPasteNote").textContent = "CSV copied ✅");
+        $$("csvPasteNote") && ($$("csvPasteNote").textContent = "CSV copied ✅");
         showSuccess("CSV copied ✅");
       } catch(e){
         // fallback: select text
-        const t = $("csvTemplateText");
+        const t = $$("csvTemplateText");
         if(t){
           const r = document.createRange();
           r.selectNodeContents(t);
@@ -2423,7 +2423,7 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
           sel.addRange(r);
           document.execCommand("copy");
           sel.removeAllRanges();
-          $("csvPasteNote") && ($("csvPasteNote").textContent = "CSV copied ✅");
+          $$("csvPasteNote") && ($$("csvPasteNote").textContent = "CSV copied ✅");
           showSuccess("CSV copied ✅");
         } else {
           showAlert("Could not copy CSV.");
@@ -2431,10 +2431,10 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
       }
     });
 
-    $("importPastedCsvBtn")?.addEventListener("click", async ()=>{
+    $$("importPastedCsvBtn")?.addEventListener("click", async ()=>{
       const sid = __safeGetStoreId();
       if(!sid) return showAlert("Create or load a store first.");
-      const raw = ($("csvPasteArea")?.value || "").trim();
+      const raw = ($$("csvPasteArea")?.value || "").trim();
       if(!raw) return showAlert("Paste your CSV content first.");
       try{
         // Route through same endpoint as file uploader by creating a Blob file
@@ -2452,7 +2452,7 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
         if(!res.ok || !data || !data.ok){
           return showAlert(data.error || `CSV import failed (${res.status}).`);
         }
-        $("csvPasteNote") && ($("csvPasteNote").textContent = `Imported ${data.inserted || 0} products ✅`);
+        $$("csvPasteNote") && ($$("csvPasteNote").textContent = `Imported ${data.inserted || 0} products ✅`);
         showSuccess(`Imported ${data.inserted || 0} products ✅`);
         try{
           // Update local stats for step unlocking
@@ -2466,19 +2466,19 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
       }
     });
 
-$("qaOpenStorefront")?.addEventListener("click", ()=>{
+$$("qaOpenStorefront")?.addEventListener("click", ()=>{
       const sid = __safeGetStoreId();
       if(!sid) return showAlert("Create or load a store first.");
       window.open(`/s/${sid}`, "_blank");
     });
 
-    $("saveProductBtn")?.addEventListener("click", async ()=>{
+    $$("saveProductBtn")?.addEventListener("click", async ()=>{
       const sid = __safeGetStoreId();
       if(!sid) return showAlert("Create or load a store first.");
-      const name = ($("prodName")?.value || "").trim();
-      const price = parseFloat(($("prodPrice")?.value || "").trim() || "0");
-      const description = ($("prodDesc")?.value || "").trim();
-      const category = ($("prodCategory")?.value || "").trim();
+      const name = ($$("prodName")?.value || "").trim();
+      const price = parseFloat(($$("prodPrice")?.value || "").trim() || "0");
+      const description = ($$("prodDesc")?.value || "").trim();
+      const category = ($$("prodCategory")?.value || "").trim();
       if(!name || !(price>0)) return showAlert("Please enter a name and a price.");
 
       const token = localStorage.getItem("auth_token") || localStorage.getItem("yithume_token") || "";
@@ -2489,11 +2489,11 @@ $("qaOpenStorefront")?.addEventListener("click", ()=>{
             "Content-Type": "application/json",
             ...(token ? {"Authorization": "Bearer "+token} : {})
           },
-          body: JSON.stringify({ name, price, description, category, barcode: ($("prodBarcode")?.value||"").trim(), stock: Number(($("prodStock")?.value||"").trim()||0) || undefined })
+          body: JSON.stringify({ name, price, description, category, barcode: ($$("prodBarcode")?.value||"").trim(), stock: Number(($$("prodStock")?.value||"").trim()||0) || undefined })
         });
         const data = await res.json().catch(()=>({}));
         if(!res.ok) throw new Error(data?.error || data?.message || "Failed to save product");
-        $("addProdNote") && ($("addProdNote").textContent = "Saved. Refreshing…");
+        $$("addProdNote") && ($$("addProdNote").textContent = "Saved. Refreshing…");
         closeAddProduct();
         // refresh UI
         window.__reloadDashboard && window.__reloadDashboard();
