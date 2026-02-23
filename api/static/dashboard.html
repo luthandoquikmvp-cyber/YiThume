@@ -2247,6 +2247,10 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
     }
   });
 })();
+    // SAFETY: define helpers locally so this block never crashes if earlier scripts change.
+    const $ = (id)=>document.getElementById(id);
+    function __safeGetStoreId(){ return (new URLSearchParams(location.search).get("store_id")) || localStorage.getItem("yithume_store_id") || ""; }
+    function __safeSetStoreId(v){ if(!v) return; localStorage.setItem("yithume_store_id", v); }
     // -----------------------------
     // Account menu
     // -----------------------------
@@ -2266,7 +2270,6 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
     });
 
 
-    const $ = (id)=>document.getElementById(id);
 
     // -----------------------------
     // Account Settings modal wiring
@@ -2341,12 +2344,12 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
       const storesBox = $("acctStores");
       if(!storesBox) return;
       storesBox.innerHTML = "";
-      const current = getStoreId();
+      const current = __safeGetStoreId();
       if(current){
         const btn = document.createElement("button");
         btn.className = "w-full text-left px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50";
         btn.innerHTML = `<div class="text-sm font-semibold truncate">${current}</div><div class="text-xs text-slate-500 mt-0.5">Current store</div>`;
-        btn.addEventListener("click", ()=>{ setStoreId(current); closeAcctModal(); showSuccess("Store selected"); });
+        btn.addEventListener("click", ()=>{ __safeSetStoreId(current); closeAcctModal(); showSuccess("Store selected"); });
         storesBox.appendChild(btn);
       } else {
         storesBox.innerHTML = `<div class="text-sm text-slate-500">No store selected yet. Create a store first.</div>`;
@@ -2429,7 +2432,7 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
     });
 
     $("importPastedCsvBtn")?.addEventListener("click", async ()=>{
-      const sid = getStoreId();
+      const sid = __safeGetStoreId();
       if(!sid) return showAlert("Create or load a store first.");
       const raw = ($("csvPasteArea")?.value || "").trim();
       if(!raw) return showAlert("Paste your CSV content first.");
@@ -2464,13 +2467,13 @@ Example Product,99.99,General,SKU123,10,Short description,https://example.com/im
     });
 
 $("qaOpenStorefront")?.addEventListener("click", ()=>{
-      const sid = getStoreId();
+      const sid = __safeGetStoreId();
       if(!sid) return showAlert("Create or load a store first.");
       window.open(`/s/${sid}`, "_blank");
     });
 
     $("saveProductBtn")?.addEventListener("click", async ()=>{
-      const sid = getStoreId();
+      const sid = __safeGetStoreId();
       if(!sid) return showAlert("Create or load a store first.");
       const name = ($("prodName")?.value || "").trim();
       const price = parseFloat(($("prodPrice")?.value || "").trim() || "0");
@@ -2659,7 +2662,7 @@ $("qaOpenStorefront")?.addEventListener("click", ()=>{
   el("closeAiScan")?.addEventListener("click", ()=>hide("aiScanModal"));
   el("closeAiPaywall")?.addEventListener("click", ()=>hide("aiPaywallModal"));
   el("goToBillingBtn")?.addEventListener("click", async ()=>{
-    const storeId = getStoreId();
+    const storeId = __safeGetStoreId();
     if(!storeId){
       showAlert("Create or select a store first, then try again.");
       return;
