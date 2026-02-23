@@ -1,0 +1,2850 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YiThume — Dashboard</title>
+  
+  <link rel="icon" type="image/png" href="/static/favicon.png" /><script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Light theme overrides (simple + safe; no Tailwind rebuild) -->
+  <style>
+    body.theme-light { background: #ffffff; color: #0f172a; }
+
+    /* Backgrounds */
+    body.theme-light .bg-slate-50 { background-color: #ffffff !important; }
+    body.theme-light .bg-slate-50\/80 { background-color: rgba(255,255,255,0.85) !important; }
+    body.theme-light .bg-slate-50\/50 { background-color: rgba(255,255,255,0.70) !important; }
+    body.theme-light .bg-slate-50\/40 { background-color: rgba(248,250,252,0.95) !important; }
+    body.theme-light .bg-white { background-color: #f1f5f9 !important; }
+    body.theme-light .bg-white\/40 { background-color: rgba(241,245,249,0.90) !important; }
+
+    /* Borders */
+    body.theme-light .border-slate-200 { border-color: #e2e8f0 !important; }
+    body.theme-light .border-slate-200 { border-color: #e2e8f0 !important; }
+    body.theme-light .border-slate-300 { border-color: #cbd5e1 !important; }
+
+    /* Text colors */
+    body.theme-light .text-slate-900 { color: #0f172a !important; }
+    body.theme-light .text-slate-800 { color: #0f172a !important; }
+    body.theme-light .text-slate-700 { color: #334155 !important; }
+    body.theme-light .text-slate-600 { color: #475569 !important; }
+    body.theme-light .text-slate-500 { color: #64748b !important; }
+
+    body.theme-light code, body.theme-light pre { color: #0f172a !important; }
+
+    /* Modals overlay */
+    body.theme-light #modal .absolute.inset-0,
+    body.theme-light #adminModal .absolute.inset-0,
+    body.theme-light #storefrontModal .absolute.inset-0,
+    body.theme-light #liveModal .absolute.inset-0 {
+      background: rgba(2, 6, 23, 0.45) !important;
+    }
+  </style>
+
+  <style>
+    /* Premium light dashboard polish (non-breaking; styles only) */
+    :root{
+      --yt-bg: #f8fafc;          /* slate-50 */
+      --yt-card: #ffffff;
+      --yt-border: #e2e8f0;      /* slate-200 */
+      --yt-muted: #64748b;       /* slate-500/600 */
+      --yt-title: #0f172a;       /* slate-900 */
+      --yt-shadow: 0 1px 2px rgba(15,23,42,.06), 0 8px 24px rgba(15,23,42,.06);
+    }
+    body{ background: var(--yt-bg); }
+    /* Make "cards" feel consistent even if some sections still use dark-era classes */
+    .shadow-soft{ box-shadow: var(--yt-shadow); }
+    /* Inputs: consistent borders + focus ring */
+    input, select, textarea{
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus{
+      box-shadow: 0 0 0 3px rgba(16,185,129,.18);
+      border-color: rgba(16,185,129,.6) !important;
+    }
+    /* Kill accidental dark gradient leftovers */
+    .bg-gradient-to-b.from-zinc-950, .bg-gradient-to-b.from-zinc-900{ background: var(--yt-bg) !important; }
+  </style>
+
+  <script src="https://unpkg.com/@zxing/library@latest"></script>
+</head>
+
+<body class="min-h-screen bg-gradient-to-b from-white to-slate-50 text-slate-900">
+
+  <!-- Header (matches marketplace + drivers) -->
+  <header class="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+      <a href="/" class="flex items-center gap-2 shrink-0">
+        <svg width="36" height="36" viewBox="0 0 36 36" class="rounded-2xl" aria-label="YiThume logo">
+          <defs>
+            <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#059669"/>
+            </linearGradient>
+          </defs>
+          <rect rx="12" width="36" height="36" fill="url(#g)"></rect>
+          <path d="M12 11h3.5l2.5 4.6L20.5 11H24l-4.2 7v7H16.2v-7L12 11z" fill="white"></path>
+        </svg>
+        <div class="leading-tight">
+          <div class="text-xs text-slate-600">YiThume</div>
+          <div id="navTitle" class="text-base sm:text-lg font-semibold text-slate-900 leading-tight">Dashboard</div>
+        </div>
+      </a>
+
+      <nav class="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-700">
+        <a href="/marketplace" class="hover:text-slate-900">Marketplace</a>
+        <a href="/dashboard" class="text-slate-900">Dashboard</a>
+        <a href="/driver" class="hover:text-slate-900">Drivers</a>
+      </nav>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="newStoreBtn" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">
+          + New Store
+        </button>
+
+        <div class="relative">
+          <button id="accountBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold"
+                  onclick="window.__toggleAccountMenu && window.__toggleAccountMenu(event)">
+            <span id="accName" class="inline-block max-w-[120px] truncate align-middle">Account</span>
+            <span class="ml-1">▾</span>
+          </button>
+
+          <div id="accountMenu" class="hidden absolute right-0 mt-2 w-56 rounded-2xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+            <div class="px-3 py-3 border-b border-slate-200">
+              <div class="text-xs text-slate-500">Signed in as</div>
+              <div id="accEmail" class="text-sm font-semibold text-slate-900 truncate">—</div>
+            </div>
+            <div class="p-2">
+              <button id="accountSettingsBtn" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-semibold">Account settings</button>
+              <button id="logoutBtn" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-semibold text-red-700">Log out</button>
+            </div>
+          </div>
+        </div>
+</div>
+    </div>
+
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 pb-3">
+      <div id="navSub" class="text-xs text-slate-500 truncate">Manage your store in one place (Beta).</div>
+    </div>
+  </header>
+
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+    <!-- Alerts -->
+    <div id="alert" class="hidden mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"></div>
+    <div id="success" class="hidden mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"></div>
+
+    <!-- Stepper / State -->
+    <div class="rounded-3xl border border-slate-200 bg-white shadow-sm p-5">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div>
+          <div class="text-xs text-slate-600">Control Center</div>
+          <div class="text-2xl font-semibold mt-1">Run your store like a pro</div>
+          <div class="text-sm text-slate-600 mt-2 max-w-3xl">
+            Everything you need in one place: store status, products, orders, payouts, and publishing. Orders show up here as customers check out.
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-2">
+          <div class="rounded-2xl border border-slate-200 bg-white shadow-sm px-3 py-2">
+            <div class="text-xs text-slate-600">Current store</div>
+            <div id="storeBadge" class="text-sm font-semibold truncate">None</div>
+            <div id="storeMeta" class="text-xs text-slate-500 truncate">—</div>
+          </div>
+
+          <button id="copyStorefrontBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm disabled:opacity-50" disabled>
+            Copy storefront link
+          </button>
+
+          <button id="openStorefrontBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm disabled:opacity-50" disabled>
+            Open storefront
+          </button>
+              <button id="commitStorefrontBtn" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold" onclick="if(this.disabled){window.__openGitHubModal && window.__openGitHubModal();} else {window.__commitStorefront && window.__commitStorefront();}">
+                Commit to GitHub
+              </button>
+        </div>
+      </div>
+
+      <div class="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div id="step1" class="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs text-slate-600">Step 1</div>
+              <div class="text-lg font-semibold mt-1">Create store</div>
+            </div>
+            <span id="step1Badge" class="text-xs px-2 py-1 rounded-full border border-slate-300 bg-white text-slate-700">pending</span>
+          </div>
+          <div class="text-sm text-slate-600 mt-2">Name it, set pickup address, delivery mode, payment method.</div>
+          <button id="openCreateBtn" class="mt-3 w-full px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-semibold">
+            Create store
+          </button>
+        </div>
+
+        <div id="step2" class="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 opacity-60">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs text-slate-600">Step 2</div>
+              <div class="text-lg font-semibold mt-1">Add products</div>
+            </div>
+            <span id="step2Badge" class="text-xs px-2 py-1 rounded-full border border-slate-300 bg-white text-slate-700">locked</span>
+          </div>
+          <div class="text-sm text-slate-600 mt-2">
+            Add products manually or upload a CSV to add many at once. CSV columns: <code class="text-slate-800">name</code>, <code class="text-slate-800">price</code>.
+          </div>
+
+          <div class="mt-3 space-y-2">
+            <button id="openAddProductBtn" class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold">+ Add a product</button>
+            <input id="csvFile" type="file" accept=".csv" class="block w-full text-sm text-slate-700
+              file:mr-4 file:py-2 file:px-3 file:rounded-xl file:border-0
+              file:bg-white file:text-slate-800 hover:file:bg-white
+              border border-slate-200 rounded-2xl bg-white shadow-sm p-2" disabled />
+
+            <button id="importBtn" class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold disabled:opacity-50" disabled>
+              Import products
+            </button>
+
+            <div id="importOut" class="text-xs text-slate-600"></div>
+          </div>
+        </div>
+
+        <div id="step3" class="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 opacity-60">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs text-slate-600">Step 3</div>
+              <div class="text-lg font-semibold mt-1">Go live</div>
+            </div>
+            <span id="step3Badge" class="text-xs px-2 py-1 rounded-full border border-slate-300 bg-white text-slate-700">locked</span>
+          </div>
+
+          <div class="text-sm text-slate-600 mt-2">
+            Your storefront is live. Customers can build a cart, request a quote, and only create an order after <b>CONFIRM</b>.
+          </div>
+
+          <div class="mt-3 rounded-2xl border border-emerald-600/30 bg-emerald-600/10 p-3">
+            <div class="text-xs text-emerald-200">Confirm gating enforced server-side</div>
+            <div class="text-xs text-slate-800 mt-1">Orders are created only when <b>confirm == "CONFIRM"</b>.</div>
+          </div>
+
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <button id="copyStorefrontBtn2" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm disabled:opacity-50" disabled>
+              Copy link
+            </button>
+            <button id="openStorefrontBtn2" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-sm font-semibold disabled:opacity-50" disabled>
+              Open store
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="mt-8 flex items-center justify-between">
+      <div>
+        <div class="text-xs text-slate-600">Today</div>
+        <div class="text-lg font-semibold">Key metrics</div>
+      </div>
+      <div class="text-xs text-slate-500">Auto-updates when you refresh</div>
+    </div>
+    <div class="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
+        <div class="text-xs text-slate-600">Products</div>
+        <div id="kpiProducts" class="text-2xl font-semibold mt-1">—</div>
+        <div id="kpiProductsSub" class="text-xs text-slate-500 mt-1">Last import: —</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
+        <div class="text-xs text-slate-600">Orders (shown)</div>
+        <div id="kpiOrders" class="text-2xl font-semibold mt-1">—</div>
+        <div class="text-xs text-slate-500 mt-1">Auto-refresh every 5s</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
+        <div class="text-xs text-slate-600">Revenue (shown)</div>
+        <div id="kpiRevenue" class="text-2xl font-semibold mt-1">—</div>
+        <div id="kpiRevenueSub" class="text-xs text-slate-500 mt-1">Currency: —</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
+        <div class="text-xs text-slate-600">Go live</div>
+        <div id="kpiLive" class="text-2xl font-semibold mt-1">—</div>
+        <div class="text-xs text-slate-500 mt-1">Storefront link is /s/&lt;store_id&gt;</div>
+      </div>
+    </div>
+
+    <!-- Store loader (no extra API needed) -->
+    <div class="mt-6 rounded-3xl border border-slate-200 bg-white shadow-sm p-5">
+      <details class="mt-4">
+        <summary class="cursor-pointer select-none text-sm font-semibold text-slate-700">Advanced: load a store by ID</summary>
+        <div class="mt-4 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <div class="text-lg font-semibold">Load an existing store</div>
+          <div class="text-sm text-slate-600 mt-1">
+            If you already have a store_id, paste it here to manage it (no auth for MVP mode).
+          </div>
+        </div>
+
+        <div class="flex gap-2">
+          <input id="storeIdInput" class="px-3 py-2 rounded-xl bg-white/50 border border-slate-200 text-sm w-72"
+                 placeholder="store_id (uuid)" />
+          <button id="loadStoreBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">
+            Load
+          </button>
+        </div>
+      </div>
+
+      
+    </div>
+      </div>
+      <div class="mt-3 text-xs text-slate-500">Tip: you can also access any storefront via <code class="text-slate-700">/s/&lt;store_id&gt;</code>.</div>
+    </details>
+
+    <!-- Live Ops: Orders -->
+    <div class="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div class="lg:col-span-8 rounded-3xl border border-slate-200 bg-white shadow-sm p-5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <div class="text-lg font-semibold">Orders</div>
+            <div class="text-sm text-slate-600 mt-1">New orders appear here as customers check out.</div>
+          </div>
+          <div class="text-xs text-slate-500">
+            Auto-refresh every <span class="text-slate-700">5s</span>
+          </div>
+        </div>
+
+        <div id="orders" class="mt-4 space-y-3">
+          <div class="text-sm text-slate-600">Load or create a store to view orders.</div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-4 space-y-4">
+        <!-- Quick links -->
+        <div class="rounded-3xl border border-slate-200 bg-white shadow-sm p-5">
+          <div class="text-lg font-semibold">Quick actions</div>
+          <div class="text-sm text-slate-600 mt-1">What you do to test end-to-end.</div>
+
+          <div class="mt-4 space-y-2">
+            <button id="qaOpenStorefront" class="w-full text-left rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50">
+              <div class="text-sm font-semibold">Open your storefront</div>
+              <div class="text-xs text-slate-600 mt-1">Preview what customers see and place a test order.</div>
+            </button>
+
+            <button id="qaAddProducts" class="w-full text-left rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50">
+              <div class="text-sm font-semibold">Add products</div>
+              <div class="text-xs text-slate-600 mt-1">Add one product now, or upload a CSV to add many.</div>
+            </button>
+
+            <button id="qaScrollOrders" class="w-full text-left rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50">
+              <div class="text-sm font-semibold">Watch orders</div>
+              <div class="text-xs text-slate-600 mt-1">See new orders and status updates in real-time.</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Feedback / Request -->
+        <div class="rounded-3xl border border-slate-200 bg-white shadow-sm p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-lg font-semibold">Feedback / Request</div>
+              <div class="text-sm text-slate-600 mt-1">Send bugs + feature requests directly to the YiThume team (Beta).</div>
+            </div>
+            <span class="text-xs px-2 py-1 rounded-full border border-slate-300 bg-white shadow-sm text-slate-700">beta</span>
+          </div>
+
+          <div class="mt-4">
+            <label class="text-xs text-slate-600">Message</label>
+            <textarea id="feedbackMessage" rows="5"
+              class="mt-2 w-full rounded-2xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm"
+              placeholder="Tell us what’s broken, what you want next, or what would make this a 10/10…"></textarea>
+            <div class="mt-2 flex items-center justify-between gap-2">
+              <div id="feedbackNote" class="text-xs text-slate-500 truncate">Includes your account email + current store (if loaded).</div>
+              <button id="feedbackSend" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-sm font-semibold text-white">
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+
+        
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Store Modal -->
+  <div id="modal" class="hidden fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/60"></div>
+    <div class="relative max-w-3xl mx-auto mt-8 sm:mt-14 px-4">
+      <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-xs text-slate-600">Step 1</div>
+            <div class="text-xl font-semibold mt-1">Create a store</div>
+            <div class="text-sm text-slate-600 mt-2">This creates the store config (pickup address, delivery, payments). Then you import CSV.</div>
+          </div>
+          <button id="closeModalBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">
+            Close
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5">
+          <div>
+            <label class="text-sm text-slate-700">Store name</label>
+            <input id="storeName" class="mt-1 w-full rounded-xl bg-white border border-slate-200 px-3 py-3"
+                   placeholder="e.g. Port Alfred Pharmacy" />
+          </div>
+
+          <div>
+            <label class="text-sm text-slate-700">Template</label>
+            <select id="template" class="mt-1 w-full rounded-xl bg-white border border-slate-200 px-3 py-3">
+              <option value="general">General</option>
+              <option value="pharmacy">Pharmacy</option>
+              <option value="grocery">Grocery</option>
+              <option value="water">Water</option>
+              <option value="hardware">Hardware</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-sm text-slate-700">Currency</label>
+            <select id="currency" class="mt-1 w-full rounded-xl bg-white border border-slate-200 px-3 py-3">
+              <option value="ZAR" selected>ZAR</option>
+              <option value="USD">USD</option>
+              <option value="KES">KES</option>
+              <option value="NGN">NGN</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-sm text-slate-700">Payment method</label>
+            <select id="paymentMethod" class="mt-1 w-full rounded-xl bg-white border border-slate-200 px-3 py-3">
+              <option value="eft" selected>EFT (MVP fastest)</option>
+              <option value="stripe">Stripe (Live mode)</option>
+              <option value="payfast">PayFast (later)</option>
+              <option value="ozow">Ozow (later)</option>
+              <option value="yoco">Yoco (later)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-4 rounded-3xl border border-slate-200 bg-white shadow-sm p-4">
+          <div class="text-sm font-semibold">Pickup address (store)</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <input id="addrLine1" class="rounded-xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm" placeholder="Line 1 (required)" />
+            <input id="addrLine2" class="rounded-xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm" placeholder="Line 2 (optional)" />
+            <input id="addrCity" class="rounded-xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm" placeholder="City" />
+            <input id="addrProvince" class="rounded-xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm" placeholder="Province/State" />
+            <input id="addrPostal" class="rounded-xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm" placeholder="Postal code" />
+            <input id="addrCountry" class="rounded-xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm" placeholder="Country" value="ZA" />
+          </div>
+        </div>
+
+        <div class="mt-4 rounded-3xl border border-slate-200 bg-white shadow-sm p-4">
+          <div class="text-sm font-semibold">Delivery</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <select id="deliveryMode" class="rounded-xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm">
+              <option value="manual" selected>Manual dispatch (MVP)</option>
+              <option value="external">External carrier (later)</option>
+              <option value="yithume">YiThume network (later)</option>
+            </select>
+            <input id="deliveryFee" class="rounded-xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm" placeholder="Flat delivery fee (e.g. 35)" value="35" />
+          </div>
+
+          <div class="mt-3 rounded-2xl border border-emerald-600/30 bg-emerald-600/10 p-3 text-sm">
+            <b>CONFIRM gating:</b> system will only create an order after customer sends <b>CONFIRM</b>.
+          </div>
+        </div>
+
+        <button id="createStoreBtn" class="mt-5 w-full px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 font-semibold">
+          Create store
+        </button>
+
+        <div id="creatingOut" class="hidden mt-3 text-sm text-slate-600">Creating…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW: Storefront HTML Modal -->
+  <div id="storefrontModal" class="hidden fixed inset-0 z-[55]">
+    <div class="absolute inset-0 bg-black/70"></div>
+    <div class="relative max-w-4xl mx-auto mt-6 sm:mt-12 px-4">
+      <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-2xl">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-xs text-slate-600">Storefront</div>
+            <div class="text-xl font-semibold mt-1">Upload custom storefront HTML</div>
+            <div class="text-sm text-slate-600 mt-1">
+              This uploads an HTML template for <code class="text-slate-800">/s/&lt;store_id&gt;</code>.
+              Safe mode: backend should sanitize + store it and render server-side.
+            </div>
+          </div>
+          <button id="closeStorefrontModal" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">
+            Close
+          </button>
+        </div>
+
+        <div class="mt-4 grid lg:grid-cols-5 gap-4">
+          <div class="lg:col-span-3">
+            <div class="text-xs text-slate-600 mb-2">Upload file (.html) OR paste HTML</div>
+
+            <input id="storefrontHtmlFile" type="file" accept=".html,.htm,text/html"
+              class="block w-full text-sm text-slate-700
+              file:mr-4 file:py-2 file:px-3 file:rounded-xl file:border-0
+              file:bg-white file:text-slate-800 hover:file:bg-white
+              border border-slate-200 rounded-2xl bg-white shadow-sm p-2" />
+
+            <textarea id="storefrontHtmlText" rows="12"
+              class="mt-3 w-full rounded-2xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm"
+              placeholder="Paste your full storefront HTML here (optional). If both file + paste exist, paste wins."></textarea>
+
+            <div class="mt-3 flex flex-col sm:flex-row gap-2">
+              <button id="uploadStorefrontHtmlBtn" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-semibold text-sm">
+                Upload storefront HTML
+              </button>
+              <button id="openStorefrontPreviewBtn" class="px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">
+                Open storefront
+              </button>
+            </div>
+
+            <div class="mt-3 text-xs text-slate-500">
+              Backend endpoint expected:
+              <code class="text-slate-700">POST /v1/store/&lt;store_id&gt;/storefront_html</code>
+              (multipart/form-data: <code class="text-slate-700">html</code>).
+            </div>
+          </div>
+
+          <div class="lg:col-span-2">
+            <div class="text-xs text-slate-600 mb-2">Output</div>
+            <div id="storefrontOut" class="rounded-2xl bg-white shadow-sm border border-slate-200 p-3 text-sm text-slate-800 min-h-[220px] whitespace-pre-wrap">
+              Ready.
+            </div>
+
+            <div class="mt-3 rounded-2xl border border-slate-200 bg-white shadow-sm p-3">
+              <div class="text-xs text-slate-600">Security note</div>
+              <div class="mt-2 text-xs text-slate-500">
+                Do <b>not</b> put Stripe secret keys in HTML.
+                Live mode should use server-created Stripe Checkout sessions (redirect URL returned by backend).
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW: Live mode (Stripe) Modal -->
+  <div id="liveModal" class="hidden fixed inset-0 z-[56]">
+    <div class="absolute inset-0 bg-black/70"></div>
+    <div class="relative max-w-3xl mx-auto mt-6 sm:mt-12 px-4">
+      <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-2xl">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-xs text-slate-600">Mode</div>
+            <div class="text-xl font-semibold mt-1">Switch to Live (Stripe)</div>
+            <div class="text-sm text-slate-600 mt-1">
+              Live mode enables Stripe Checkout on the storefront. Safer pattern: the backend creates Checkout sessions.
+            </div>
+          </div>
+          <button id="closeLiveModal" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">
+            Close
+          </button>
+        </div>
+
+        <div class="mt-4 rounded-2xl border border-emerald-600/30 bg-emerald-600/10 p-3 text-sm">
+          <b>Safe Stripe rule:</b> No secret keys in the browser. The storefront calls your backend, backend calls Stripe, backend returns a checkout URL.
+        </div>
+
+        <div class="mt-4">
+          <div class="text-sm font-semibold">Stripe settings (stored server-side)</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <input id="stripePublicKey" class="rounded-xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm"
+              placeholder="Stripe Publishable Key (pk_live_...)" />
+            <input id="stripeSuccessUrl" class="rounded-xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm"
+              placeholder="Success URL (leave blank for default)" />
+            <input id="stripeCancelUrl" class="rounded-xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm"
+              placeholder="Cancel URL (leave blank for default)" />
+            <input id="stripeWebhookNote" class="rounded-xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm"
+              placeholder="(Optional) Note/tag for your records" />
+          </div>
+
+          <div class="mt-3 text-xs text-slate-500">
+            Backend endpoint expected:
+            <code class="text-slate-700">POST /v1/store/&lt;store_id&gt;/mode</code>
+            with JSON like:
+            <code class="text-slate-700">{ mode: "live", stripe: { publishable_key, success_url, cancel_url } }</code>
+          </div>
+        </div>
+
+        <div class="mt-4 flex gap-2">
+          <button id="confirmLiveBtn" class="flex-1 px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 font-semibold">
+            Enable Live mode
+          </button>
+          <button id="setDemoBtn" class="px-4 py-3 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 font-semibold">
+            Keep Demo
+          </button>
+        </div>
+
+        <div id="liveOut" class="mt-3 text-sm text-slate-700 whitespace-pre-wrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Assistant Modal (feedback → GPT updater) -->
+  <div id="adminModal" class="hidden fixed inset-0 z-[60]">
+    <div class="absolute inset-0 bg-black/70"></div>
+    <div class="relative max-w-3xl mx-auto mt-6 sm:mt-12 px-4">
+      <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-2xl">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-xs text-slate-600">Admin</div>
+            <div class="text-xl font-semibold mt-1">Assistant</div>
+            <div class="text-sm text-slate-600 mt-1">Send feedback that creates a GPT update request. Nothing touches <b>main</b> — it proposes, then asks permission to create a GitHub branch.</div>
+          </div>
+          <button id="closeAdminModal" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">
+            Close
+          </button>
+        </div>
+
+        <div class="mt-4 grid lg:grid-cols-5 gap-4">
+          <div class="lg:col-span-3">
+            <div class="text-xs text-slate-600 mb-2">Feedback / update prompt</div>
+            <textarea id="adminPrompt" rows="8"
+              class="w-full rounded-2xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm"
+              placeholder="Example: Update pricing copy on index.html to show SaaS tiers, and connect Create Store CTA to /dashboard?open=create. Keep styling the same."></textarea>
+
+            <div class="mt-3 flex flex-col sm:flex-row gap-2">
+              <button id="adminSendPrompt" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-semibold text-sm">
+                Send to GPT updater
+              </button>
+              <a id="adminOpenConsole" href="/manager/self_update" class="px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm text-center">
+                Open full update console
+              </a>
+            </div>
+
+            <div class="mt-3 text-xs text-slate-500">
+              Tip: open this dashboard with <code class="px-1 py-0.5 rounded bg-white border border-slate-200">?admin_pin=YOUR_PIN</code> so the assistant can authenticate.
+            </div>
+          </div>
+
+          <div class="lg:col-span-2">
+            <div class="text-xs text-slate-600 mb-2">Assistant output</div>
+            <div id="adminOut" class="rounded-2xl bg-white shadow-sm border border-slate-200 p-3 text-sm text-slate-800 min-h-[220px] whitespace-pre-wrap">Ready.</div>
+
+            <div class="mt-3 rounded-2xl border border-slate-200 bg-white shadow-sm p-3">
+              <div class="text-xs text-slate-600">GitHub permission gate</div>
+              <div class="mt-2 text-xs text-slate-500">
+                The updater will propose changes first. When you’re happy, you approve in the console and it creates a <b>branch</b> + <b>commit</b> (PR-ready).
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const el = (id) => document.getElementById(id);
+  const $ = el; // alias for legacy wiring
+  const alertBox = el("alert");
+  const successBox = el("success");
+
+  function showAlert(msg) {
+    alertBox.textContent = msg;
+    alertBox.classList.remove("hidden");
+    successBox.classList.add("hidden");
+  }
+  function showSuccess(msg) {
+    successBox.textContent = msg;
+    successBox.classList.remove("hidden");
+    alertBox.classList.add("hidden");
+  }
+  function clearMsgs() {
+    alertBox.classList.add("hidden");
+    successBox.classList.add("hidden");
+  }
+
+  function qs() { return new URLSearchParams(location.search); }
+  function setQs(key, val) {
+    const u = new URL(location.href);
+    if (val) u.searchParams.set(key, val);
+    else u.searchParams.delete(key);
+    history.replaceState({}, "", u.toString());
+  }
+
+  function getStoreId() {
+    const q = qs().get("store_id") || "";
+    if (q) return q;
+    return localStorage.getItem("yithume_store_id") || "";
+  }
+
+  function setStoreId(storeId) {
+    if (!storeId) return;
+    localStorage.setItem("yithume_store_id", storeId);
+    setQs("store_id", storeId);
+  }
+
+  function getAdminPin() {
+    const q = qs().get("admin_pin") || "";
+    if (q) return q;
+    return localStorage.getItem("yithume_admin_pin") || "";
+  }
+
+  function setAdminPin(pin) {
+    if (!pin) return;
+    localStorage.setItem("yithume_admin_pin", pin);
+  }
+
+  function storefrontUrl(storeId) {
+    return `/s/${encodeURIComponent(storeId)}`;
+  }
+
+  // -----------------------------
+  // Theme (Dark/Light)
+  // -----------------------------
+  function getSavedTheme() { return localStorage.getItem("yithume_theme") || "dark"; }
+  function setSavedTheme(v) { localStorage.setItem("yithume_theme", v); }
+  function applyTheme(themeName) {
+    const btn = el("themeToggleBtn");
+    if (themeName === "light") {
+      document.body.classList.add("theme-light");
+      if (btn) btn.textContent = "Theme: Light";
+    } else {
+      document.body.classList.remove("theme-light");
+      if (btn) btn.textContent = "Theme: Dark";
+    }
+  }
+  function initTheme() { applyTheme(getSavedTheme()); }
+  function toggleTheme() {
+    const next = document.body.classList.contains("theme-light") ? "dark" : "light";
+    setSavedTheme(next);
+    applyTheme(next);
+  }
+
+  // -----------------------------
+  // Demo vs Live mode (stored locally + optional backend persist)
+  // -----------------------------
+  function modeKey(storeId) { return "yithume_store_mode:" + (storeId || ""); }
+  function getMode(storeId) {
+    if (!storeId) return "demo";
+    return localStorage.getItem(modeKey(storeId)) || "demo";
+  }
+  function setModeLocal(storeId, mode) {
+    if (!storeId) return;
+    localStorage.setItem(modeKey(storeId), mode);
+  }
+  function applyModeUI(mode) {
+    const btn = el("modeToggleBtn");
+    const sub = el("navSub");
+    if (!btn) return;
+
+    if (mode === "live") {
+      btn.textContent = "Mode: Live";
+      btn.className = "px-3 py-2 rounded-xl border border-emerald-600/40 bg-emerald-600/10 hover:bg-emerald-600/20 text-sm font-semibold";
+      if (sub) sub.textContent = "LIVE: storefront uses Stripe Checkout (server-created sessions) + CONFIRM gating";
+    } else {
+      btn.textContent = "Mode: Demo";
+      btn.className = "px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm";
+      if (sub) sub.textContent = "DEMO: storefront runs without payments + CONFIRM gating";
+    }
+  }
+
+  async function fetchJSON(url, opts) {
+    const TOKEN_KEY = "yithume_token";
+    const token = localStorage.getItem(TOKEN_KEY);
+
+    const o = opts ? { ...opts } : {};
+    o.headers = o.headers ? { ...o.headers } : {};
+
+    // Add bearer token automatically for new /v1 endpoints
+    if (token && (url.startsWith("/api/v1/") || url.startsWith("/s/") || url.startsWith("v1/"))) {
+      o.headers["Authorization"] = "Bearer " + token;
+    }
+
+    const res = await fetch(url, o);
+    const text = await res.text();
+    try {
+      return { ok: res.ok, status: res.status, json: JSON.parse(text) };
+    } catch (e) {
+      return { ok: res.ok, status: res.status, json: null, text };
+    }
+  }
+
+  async function persistModeToBackend(storeId, mode, stripe) {
+    // Optional: backend endpoint to persist store mode + stripe settings.
+    // If missing, dashboard still works (local only).
+    const out = await fetchJSON(`/v1/store/${encodeURIComponent(storeId)}/mode`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode, stripe: stripe || null })
+    });
+    if (!out.ok || !out.json || !out.json.ok) {
+      throw new Error(out.json?.error || out.text || `Mode update failed (${out.status}).`);
+    }
+    return out.json;
+  }
+
+  // -----------------------------
+  // Storefront HTML upload (calls backend)
+  // -----------------------------
+  async function uploadStorefrontHtml() {
+    clearMsgs();
+    const storeId = getStoreId();
+    if (!storeId) { showAlert("Load or create a store first."); return; }
+
+    const outBox = el("storefrontOut");
+    const fileEl = el("storefrontHtmlFile");
+    const textEl = el("storefrontHtmlText");
+    if (outBox) outBox.textContent = "Uploading…";
+
+    let html = (textEl?.value || "").trim();
+
+    if (!html) {
+      const f = fileEl?.files && fileEl.files[0];
+      if (!f) {
+        if (outBox) outBox.textContent = "❌ Provide a file or paste HTML.";
+        showAlert("Provide a file or paste HTML.");
+        return;
+      }
+      html = await f.text();
+    }
+
+    if (!html || html.length < 50) {
+      if (outBox) outBox.textContent = "❌ HTML looks too short.";
+      showAlert("HTML looks too short.");
+      return;
+    }
+
+    // Hard safety guard: prevent obvious secrets
+    if (/sk_live_|sk_test_/i.test(html)) {
+      if (outBox) outBox.textContent = "❌ Blocked: never paste Stripe secret keys into HTML.";
+      showAlert("Blocked: never paste Stripe secret keys into HTML.");
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append("html", html);
+
+    const res = await fetch(`/api/v1/store/${encodeURIComponent(storeId)}/storefront_html`, {
+      method: "POST",
+      body: fd
+    });
+
+    const text = await res.text();
+    let j = null;
+    try { j = JSON.parse(text); } catch (_) {}
+
+    if (!res.ok || !j || !j.ok) {
+      const msg = (j?.error || text || `Upload failed (${res.status}).`);
+      if (outBox) outBox.textContent = "❌ " + msg;
+      showAlert(msg);
+      return;
+    }
+
+    if (outBox) outBox.textContent = `✅ Uploaded.\n\nStorefront: ${location.origin}/s/${storeId}`;
+    showSuccess("Storefront HTML uploaded.");
+  }
+
+  // -----------------------------
+  // Steps UI
+  // -----------------------------
+  function updateStepsUI(state) {
+    // state: "none" | "created" | "imported"
+    const step1Badge = el("step1Badge");
+    const step2Badge = el("step2Badge");
+    const step3Badge = el("step3Badge");
+
+    const step2 = el("step2");
+    const step3 = el("step3");
+    const csvFile = el("csvFile");
+    const importBtn = el("importBtn");
+
+    const copy1 = el("copyStorefrontBtn");
+    const open1 = el("openStorefrontBtn");
+    const copy2 = el("copyStorefrontBtn2");
+    const open2 = el("openStorefrontBtn2");
+
+    if (state === "none") {
+      step1Badge.textContent = "pending";
+      step2Badge.textContent = "locked";
+      step3Badge.textContent = "locked";
+      step2.classList.add("opacity-60");
+      step3.classList.add("opacity-60");
+      csvFile.disabled = true;
+      importBtn.disabled = true;
+      copy1.disabled = true; open1.disabled = true; copy2.disabled = true; open2.disabled = true;
+      return;
+    }
+
+    if (state === "created") {
+      step1Badge.textContent = "done";
+      step1Badge.className = "text-xs px-2 py-1 rounded-full border border-emerald-600/40 bg-emerald-600/10 text-emerald-200";
+      step2Badge.textContent = "ready";
+      step2Badge.className = "text-xs px-2 py-1 rounded-full border border-blue-500/40 bg-blue-500/10 text-blue-200";
+      step3Badge.textContent = "locked";
+      step3.classList.add("opacity-60");
+      step2.classList.remove("opacity-60");
+      csvFile.disabled = false;
+      importBtn.disabled = false;
+      copy1.disabled = false; open1.disabled = false; copy2.disabled = false; open2.disabled = false;
+      return;
+    }
+
+    if (state === "imported") {
+      step1Badge.textContent = "done";
+      step1Badge.className = "text-xs px-2 py-1 rounded-full border border-emerald-600/40 bg-emerald-600/10 text-emerald-200";
+      step2Badge.textContent = "done";
+      step2Badge.className = "text-xs px-2 py-1 rounded-full border border-emerald-600/40 bg-emerald-600/10 text-emerald-200";
+      step3Badge.textContent = "live";
+      step3Badge.className = "text-xs px-2 py-1 rounded-full border border-emerald-600/40 bg-emerald-600/10 text-emerald-200";
+      step2.classList.remove("opacity-60");
+      step3.classList.remove("opacity-60");
+      csvFile.disabled = false;
+      importBtn.disabled = false;
+      copy1.disabled = false; open1.disabled = false; copy2.disabled = false; open2.disabled = false;
+      return;
+    }
+  }
+
+  function orderRow(o) {
+    const items = (o.items || []).slice(0, 4).map(it => `${it.name} x${it.qty}`).join(", ");
+    const status = o.status || "queued";
+    const badge = (() => {
+      if (status === "delivered") return "border-emerald-600/40 bg-emerald-600/10 text-emerald-200";
+      if (status === "dispatched") return "border-blue-500/40 bg-blue-500/10 text-blue-200";
+      if (status === "queued") return "border-slate-300 bg-white shadow-sm text-slate-800";
+      return "border-slate-300 bg-white shadow-sm text-slate-800";
+    })();
+
+    const total = (o.total != null) ? Number(o.total).toFixed(2) : "0.00";
+    const cur = o.currency || "ZAR";
+    const ts = o.created_at || "";
+
+    return `
+      <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="font-semibold truncate">Order <span class="text-slate-700">${o.order_id || ""}</span></div>
+            <div class="text-xs text-slate-600 mt-1 truncate">${ts}</div>
+            <div class="text-sm text-slate-700 mt-2">${items || "—"}</div>
+          </div>
+          <div class="shrink-0 text-right">
+            <div class="text-xs px-2 py-1 rounded-full border ${badge} inline-block">${status}</div>
+            <div class="text-sm font-semibold mt-2">${cur} ${total}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  let __lastHeaderStoreId = null;
+
+  async function loadOrders() {
+    const storeId = getStoreId();
+    if (!storeId) {
+      el("orders").innerHTML = `<div class="text-sm text-slate-600">Load or create a store to view orders.</div>`;
+      el("storeBadge").textContent = "None";
+      el("navTitle").textContent = "Dashboard";
+      updateStepsUI("none");
+      applyModeUI("demo");
+      return;
+    }
+
+    // Keep Control Center stable (no header flashing)
+    // Do NOT rewrite header subtitle on polling loops.
+// Apply mode UI from local storage
+    applyModeUI(getMode(storeId));
+
+    // Enable storefront buttons
+    const sf = storefrontUrl(storeId);
+    el("openStorefrontBtn").disabled = false;
+    el("copyStorefrontBtn").disabled = false;
+    el("openStorefrontBtn2").disabled = false;
+    el("copyStorefrontBtn2").disabled = false;
+
+    // Step state: if we have local import stats, unlock Go Live
+    const _stats = getLocalImportStats(storeId);
+    if (_stats) updateStepsUI("imported"); else updateStepsUI("created");
+    updateKPIsFromLocal();
+
+    // Load orders
+    const out = await fetchJSON(`/v1/store/${encodeURIComponent(storeId)}/orders?limit=50`);
+    if (!out.ok || !out.json || !out.json.ok) {
+      showAlert(out.json?.error || out.text || `Failed to load orders (${out.status}).`);
+      return;
+    }
+
+    const store = out.json.store || {};
+    const storeName = store.name || storeId;
+    // Show store info in Control Center (no header resize)
+    el("storeBadge").textContent = storeName;
+    const addr = store.address || {};
+    const meta = [addr.line1, addr.city, addr.province].filter(Boolean).join(" • ");
+    const mEl = el("storeMeta");
+    if (mEl) mEl.textContent = meta || "—";
+    // Only update header subtitle when store changes (prevents flashing)
+    if (__lastHeaderStoreId !== storeId) {
+      const navSub = el("navSub");
+      if (navSub) navSub.textContent = storeName + (meta ? (" — " + meta) : "");
+      __lastHeaderStoreId = storeId;
+    }
+// If there are orders, show them
+    const orders = out.json.orders || [];
+    updateKPIsFromLocal();
+    updateKPIsFromOrders(orders);
+    if (!orders.length) {
+      el("orders").innerHTML = `
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
+          <div class="text-sm font-semibold">No confirmed orders yet</div>
+          <div class="text-sm text-slate-600 mt-1">Open the storefront and run a test: add items → get quote → CONFIRM.</div>
+        </div>
+      `;
+    } else {
+      el("orders").innerHTML = orders.map(orderRow).join("");
+    }
+  }
+
+  async function createStore() {
+    clearMsgs();
+
+    const name = el("storeName").value.trim();
+    const line1 = el("addrLine1").value.trim();
+
+    if (!name) { showAlert("Store name is required."); return; }
+    if (!line1) { showAlert("Pickup address Line 1 is required."); return; }
+
+    el("createStoreBtn").disabled = true;
+    el("creatingOut").classList.remove("hidden");
+
+    const payload = {
+      name,
+      template: el("template").value,
+      currency: el("currency").value,
+      address: {
+        line1,
+        line2: el("addrLine2").value.trim(),
+        city: el("addrCity").value.trim(),
+        province: el("addrProvince").value.trim(),
+        postal: el("addrPostal").value.trim(),
+        country: el("addrCountry").value.trim() || "ZA"
+      },
+      delivery: {
+        mode: el("deliveryMode").value,
+        fee_flat: Number(el("deliveryFee").value || "35")
+      },
+      payment: {
+        method: el("paymentMethod").value
+      }
+    };
+
+    const out = await fetchJSON("/api/v1/store/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    el("createStoreBtn").disabled = false;
+    el("creatingOut").classList.add("hidden");
+
+    if (!out.ok || !out.json || !out.json.ok) {
+      showAlert(out.json?.error || out.text || `Create store failed (${out.status}).`);
+      return;
+    }
+
+    const storeId = out.json.store?._internal_id || out.json.store?._id || out.json.store_id || "";
+    if (!storeId) {
+      showAlert("Store created but store_id missing in response.");
+      return;
+    }
+
+    setStoreId(storeId);
+    setModeLocal(storeId, "demo"); // default demo
+    applyModeUI("demo");
+
+    el("storeIdInput").value = storeId;
+    closeModal();
+
+    showSuccess(`Store created: ${out.json.store?.name || "Store"} — now import your CSV.`);
+    updateStepsUI("created");
+    await loadOrders();
+  }
+
+  async function importCsv() {
+    clearMsgs();
+    const storeId = getStoreId();
+    if (!storeId) { showAlert("Create or load a store first."); return; }
+
+    const file = el("csvFile").files && el("csvFile").files[0];
+    if (!file) { showAlert("Choose a CSV file first."); return; }
+
+    el("importBtn").disabled = true;
+    el("importOut").textContent = "Uploading and importing…";
+
+    const fd = new FormData();
+    fd.append("file", file);
+
+    const res = await fetch(`/v1/store/${encodeURIComponent(storeId)}/import_csv`, {
+      method: "POST",
+      body: fd
+    });
+
+    const text = await res.text();
+    let out = null;
+    try { out = JSON.parse(text); } catch (e) {}
+
+    el("importBtn").disabled = false;
+
+    if (!res.ok || !out || !out.ok) {
+      el("importOut").textContent = "";
+      showAlert(out?.error || text || `Import failed (${res.status}).`);
+      return;
+    }
+
+    const inserted = out.inserted ?? 0;
+    const updated = out.updated ?? 0;
+    const skipped = out.skipped ?? 0;
+
+    el("importOut").textContent = `Imported ✅ Inserted: ${inserted} · Updated: ${updated} · Skipped: ${skipped}`;
+    setLocalImportStats(storeId, {
+      inserted, updated, skipped,
+      total_products: (inserted + updated),
+      at: (new Date()).toISOString()
+    });
+    showSuccess(`Products imported. Your storefront is live: /s/${storeId}`);
+    updateStepsUI("imported");
+    updateKPIsFromLocal();
+  }
+
+  // Modal controls
+  function openModal() { el("modal").classList.remove("hidden"); }
+  function closeModal() { el("modal").classList.add("hidden"); }
+
+  function openStorefrontModal() { el("storefrontModal").classList.remove("hidden"); }
+  function closeStorefrontModal() { el("storefrontModal").classList.add("hidden"); }
+
+  function openLiveModal() { el("liveModal").classList.remove("hidden"); }
+  function closeLiveModal() { el("liveModal").classList.add("hidden"); }
+
+  // Copy helpers
+  async function copyText(t) {
+    try {
+      await navigator.clipboard.writeText(t);
+      showSuccess("Copied to clipboard.");
+    } catch (e) {
+      showAlert("Copy failed (iOS sometimes blocks clipboard). Long-press and copy manually.");
+    }
+  }
+
+  function initFromUrlOrStorage() {
+    const storeId = getStoreId();
+    if (storeId) {
+      el("storeIdInput").value = storeId;
+      setQs("store_id", storeId);
+      updateStepsUI("created");
+      applyModeUI(getMode(storeId));
+    } else {
+      updateStepsUI("none");
+      applyModeUI("demo");
+    }
+
+    // Admin pin (shows Admin Assistant + enables chat sending)
+    const pin = getAdminPin();
+    if (pin) {
+      setAdminPin(pin);
+      const btn = el("adminAssistantBtn");
+      if (btn) btn.classList.remove("hidden");
+      const consoleLink = el("adminOpenConsole");
+      if (consoleLink) consoleLink.href = `/manager/self_update?admin_pin=${encodeURIComponent(pin)}`;
+      const consoleLink2 = el("chatOpenConsole2");
+      if (consoleLink2) {
+        consoleLink2.disabled = false;
+        consoleLink2.addEventListener("click", () => {
+          window.open(`/manager/self_update?admin_pin=${encodeURIComponent(pin)}`, "_blank");
+        });
+      }
+    }
+
+    // Auto-open create store modal if requested from landing page
+    const q = qs();
+    const open = (q.get("open") || "").toLowerCase();
+    const create = q.get("create") || "";
+    if (open === "create" || create === "1") {
+      setTimeout(() => { const b = el("openCreateBtn"); if (b) b.click(); }, 50);
+      setQs("open", null);
+      setQs("create", null);
+    }
+
+    try { updateKPIsFromLocal(); } catch (_) {}
+  }
+
+  // Wire up buttons
+  el("newStoreBtn")?.addEventListener("click", openModal);
+  el("openCreateBtn")?.addEventListener("click", openModal);
+  el("closeModalBtn")?.addEventListener("click", closeModal);
+  el("createStoreBtn")?.addEventListener("click", createStore);
+
+  el("loadStoreBtn")?.addEventListener("click", async () => {
+    clearMsgs();
+    const v = el("storeIdInput").value.trim();
+    if (!v) { showAlert("Paste a store_id first."); return; }
+    setStoreId(v);
+    // ensure mode exists
+    if (!localStorage.getItem(modeKey(v))) setModeLocal(v, "demo");
+    applyModeUI(getMode(v));
+    showSuccess("Store loaded.");
+    await loadOrders();
+  });
+el("importBtn")?.addEventListener("click", importCsv);
+
+  el("copyStorefrontBtn")?.addEventListener("click", () => {
+    const storeId = getStoreId();
+    if (!storeId) return;
+    copyText(`${location.origin}/s/${storeId}`);
+  });
+  el("openStorefrontBtn")?.addEventListener("click", () => {
+    const storeId = getStoreId();
+    if (!storeId) return;
+    window.open(`/s/${storeId}`, "_blank");
+  });
+
+  el("copyStorefrontBtn2")?.addEventListener("click", () => {
+    const storeId = getStoreId();
+    if (!storeId) return;
+    copyText(`${location.origin}/s/${storeId}`);
+  });
+  el("openStorefrontBtn2")?.addEventListener("click", () => {
+    const storeId = getStoreId();
+    if (!storeId) return;
+    window.open(`/s/${storeId}`, "_blank");
+  });
+
+  el("copyCsvExampleBtn")?.addEventListener("click", () => {
+    const sample =
+`name,price,category,sku,stock,description,image_url
+Panado Tablets 500mg (24),34.99,Pain Relief,PAN500-24,100,Fast pain relief,
+Lifebuoy Soap 175g,16.99,Hygiene,LFB-175,200,Soap bar,
+Med-Lemon (6),39.99,Cold & Flu,MDL-6,50,Hot lemon drink,
+Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
+    copyText(sample);
+  });
+
+  // Theme toggle
+  const themeToggleBtn = el("themeToggleBtn");
+  if (themeToggleBtn) themeToggleBtn.addEventListener("click", toggleTheme);
+
+  // Storefront HTML upload modal
+  const storefrontUploadBtn = el("storefrontUploadBtn");
+  if (storefrontUploadBtn) storefrontUploadBtn.addEventListener("click", () => {
+    const storeId = getStoreId();
+    if (!storeId) { showAlert("Load or create a store first."); return; }
+    openStorefrontModal();
+    const out = el("storefrontOut");
+    if (out) out.textContent = `Store: ${storeId}\nStorefront: ${location.origin}/s/${storeId}\n\nReady.`;
+  });
+  const closeStorefrontBtn = el("closeStorefrontModal");
+  if (closeStorefrontBtn) closeStorefrontBtn.addEventListener("click", closeStorefrontModal);
+  const uploadBtn = el("uploadStorefrontHtmlBtn");
+  if (uploadBtn) uploadBtn.addEventListener("click", uploadStorefrontHtml);
+  const openPreviewBtn = el("openStorefrontPreviewBtn");
+  if (openPreviewBtn) openPreviewBtn.addEventListener("click", () => {
+    const storeId = getStoreId();
+    if (!storeId) return;
+    window.open(`/s/${storeId}`, "_blank");
+  });
+
+  // Demo/Live toggle
+  const modeToggleBtn = el("modeToggleBtn");
+  if (modeToggleBtn) modeToggleBtn.addEventListener("click", () => {
+    const storeId = getStoreId();
+    if (!storeId) { showAlert("Load or create a store first."); return; }
+    const mode = getMode(storeId);
+    if (mode === "demo") {
+      // switching to live requires confirmation + optional stripe settings
+      openLiveModal();
+      const out = el("liveOut");
+      if (out) out.textContent = "";
+    } else {
+      // back to demo (local + optional backend)
+      setModeLocal(storeId, "demo");
+      applyModeUI("demo");
+      showSuccess("Mode set to Demo.");
+      // try persist (optional)
+      persistModeToBackend(storeId, "demo", null).catch(() => {});
+    }
+  });
+
+  // Live modal actions
+  const closeLiveBtn = el("closeLiveModal");
+  if (closeLiveBtn) closeLiveBtn.addEventListener("click", closeLiveModal);
+  const setDemoBtn = el("setDemoBtn");
+  if (setDemoBtn) setDemoBtn.addEventListener("click", () => { closeLiveModal(); });
+
+  const confirmLiveBtn = el("confirmLiveBtn");
+  if (confirmLiveBtn) confirmLiveBtn.addEventListener("click", async () => {
+    clearMsgs();
+    const storeId = getStoreId();
+    if (!storeId) { showAlert("Load or create a store first."); return; }
+
+    const out = el("liveOut");
+    if (out) out.textContent = "Enabling Live…";
+
+    // Require admin_pin for Live (extra safety)
+    const pin = getAdminPin();
+    if (!pin) {
+      if (out) out.textContent = "❌ Missing admin_pin. Open dashboard with ?admin_pin=YOUR_PIN to enable Live mode.";
+      showAlert("Missing admin_pin for Live mode.");
+      return;
+    }
+
+    const stripe = {
+      publishable_key: (el("stripePublicKey")?.value || "").trim() || null,
+      success_url: (el("stripeSuccessUrl")?.value || "").trim() || null,
+      cancel_url: (el("stripeCancelUrl")?.value || "").trim() || null,
+      note: (el("stripeWebhookNote")?.value || "").trim() || null,
+    };
+
+    try {
+      // Persist live mode (optional backend endpoint)
+      await persistModeToBackend(storeId, "live", stripe);
+      setModeLocal(storeId, "live");
+      applyModeUI("live");
+      if (out) out.textContent = "✅ Live mode enabled.\nStorefront will use Stripe Checkout (server-created sessions).";
+      showSuccess("Mode set to Live.");
+      closeLiveModal();
+    } catch (e) {
+      // Still allow local switch if you want (but keep it strict)
+      if (out) out.textContent = "❌ " + (e?.message || String(e)) + "\n\n(Backend endpoint missing or error. Add /v1/store/<id>/mode.)";
+      showAlert(e?.message || String(e));
+    }
+  });
+
+  // Admin Assistant modal
+  const adminModal = el("adminModal");
+  const adminBtn = el("adminAssistantBtn");
+  const closeAdmin = el("closeAdminModal");
+  const adminSend = el("adminSendPrompt");
+  const adminPrompt = el("adminPrompt");
+  const adminOut = el("adminOut");
+
+  function openAdminModal() {
+    if (!adminModal) return;
+    adminModal.classList.remove("hidden");
+  }
+  function closeAdminModalFn() {
+    if (!adminModal) return;
+    adminModal.classList.add("hidden");
+  }
+
+  if (adminBtn) adminBtn.addEventListener("click", openAdminModal);
+  if (closeAdmin) closeAdmin.addEventListener("click", closeAdminModalFn);
+
+  async function adminPost(url, body) {
+    const pin = getAdminPin();
+    if (!pin) throw new Error("Missing admin_pin. Open dashboard with ?admin_pin=YOUR_PIN");
+    const res = await fetch(url + (url.includes("?") ? "&" : "?") + "admin_pin=" + encodeURIComponent(pin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, admin_pin: pin })
+    });
+    const j = await res.json().catch(() => ({}));
+    // FIX: JS boolean is 'false', not 'False'
+    if (!res.ok || j.ok === false) {
+      const msg = j.error || j.message || ("HTTP " + res.status);
+      throw new Error(msg);
+    }
+    return j;
+  }
+
+  if (adminSend) adminSend.addEventListener("click", async () => {
+    const prompt = (adminPrompt?.value || "").trim();
+    if (!prompt) return;
+    adminOut.textContent = "Sending…";
+    try {
+      const created = await adminPost("/manager/api/self_update/create", { prompt });
+      const rid = created.request_id || created.rid || created.id || "";
+      adminOut.textContent = `Request created: ${rid || "(id not returned)"}\n\nProposing…`;
+
+      const proposed = await adminPost(`/manager/api/self_update/${encodeURIComponent(rid)}/propose`, {});
+      const summary = proposed.summary || proposed.message || "Proposal ready.";
+      adminOut.textContent = `✅ Proposal ready\n\n${summary}\n\nNext:\n1) Click "Open full update console"\n2) Review diff\n3) Approve GitHub → Commit branch`;
+
+      const link = el("adminOpenConsole");
+      if (link && rid) link.href = `/manager/self_update?admin_pin=${encodeURIComponent(getAdminPin())}&rid=${encodeURIComponent(rid)}`;
+    } catch (e) {
+      adminOut.textContent = "❌ " + (e?.message || String(e));
+    }
+  });
+
+  // Chat box actions (Assistant panel)
+  const chatSend = el("chatSend");
+  const chatCreateUpdate = el("chatCreateUpdate");
+  const chatInput = el("chatInput");
+
+  if (chatSend) chatSend.addEventListener("click", sendChatFeedback);
+  if (chatInput) chatInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      sendChatFeedback();
+    }
+  });
+
+  if (chatCreateUpdate) chatCreateUpdate.addEventListener("click", () => {
+    const pin = getAdminPin();
+    if (!pin) {
+      showAlert("Open dashboard with ?admin_pin=YOUR_PIN to use the updater.");
+      return;
+    }
+    window.open(`/manager/self_update?admin_pin=${encodeURIComponent(pin)}`, "_blank");
+  });
+
+  // Auto-open Create Store when coming from landing CTA
+  try {
+    const open = qs().get("open") || qs().get("create");
+    if (open === "create" || open === "1") {
+      openModal();
+      setQs("open", null);
+      setQs("create", null);
+    }
+  } catch (_) {}
+
+  // -----------------------------
+  // KPIs (products + orders)
+  // -----------------------------
+  function getLocalImportStats(storeId) {
+    try {
+      const raw = localStorage.getItem("yithume_import_stats:" + storeId);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (_) { return null; }
+  }
+
+  function setLocalImportStats(storeId, stats) {
+    try {
+      localStorage.setItem("yithume_import_stats:" + storeId, JSON.stringify(stats));
+    } catch (_) {}
+  }
+
+  function money(cur, n) {
+    try {
+      const v = Number(n || 0);
+      if (!isFinite(v)) return `${cur} 0.00`;
+      return `${cur} ${v.toFixed(2)}`;
+    } catch (_) {
+      return `${cur} 0.00`;
+    }
+  }
+
+  function updateKPIsFromLocal() {
+    const storeId = getStoreId();
+    const prodEl = el("kpiProducts");
+    const prodSub = el("kpiProductsSub");
+    const liveEl = el("kpiLive");
+    const ordersEl = el("kpiOrders");
+    const revEl = el("kpiRevenue");
+    const revSub = el("kpiRevenueSub");
+
+    if (!prodEl || !liveEl || !ordersEl || !revEl) return;
+
+    if (!storeId) {
+      prodEl.textContent = "—";
+      prodSub.textContent = "Last import: —";
+      liveEl.textContent = "—";
+      ordersEl.textContent = "—";
+      revEl.textContent = "—";
+      revSub.textContent = "Currency: —";
+      return;
+    }
+
+    const stats = getLocalImportStats(storeId);
+    if (stats) {
+      prodEl.textContent = String(stats.total_products ?? (stats.inserted + stats.updated) ?? "—");
+      prodSub.textContent = `Last import: ${stats.at || "—"} (ins ${stats.inserted ?? 0} · upd ${stats.updated ?? 0} · skip ${stats.skipped ?? 0})`;
+      liveEl.textContent = (getMode(storeId) === "live") ? "Live" : "Ready";
+    } else {
+      prodEl.textContent = "—";
+      prodSub.textContent = "Last import: —";
+      liveEl.textContent = "Locked";
+    }
+  }
+
+  function updateKPIsFromOrders(orders) {
+    const ordersEl = el("kpiOrders");
+    const revEl = el("kpiRevenue");
+    const revSub = el("kpiRevenueSub");
+    if (!ordersEl || !revEl || !revSub) return;
+
+    const arr = Array.isArray(orders) ? orders : [];
+    ordersEl.textContent = String(arr.length);
+
+    let total = 0;
+    let cur = "ZAR";
+    for (const o of arr) {
+      if (o && o.currency) cur = o.currency;
+      const t = Number(o?.total ?? 0);
+      if (isFinite(t)) total += t;
+    }
+    revEl.textContent = money(cur, total);
+    revSub.textContent = `Currency: ${cur}`;
+  }
+
+  // -----------------------------
+  // Assistant chat (admin feedback)
+  // -----------------------------
+  function chatAdd(role, text) {
+    const box = el("chatBox");
+    if (!box) return;
+    const wrap = document.createElement("div");
+    wrap.className = "flex gap-2";
+    const badge = document.createElement("div");
+    badge.className = "shrink-0 text-[11px] px-2 py-1 rounded-full border border-slate-200 bg-white text-slate-700";
+    badge.textContent = role;
+    const msg = document.createElement("div");
+    msg.className = "text-sm text-slate-800 whitespace-pre-wrap";
+    msg.textContent = text;
+    wrap.appendChild(badge);
+    wrap.appendChild(msg);
+    box.appendChild(wrap);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  async function sendChatFeedback() {
+    const input = el("chatInput");
+    const pin = getAdminPin();
+    const prompt = (input?.value || "").trim();
+    if (!prompt) return;
+
+    chatAdd("you", prompt);
+    if (input) input.value = "";
+
+    if (!pin) {
+      chatAdd("system", "Missing admin_pin. Open dashboard with ?admin_pin=YOUR_PIN to enable sending.");
+      return;
+    }
+
+    try {
+      chatAdd("system", "Creating update request…");
+      const created = await adminPost("/manager/api/self_update/create", { prompt });
+      const rid = created.request_id || created.rid || created.id || "";
+      chatAdd("system", `Request created: ${rid || "(id missing)"}\nProposing…`);
+      if (!rid) return;
+
+      const proposed = await adminPost(`/manager/api/self_update/${encodeURIComponent(rid)}/propose`, {});
+      const summary = proposed.summary || proposed.message || "Proposal ready.";
+      chatAdd("assistant", `✅ Proposal ready\n\n${summary}\n\nNext: Open update console → review diff → approve GitHub → commit branch.`);
+      const consoleBtn = el("chatOpenConsole2");
+      if (consoleBtn) consoleBtn.disabled = false;
+    } catch (e) {
+      chatAdd("system", "Could not reach GPT updater endpoints. This UI is ready, but backend must include /manager/api/self_update/*");
+      chatAdd("error", e?.message || String(e));
+    }
+  }
+
+  // Boot
+  initTheme();
+  initFromUrlOrStorage();
+  loadOrders();
+  // Poll orders lightly (avoid header flashing / heavy load)
+  setInterval(()=>{ if(document.visibilityState==="visible") loadOrders(); }, 15000);
+})();
+</script>
+
+<!-- ============================================================
+     AUTH MODAL (Seller)
+============================================================ -->
+<div id="sellerAuthModal" class="fixed inset-0 z-[80] hidden">
+  <div class="absolute inset-0 bg-black/50"></div>
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-2xl bg-slate-50 border border-slate-200 shadow-2xl overflow-hidden">
+      <div class="px-5 py-4 flex items-center justify-between border-b border-slate-200">
+        <div>
+          <div class="text-sm font-semibold">Seller Login</div>
+          <div class="text-xs text-slate-600">Sign in to manage your store</div>
+        </div>
+        <button id="sellerAuthClose" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">Close</button>
+      </div>
+      <div class="p-5 space-y-3">
+        <div class="text-xs text-slate-600">Email</div>
+        <input id="sellerAuthEmail" class="w-full px-3 py-2 rounded-xl bg-white/50 border border-slate-200 text-sm" placeholder="you@email.com" />
+        <div class="text-xs text-slate-600">Password</div>
+        <input id="sellerAuthPassword" type="password" class="w-full px-3 py-2 rounded-xl bg-white/50 border border-slate-200 text-sm" placeholder="••••••••" />
+        <div class="grid grid-cols-2 gap-2 pt-2">
+          <button id="sellerLoginBtn2" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-sm font-semibold">Login</button>
+          <button id="sellerRegisterBtn2" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold">Register</button>
+        </div>
+        <div id="sellerAuthStatus" class="text-xs text-slate-600 pt-1"></div>
+        <div class="text-[11px] text-slate-500 leading-relaxed">
+          Token saved locally as <span class="font-mono text-slate-700">yithume_token</span> and sent via
+          <span class="font-mono text-slate-700">Authorization: Bearer</span> for <span class="font-mono text-slate-700">/v1/*</span> endpoints.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     GITHUB CONNECT MODAL
+============================================================ -->
+<div id="githubModal" class="fixed inset-0 z-[80] hidden">
+  <div class="absolute inset-0 bg-black/50"></div>
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="w-full max-w-xl rounded-2xl bg-slate-50 border border-slate-200 shadow-2xl overflow-hidden">
+      <div class="px-5 py-4 flex items-center justify-between border-b border-slate-200">
+        <div>
+          <div class="text-sm font-semibold">Connect GitHub</div>
+          <div class="text-xs text-slate-600">Required before “Commit to GitHub” is enabled</div>
+        </div>
+        <button id="githubCloseBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">Close</button>
+      </div>
+
+      <div class="p-5 space-y-3">
+        <div class="grid md:grid-cols-2 gap-3">
+          <div>
+            <div class="text-xs text-slate-600">GitHub username</div>
+            <input id="ghUser" class="mt-1 w-full px-3 py-2 rounded-xl bg-white/50 border border-slate-200 text-sm" placeholder="your-username" />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-slate-600">Barcode (optional)</label>
+              <div class="mt-1 flex gap-2">
+                <input id="prodBarcode" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="Scan or type EAN/UPC" />
+                <button id="scanBarcodeBtn" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm font-semibold whitespace-nowrap">Scan</button>
+              </div>
+              <div class="text-[11px] text-slate-500 mt-1">Free: barcode scan + manual details. No AI.</div>
+            </div>
+            <div>
+              <label class="text-xs text-slate-600">Stock Qty (optional)</label>
+              <input id="prodStock" type="number" step="1" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. 24" />
+            </div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-600">Repo name</div>
+            <input id="ghRepo" class="mt-1 w-full px-3 py-2 rounded-xl bg-white/50 border border-slate-200 text-sm" placeholder="repo" />
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-3">
+          <div>
+            <div class="text-xs text-slate-600">Branch</div>
+            <input id="ghBranch" class="mt-1 w-full px-3 py-2 rounded-xl bg-white/50 border border-slate-200 text-sm" value="main" />
+          </div>
+          <div>
+            <div class="text-xs text-slate-600">Personal Access Token (PAT)</div>
+            <input id="ghPat" type="password" class="mt-1 w-full px-3 py-2 rounded-xl bg-white/50 border border-slate-200 text-sm" placeholder="ghp_..." />
+          </div>
+        </div>
+
+        <div class="text-[11px] text-slate-500 leading-relaxed">
+          We do <b>not</b> ask for your GitHub password. This PAT is stored <b>encrypted server-side</b> (MongoDB) and is never returned to the browser.
+          Best practice is GitHub OAuth; PAT is a safe placeholder if you keep scopes minimal (repo:contents).
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <button id="ghTestBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold" onclick="window.__testGitHub && window.__testGitHub()">Test connection</button>
+          <button id="ghConnectBtn" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-sm font-semibold" onclick="window.__saveGitHub && window.__saveGitHub()">Save connection</button>
+          <div id="ghStatus" class="text-xs text-slate-600 ml-auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <!-- Account Settings Modal -->
+  <div id="accountSettingsModal" class="hidden fixed inset-0 z-[80]">
+    <div class="absolute inset-0 bg-black/40"></div>
+    <div class="relative max-w-3xl mx-auto mt-8 sm:mt-14 px-4">
+      <div class="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+        <div class="p-5 sm:p-6 border-b border-slate-100 flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-sm text-slate-500">Account</div>
+            <div class="text-xl font-semibold leading-tight">Settings & integrations</div>
+            <div id="acctModalSub" class="text-sm text-slate-600 mt-1 truncate">—</div>
+          </div>
+          <button id="closeAccountSettings" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">Close</button>
+        </div>
+
+        <div class="p-5 sm:p-6">
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+            <div class="md:col-span-4">
+              <div class="space-y-2">
+                <button data-acct-tab="profile" class="acctTabBtn w-full text-left px-3 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold">Profile</button>
+                <button data-acct-tab="logistics" class="acctTabBtn w-full text-left px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm font-semibold">Logistics</button>
+                <button data-acct-tab="payouts" class="acctTabBtn w-full text-left px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm font-semibold">Payouts</button>
+                <button data-acct-tab="integrations" class="acctTabBtn w-full text-left px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm font-semibold">Integrations</button>
+              </div>
+
+              <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div class="text-xs text-slate-500">Mode</div>
+                <div class="mt-2 flex items-center justify-between gap-3">
+                  <div class="text-sm font-semibold">Payments</div>
+                  <div class="flex items-center gap-2">
+                    <span id="acctModePill" class="text-xs px-2 py-1 rounded-full border border-slate-200 bg-white text-slate-700">Demo</span>
+                    <button id="acctToggleMode" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">Change</button>
+                  </div>
+                </div>
+                <div class="text-xs text-slate-600 mt-2">
+                  Demo lets you test checkout without charging. Live connects real payments.
+                </div>
+              </div>
+
+              <div class="mt-3">
+                <button id="acctLogoutBtn" class="w-full px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 text-sm font-semibold">Log out</button>
+              </div>
+            </div>
+
+            <div class="md:col-span-8">
+              <!-- Profile -->
+              <div id="acctTab_profile" class="acctTabPanel">
+                <div class="rounded-2xl border border-slate-200 p-4">
+                  <div class="text-sm font-semibold">Signed in</div>
+                  <div class="text-sm text-slate-600 mt-1">You’re signed in as:</div>
+                  <div class="mt-2 flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                      <div id="acctEmail" class="font-semibold truncate">—</div>
+                      <div id="acctRole" class="text-xs text-slate-500 mt-0.5">—</div>
+                    </div>
+                    <button id="openSellerAuthFromAcct" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">Switch account</button>
+                  </div>
+                </div>
+
+                <div class="mt-4 rounded-2xl border border-slate-200 p-4">
+                  <div class="text-sm font-semibold">Your stores</div>
+                  <div class="text-xs text-slate-600 mt-1">Pick a store to manage in the dashboard.</div>
+                  <div id="acctStores" class="mt-3 space-y-2 text-sm text-slate-700">
+                    <div class="text-sm text-slate-500">Loading…</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Logistics -->
+              <div id="acctTab_logistics" class="acctTabPanel hidden">
+                <div class="rounded-2xl border border-slate-200 p-4">
+                  <div class="text-sm font-semibold">Pickup & delivery defaults</div>
+                  <div class="text-xs text-slate-600 mt-1">These help speed up store setup and driver routing.</div>
+
+                  <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="text-xs text-slate-600">Default pickup address</label>
+                      <input id="acctPickup" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. 12 High St, Port Alfred" />
+                    </div>
+                    <div>
+                      <label class="text-xs text-slate-600">Default drop-off area</label>
+                      <input id="acctDropoff" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. Port Alfred / Bathurst" />
+                    </div>
+                  </div>
+
+                  <button id="acctSaveLogistics" class="mt-4 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">Save</button>
+                  <div id="acctLogisticsNote" class="text-xs text-slate-500 mt-2">Saved to your account profile.</div>
+                </div>
+              </div>
+
+              <!-- Payouts -->
+              <div id="acctTab_payouts" class="acctTabPanel hidden">
+                <div class="rounded-2xl border border-slate-200 p-4">
+                  <div class="text-sm font-semibold">How you get paid</div>
+                  <div class="text-xs text-slate-600 mt-1">Add payout details for driver earnings or store revenue.</div>
+
+                  <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="text-xs text-slate-600">Bank name</label>
+                      <input id="acctBank" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. FNB" />
+                    </div>
+                    <div>
+                      <label class="text-xs text-slate-600">Account number</label>
+                      <input id="acctBankAcc" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="••••••••" />
+                    </div>
+                  </div>
+
+                  <button id="acctSavePayouts" class="mt-4 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">Save</button>
+                  <div id="acctPayoutsNote" class="text-xs text-slate-500 mt-2">Saved to your account profile.</div>
+                </div>
+              </div>
+
+              <!-- Integrations -->
+              <div id="acctTab_integrations" class="acctTabPanel hidden">
+                <div class="rounded-2xl border border-slate-200 p-4">
+                  <div class="text-sm font-semibold">Integrations</div>
+                  <div class="text-xs text-slate-600 mt-1">Connect services to power your store and operations.</div>
+
+                  <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button id="acctConnectStripe" class="text-left px-4 py-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50">
+                      <div class="text-sm font-semibold">Stripe</div>
+                      <div class="text-xs text-slate-600 mt-1">Payments (Live mode)</div>
+                      <div class="text-xs text-slate-400 mt-2">Coming next update</div>
+                    </button>
+
+                    <button id="acctConnectGitHub" class="text-left px-4 py-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50">
+                      <div class="text-sm font-semibold">GitHub</div>
+                      <div class="text-xs text-slate-600 mt-1">Publish storefront code</div>
+                      <div class="text-xs text-slate-400 mt-2">Coming next update</div>
+                    </button>
+
+                    <button disabled class="text-left px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 opacity-80">
+                      <div class="text-sm font-semibold">Google</div>
+                      <div class="text-xs text-slate-600 mt-1">Drive, Sheets, Maps</div>
+                      <div class="text-xs text-slate-400 mt-2">Coming next update</div>
+                    </button>
+
+                    <button disabled class="text-left px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 opacity-80">
+                      <div class="text-sm font-semibold">WhatsApp</div>
+                      <div class="text-xs text-slate-600 mt-1">Order notifications</div>
+                      <div class="text-xs text-slate-400 mt-2">Coming next update</div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+  <!-- AI Stock Take Modal (Pro) -->
+  <div id="aiScanModal" class="hidden fixed inset-0 z-[90]">
+    <div class="absolute inset-0 bg-black/50"></div>
+    <div class="relative max-w-2xl mx-auto mt-8 sm:mt-14 px-4">
+      <div class="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+        <div class="p-5 border-b border-slate-100 flex items-start justify-between gap-3">
+          <div>
+            <div class="text-sm text-slate-500">AI Stock Take</div>
+            <div class="text-xl font-semibold">Capture a shelf photo</div>
+            <div class="text-xs text-slate-500 mt-1">Paid-only. Uses monthly credits that reset automatically.</div>
+          </div>
+          <button id="closeAiScan" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">Close</button>
+        </div>
+        <div class="p-5 space-y-4">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <div class="flex items-center justify-between gap-2">
+              <div class="text-sm font-semibold text-slate-800">Camera</div>
+              <div class="text-xs text-slate-500">Tip: good lighting, same SKU visible.</div>
+            </div>
+            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <video id="aiVideo" class="w-full rounded-2xl bg-black aspect-video" autoplay playsinline></video>
+                <canvas id="aiCanvas" class="hidden"></canvas>
+              </div>
+              <div class="space-y-2">
+                <div class="text-xs text-slate-600">Optional barcode hint</div>
+                <input id="aiHintBarcode" class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="Scan barcode first (optional)" />
+                <div class="flex flex-wrap gap-2">
+                  <button id="aiStartCam" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm font-semibold">Start camera</button>
+                  <button id="aiCapture" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm font-semibold">Capture photo</button>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button id="aiRun" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">AI count items</button>
+                  <button id="aiApply" class="px-3 py-2 rounded-xl border border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-sm font-semibold">Apply to product form</button>
+                </div>
+                <div id="aiResultBox" class="mt-2 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+                  <div class="text-xs text-slate-500">Result</div>
+                  <pre id="aiResult" class="text-xs whitespace-pre-wrap break-words mt-1">—</pre>
+                </div>
+                <div id="aiNote" class="text-xs text-slate-500"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Paywall Modal -->
+  <div id="aiPaywallModal" class="hidden fixed inset-0 z-[95]">
+    <div class="absolute inset-0 bg-black/50"></div>
+    <div class="relative max-w-lg mx-auto mt-16 px-4">
+      <div class="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+        <div class="p-5 border-b border-slate-100 flex items-start justify-between gap-3">
+          <div>
+            <div class="text-sm text-slate-500">Upgrade required</div>
+            <div class="text-xl font-semibold">Unlock AI Stock Take</div>
+            <div class="text-xs text-slate-500 mt-1">This module is paid-only to protect your usage and keep margins healthy.</div>
+          </div>
+          <button id="closeAiPaywall" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">Close</button>
+        </div>
+        <div class="p-5 space-y-3">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <div class="font-semibold">What you get</div>
+            <ul class="list-disc pl-5 mt-2 space-y-1 text-sm">
+              <li>AI shelf photo counting</li>
+              <li>Auto product naming + barcode extraction when visible</li>
+              <li>Monthly credits that reset automatically</li>
+            </ul>
+          </div>
+          <button id="goToBillingBtn" class="w-full px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">Pay with Stripe to unlock</button>
+          <div class="text-xs text-slate-500">You’ll be redirected to Stripe Checkout. After payment you’ll return here with AI unlocked.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Add Product Modal -->
+  <div id="addProductModal" class="hidden fixed inset-0 z-[81]">
+    <div class="absolute inset-0 bg-black/40"></div>
+    <div class="relative max-w-lg mx-auto mt-10 sm:mt-16 px-4">
+      <div class="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+        <div class="p-5 border-b border-slate-100 flex items-start justify-between gap-3">
+          <div>
+            <div class="text-sm text-slate-500">Products</div>
+            <div class="text-xl font-semibold">Add a product</div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button id="prodModeManual" class="px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold">Manual</button>
+              <button id="prodModeBarcode" class="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold">Scan barcode</button>
+              <button id="openAiScan" class="px-3 py-1.5 rounded-xl border border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold">AI Stock Take (Pro)</button>
+              <span id="aiCreditsPill" class="hidden px-3 py-1.5 rounded-xl bg-slate-50 text-xs text-slate-600 border border-slate-200">AI credits: —</span>
+            </div>
+          </div>
+          <button id="closeAddProduct" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">Close</button>
+        </div>
+        <div class="p-5 space-y-3">
+          <div>
+            <label class="text-xs text-slate-600">Name</label>
+            <input id="prodName" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. Milk 2L" />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-slate-600">Price</label>
+              <input id="prodPrice" type="number" step="0.01" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. 49.99" />
+            </div>
+            <div>
+              <label class="text-xs text-slate-600">Category (optional)</label>
+              <input id="prodCategory" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. Groceries" />
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-slate-600">Description (optional)</label>
+            <textarea id="prodDesc" rows="3" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="Short description"></textarea>
+          </div>
+
+          
+          <!-- CSV Helper (moved here from main page) -->
+          <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <div class="text-sm font-semibold">CSV helper</div>
+                <div class="text-xs text-slate-600">Paste CSV here (same format as uploader). Minimum headers: <code class="text-slate-800">name,price</code>.</div>
+              </div>
+              <button id="copyCsvTemplateBtn" class="px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-xs font-semibold">
+                Copy CSV template
+              </button>
+            </div>
+
+            <div class="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700 overflow-auto">
+              <div class="text-slate-500 mb-1">Example</div>
+              <pre id="csvTemplateText">name,price,category,sku,stock,description,image_url
+Example Product,99.99,General,SKU123,10,Short description,https://example.com/image.jpg</pre>
+            </div>
+
+            <textarea id="csvPasteArea" rows="5"
+              class="mt-3 w-full rounded-xl bg-white border border-slate-200 px-3 py-2 text-sm"
+              placeholder="Paste CSV content here…"></textarea>
+
+            <div class="mt-2 flex items-center justify-between gap-2">
+              <div id="csvPasteNote" class="text-xs text-slate-500 truncate"></div>
+              <button id="importPastedCsvBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold">
+                Import pasted CSV
+              </button>
+            </div>
+          </div>
+
+<button id="saveProductBtn" class="w-full px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">Save product</button>
+          <div id="addProdNote" class="text-xs text-slate-500"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const TOKEN_KEY = "yithume_token";
+  const ROLE_KEY  = "yithume_role";
+  const STORE_KEY = "yithume_store_id";
+
+  function el(id){ return document.getElementById(id); }
+  function $(id){ return el(id); } 
+    // Global fallback (in case later wiring fails)
+    window.__toggleAccountMenu = function(e){
+      try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){ }
+      const menu = el('accountMenu');
+      if(!menu) return;
+      menu.classList.toggle('hidden');
+    };
+// legacy alias used throughout dashboard
+  function show(id){ const n=el(id); if(n) n.classList.remove("hidden"); }
+  function hide(id){ const n=el(id); if(n) n.classList.add("hidden"); }
+  function setText(id, t){ const x=el(id); if(x) x.textContent = t || ""; }
+
+  async function apiJSON(url, opts){
+    // uses fetchJSON already present in file (now auto-adds Authorization for /v1)
+    return await fetchJSON(url, opts);
+  }
+
+  async function requireSellerAuth(){
+    const token = localStorage.getItem(TOKEN_KEY);
+    if(!token){
+      show("sellerAuthModal");
+      return false;
+    }
+    const me = await apiJSON("/api/v1/auth/me");
+    if(!me.ok || !me.json || !me.json.ok){
+      show("sellerAuthModal");
+      return false;
+    }
+    const role = me.json.role || "";
+    localStorage.setItem(ROLE_KEY, role);
+    const u = (me.json.user || {});
+    // Header account dropdown
+    const emailLabel = (u.email || u.phone || "—");
+    const accEmail = document.getElementById("accEmail");
+    if (accEmail) accEmail.textContent = emailLabel;
+    const accName = document.getElementById("accName");
+    if (accName) accName.textContent = (u.name || (emailLabel.includes("@") ? emailLabel.split("@")[0] : emailLabel));
+    // Route users based on role
+    if(role === "buyer"){
+      window.location.href = "/marketplace";
+      return false;
+    }
+    if(role !== "seller" && role !== "driver" && role !== "admin"){
+      const a = el("alert");
+      if(a){
+        a.classList.remove("hidden");
+        a.textContent = "Access denied: seller role required.";
+      }
+      return false;
+    }
+    return true;
+  }
+
+  async function bootstrapStore(){
+    const out = await apiJSON("/api/v1/store/my");
+    if(!out.ok || !out.json || !out.json.ok){
+      const a = el("alert");
+      if(a){
+        a.classList.remove("hidden");
+        a.textContent = out.json && out.json.error ? out.json.error : "Failed to load store.";
+      }
+      return null;
+    }
+    const storeId = out.json.store_id;
+    localStorage.setItem(STORE_KEY, storeId);
+    const input = el("storeIdInput");
+    if(input){
+      input.value = storeId;
+      input.disabled = true;
+      input.classList.add("opacity-70");
+      input.title = "Auto-loaded from your seller account";
+    }
+    return storeId;
+  }
+
+  async function refreshGitHubStatus(storeId){
+    if(!storeId) return { connected:false };
+    const out = await apiJSON(`/api/v1/github/status?store_id=${encodeURIComponent(storeId)}`);
+    if(out.ok && out.json && out.json.ok){
+      const connected = !!out.json.connected;
+      // Update UI hint
+      const sub = el("navSub");
+      if(sub && connected){
+        sub.textContent = "Connected: GitHub enabled • Upload storefront HTML • Commit • Open /s/<store_id>";
+      }
+      const commitBtn = el("commitStorefrontBtn");
+      if(commitBtn){
+        commitBtn.disabled = !connected;
+        commitBtn.classList.toggle("opacity-50", !connected);
+        commitBtn.title = connected ? "" : "Connect GitHub first";
+      }
+      return out.json;
+    }
+    // Not connected or error
+    const commitBtn = el("commitStorefrontBtn");
+    if(commitBtn){
+      commitBtn.disabled = true;
+      commitBtn.classList.add("opacity-50");
+      commitBtn.title = "Connect GitHub first";
+    }
+    return { connected:false };
+  }
+
+  function openGitHubModal(){
+    show("githubModal");
+    setText("ghStatus", "");
+    const storeId = localStorage.getItem(STORE_KEY) || "";
+    if(!storeId){
+      setText("ghStatus", "No store loaded yet.");
+    }
+  }
+
+  function closeGitHubModal(){ hide("githubModal"); }
+
+  async function githubTestOrConnect(kind){
+    const storeId = localStorage.getItem(STORE_KEY) || "";
+    if(!storeId){ setText("ghStatus","Load your store first."); return; }
+
+    const username = (el("ghUser").value || "").trim();
+    const repo     = (el("ghRepo").value || "").trim();
+    const branch   = (el("ghBranch").value || "main").trim();
+    const pat      = (el("ghPat").value || "").trim();
+
+    if(!username || !repo || !branch || !pat){
+      setText("ghStatus","Please fill all fields."); return;
+    }
+    setText("ghStatus", kind === "test" ? "Testing..." : "Saving...");
+
+    const endpoint = kind === "test" ? "/api/v1/github/test" : "/api/v1/github/connect";
+    const out = await apiJSON(endpoint, {
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ store_id: storeId, username, repo, branch, pat })
+    });
+
+    if(!out.ok || !out.json || !out.json.ok){
+      setText("ghStatus", (out.json && out.json.error) ? out.json.error : "Request failed.");
+      return;
+    }
+    setText("ghStatus", kind === "test" ? "OK ✅" : "Saved ✅");
+    if(kind !== "test"){
+      await refreshGitHubStatus(storeId);
+    }
+  }
+
+  async function commitStorefront(){
+    const storeId = localStorage.getItem(STORE_KEY) || "";
+    if(!storeId){ alert("No store loaded."); return; }
+
+    const status = await refreshGitHubStatus(storeId);
+    if(!status.connected){
+      openGitHubModal();
+      return;
+    }
+
+    const outEl = el("storefrontOut");
+    if(outEl) outEl.textContent = "Committing to GitHub...";
+    const out = await apiJSON("/api/v1/github/commit_storefront", {
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ store_id: storeId })
+    });
+    if(!out.ok || !out.json || !out.json.ok){
+      if(outEl) outEl.textContent = (out.json && out.json.error) ? out.json.error : "Commit failed.";
+      return;
+    }
+    const msg = `Commit OK ✅\nSHA: ${out.json.sha}\nURL: ${out.json.url}`;
+    if(outEl) outEl.textContent = msg;
+  }
+
+  async function sellerLoginOrRegister(kind){
+    const email = (el("sellerAuthEmail").value || "").trim();
+    const password = (el("sellerAuthPassword").value || "");
+    if(!email || !password){
+      setText("sellerAuthStatus","Email + password required."); return;
+    }
+    setText("sellerAuthStatus", kind === "login" ? "Logging in..." : "Creating account...");
+
+    // IMPORTANT (Vercel routing): API requests must be prefixed with /api
+    const endpoint = kind === "login" ? "/api/v1/auth/login" : "/api/v1/auth/register";
+    const res = await fetch(endpoint, {
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ email, password, role: "seller" })
+    });
+    const data = await res.json().catch(()=> ({}));
+    if(!res.ok || !data || !data.token){
+      setText("sellerAuthStatus", data.error || "Auth failed.");
+      return;
+    }
+    localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(ROLE_KEY, data.role || "seller");
+    setText("sellerAuthStatus", "Success ✅");
+    hide("sellerAuthModal");
+
+    // Bootstrap store & load
+    const storeId = await bootstrapStore();
+    if(storeId){
+      await refreshGitHubStatus(storeId);
+      const loadBtn = el("loadStoreBtn");
+      if(loadBtn) loadBtn.click();
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", async function(){
+    // Account dropdown: open settings
+    el("accountSettingsBtn")?.addEventListener("click", (e)=>{ try{ e.preventDefault(); }catch(_){ } el("accountMenu")?.classList.add("hidden"); window.__openAcctModal && window.__openAcctModal("profile"); });
+    // Close account menu on outside click
+    document.addEventListener("click", ()=>{ try{ el("accountMenu")?.classList.add("hidden"); }catch(_){ } });
+
+    // Close modals
+    el("sellerAuthClose")?.addEventListener("click", ()=>hide("sellerAuthModal"));
+    el("sellerLoginBtn2")?.addEventListener("click", ()=>sellerLoginOrRegister("login"));
+    el("sellerRegisterBtn2")?.addEventListener("click", ()=>sellerLoginOrRegister("register"));
+
+    el("githubCloseBtn")?.addEventListener("click", closeGitHubModal);
+    el("ghTestBtn")?.addEventListener("click", ()=>githubTestOrConnect("test"));
+    el("ghConnectBtn")?.addEventListener("click", ()=>githubTestOrConnect("connect"));
+
+    // Nav GitHub button
+    const ghNav = el("githubConnectBtn");
+    if(ghNav) ghNav.addEventListener("click", openGitHubModal);
+
+    // Commit button inside storefront modal
+    const commitBtn = el("commitStorefrontBtn");
+    if(commitBtn) commitBtn.addEventListener("click", commitStorefront);
+
+
+    // Feedback / request sender (best-effort; backend can implement /api/v1/feedback)
+    el("feedbackSend")?.addEventListener("click", async ()=>{
+      const msg = (el("feedbackMessage")?.value || "").trim();
+      if(!msg) return showAlert("Please type a message first.");
+      const storeId = getStoreId();
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("yithume_token") || "";
+      el("feedbackSend").disabled = true;
+      try{
+        const res = await fetch("/api/v1/feedback", {
+          method: "POST",
+          headers: {
+            "Content-Type":"application/json",
+            ...(token ? {"Authorization":"Bearer "+token} : {})
+          },
+          body: JSON.stringify({
+            message: msg,
+            store_id: storeId || null,
+            page: "dashboard",
+            at: (new Date()).toISOString()
+          })
+        });
+        const data = await res.json().catch(()=> ({}));
+        if(!res.ok || !data || data.ok === false){
+          // Fallback: save locally so you don’t lose it
+          try{
+            const k = "yithume_feedback_outbox";
+            const arr = JSON.parse(localStorage.getItem(k) || "[]");
+            arr.unshift({ message: msg, store_id: storeId||null, at: (new Date()).toISOString(), page:"dashboard" });
+            localStorage.setItem(k, JSON.stringify(arr.slice(0, 50)));
+          }catch(_){}
+          showAlert(data.error || `Could not send to server (${res.status}). Saved locally.`);
+        } else {
+          showSuccess("Feedback sent ✅");
+          if(el("feedbackMessage")) el("feedbackMessage").value = "";
+        }
+      } catch(err){
+        try{
+          const k = "yithume_feedback_outbox";
+          const arr = JSON.parse(localStorage.getItem(k) || "[]");
+          arr.unshift({ message: msg, store_id: storeId||null, at: (new Date()).toISOString(), page:"dashboard" });
+          localStorage.setItem(k, JSON.stringify(arr.slice(0, 50)));
+        }catch(_){}
+        showAlert("Network error. Saved locally.");
+      } finally {
+        el("feedbackSend").disabled = false;
+      }
+    });
+
+    // Require auth (seller)
+    const ok = await requireSellerAuth();
+    if(ok){
+      const storeId = await bootstrapStore();
+      if(storeId){
+        await refreshGitHubStatus(storeId);
+        const loadBtn = el("loadStoreBtn");
+        if(loadBtn) loadBtn.click();
+      }
+    }
+  });
+})();
+    // -----------------------------
+    // Account menu
+    // -----------------------------
+    const accountBtn = $("accountBtn");
+    const accountMenu = $("accountMenu");
+    function closeAccountMenu(){ if(accountMenu) accountMenu.classList.add("hidden"); }
+    if(accountBtn && accountMenu){
+      accountBtn.addEventListener("click", (e)=>{ e.stopPropagation(); accountMenu.classList.toggle("hidden"); });
+      document.addEventListener("click", ()=>closeAccountMenu());
+    }
+    $("logoutBtn")?.addEventListener("click", ()=>{
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("yithume_token");
+      localStorage.removeItem("yithume_role");
+      localStorage.removeItem("yithume_store_id");
+      window.location.href = "/"; // landing
+    });
+
+
+    const $ = (id)=>document.getElementById(id);
+
+    // -----------------------------
+    // Account Settings modal wiring
+    // -----------------------------
+    const acctModal = $("accountSettingsModal");
+    const acctClose = $("closeAccountSettings");
+    function openAcctModal(tab="profile"){
+      if(!acctModal) return;
+      acctModal.classList.remove("hidden");
+      selectAcctTab(tab);
+      hydrateAcctModal();
+    }
+    function closeAcctModal(){ acctModal?.classList.add("hidden"); }
+    // expose for header menu click
+    window.__openAcctModal = openAcctModal;
+
+    acctClose?.addEventListener("click", closeAcctModal);
+    acctModal?.addEventListener("click", (e)=>{ if(e.target === acctModal) closeAcctModal(); });
+
+    // menu buttons
+    $("menuSettings")?.addEventListener("click", ()=>openAcctModal("profile"));
+    $("menuIntegrations")?.addEventListener("click", ()=>openAcctModal("integrations"));
+    $("acctLogoutBtn")?.addEventListener("click", ()=>$("logoutBtn")?.click());
+
+    // Tabs
+    function selectAcctTab(tab){
+      document.querySelectorAll(".acctTabBtn").forEach(btn=>{
+        const isActive = btn.getAttribute("data-acct-tab") === tab;
+        btn.classList.toggle("bg-slate-900", isActive);
+        btn.classList.toggle("text-white", isActive);
+        btn.classList.toggle("border", !isActive);
+        btn.classList.toggle("border-slate-200", !isActive);
+        btn.classList.toggle("hover:bg-slate-50", !isActive);
+      });
+      document.querySelectorAll(".acctTabPanel").forEach(p=>p.classList.add("hidden"));
+      $("acctTab_"+tab)?.classList.remove("hidden");
+    }
+    document.querySelectorAll(".acctTabBtn").forEach(btn=>{
+      btn.addEventListener("click", ()=>selectAcctTab(btn.getAttribute("data-acct-tab")));
+    });
+
+    // Mode pill (reads existing localStorage, falls back to Demo)
+    function getMode(){
+      return (localStorage.getItem("yithume_mode") || "demo").toLowerCase();
+    }
+    function setMode(mode){
+      localStorage.setItem("yithume_mode", mode);
+      const pill = $("acctModePill");
+      if(pill){
+        pill.textContent = mode === "live" ? "Live" : "Demo";
+        pill.className = mode === "live"
+          ? "text-xs px-2 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800"
+          : "text-xs px-2 py-1 rounded-full border border-slate-200 bg-white text-slate-700";
+      }
+      // keep existing page toggle if present
+      $("modeToggleBtn")?.dispatchEvent(new Event("change"));
+    }
+    $("acctToggleMode")?.addEventListener("click", ()=>{
+      const next = getMode() === "live" ? "demo" : "live";
+      setMode(next);
+    });
+
+    // hydrate account info in modal
+    async function hydrateAcctModal(){
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("yithume_token") || "";
+      $("acctModalSub") && ($("acctModalSub").textContent = token ? "Manage your account, payouts and integrations." : "Sign in to manage your account.");
+      // show email/role using existing header fields if available
+      $("acctEmail") && ($("acctEmail").textContent = ($("accountName")?.textContent || "—"));
+      $("acctRole") && ($("acctRole").textContent = ($("accountRole")?.textContent || "—"));
+
+      // stores: best-effort list, fallback to current store_id
+      const storesBox = $("acctStores");
+      if(!storesBox) return;
+      storesBox.innerHTML = "";
+      const current = getStoreId();
+      if(current){
+        const btn = document.createElement("button");
+        btn.className = "w-full text-left px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50";
+        btn.innerHTML = `<div class="text-sm font-semibold truncate">${current}</div><div class="text-xs text-slate-500 mt-0.5">Current store</div>`;
+        btn.addEventListener("click", ()=>{ setStoreId(current); closeAcctModal(); showSuccess("Store selected"); });
+        storesBox.appendChild(btn);
+      } else {
+        storesBox.innerHTML = `<div class="text-sm text-slate-500">No store selected yet. Create a store first.</div>`;
+      }
+
+      // mode pill
+      setMode(getMode());
+    }
+
+    // Save logistics/payouts (local-only for now)
+    function loadProfileDraft(){
+      try { return JSON.parse(localStorage.getItem("yithume_profile") || "{}"); } catch(e){ return {}; }
+    }
+    function saveProfileDraft(p){
+      localStorage.setItem("yithume_profile", JSON.stringify(p || {}));
+    }
+    $("acctSaveLogistics")?.addEventListener("click", ()=>{
+      const p = loadProfileDraft();
+      p.pickup_default = $("acctPickup")?.value || "";
+      p.dropoff_default = $("acctDropoff")?.value || "";
+      saveProfileDraft(p);
+      $("acctLogisticsNote") && ($("acctLogisticsNote").textContent = "Saved.");
+    });
+    $("acctSavePayouts")?.addEventListener("click", ()=>{
+      const p = loadProfileDraft();
+      p.bank_name = $("acctBank")?.value || "";
+      p.bank_account = $("acctBankAcc")?.value || "";
+      saveProfileDraft(p);
+      $("acctPayoutsNote") && ($("acctPayoutsNote").textContent = "Saved.");
+    });
+
+    // Switch account opens existing auth modal
+    $("openSellerAuthFromAcct")?.addEventListener("click", ()=>{
+      closeAcctModal();
+      $("sellerAuthModal")?.classList.remove("hidden");
+    });
+
+    // Integrations buttons (placeholders)
+    $("acctConnectStripe")?.addEventListener("click", ()=>showSuccess("Stripe live payments are coming next update."));
+    $("acctConnectGitHub")?.addEventListener("click", ()=>showSuccess("GitHub publishing is coming next update."));
+
+    // -----------------------------
+    // Add Product modal wiring
+    // -----------------------------
+    const addProdModal = $("addProductModal");
+    function openAddProduct(){ addProdModal?.classList.remove("hidden"); $("addProdNote") && ($("addProdNote").textContent = ""); }
+    function closeAddProduct(){ addProdModal?.classList.add("hidden"); }
+    $("openAddProductBtn")?.addEventListener("click", openAddProduct);
+    $("closeAddProduct")?.addEventListener("click", closeAddProduct);
+    addProdModal?.addEventListener("click", (e)=>{ if(e.target === addProdModal) closeAddProduct(); });
+
+    $("qaAddProducts")?.addEventListener("click", openAddProduct);
+    $("qaScrollOrders")?.addEventListener("click", ()=>$("orders")?.scrollIntoView({behavior:"smooth", block:"start"}));
+    
+    // CSV helper inside Add Product modal
+    const csvTemplate = `name,price,category,sku,stock,description,image_url
+Example Product,99.99,General,SKU123,10,Short description,https://example.com/image.jpg`;
+    $("copyCsvTemplateBtn")?.addEventListener("click", async ()=>{
+      try{
+        await navigator.clipboard.writeText(csvTemplate);
+        $("csvPasteNote") && ($("csvPasteNote").textContent = "CSV copied ✅");
+        showSuccess("CSV copied ✅");
+      } catch(e){
+        // fallback: select text
+        const t = $("csvTemplateText");
+        if(t){
+          const r = document.createRange();
+          r.selectNodeContents(t);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(r);
+          document.execCommand("copy");
+          sel.removeAllRanges();
+          $("csvPasteNote") && ($("csvPasteNote").textContent = "CSV copied ✅");
+          showSuccess("CSV copied ✅");
+        } else {
+          showAlert("Could not copy CSV.");
+        }
+      }
+    });
+
+    $("importPastedCsvBtn")?.addEventListener("click", async ()=>{
+      const sid = getStoreId();
+      if(!sid) return showAlert("Create or load a store first.");
+      const raw = ($("csvPasteArea")?.value || "").trim();
+      if(!raw) return showAlert("Paste your CSV content first.");
+      try{
+        // Route through same endpoint as file uploader by creating a Blob file
+        const blob = new Blob([raw], { type: "text/csv" });
+        const file = new File([blob], "pasted.csv", { type: "text/csv" });
+        const fd = new FormData();
+        fd.append("file", file);
+        const token = localStorage.getItem("auth_token") || localStorage.getItem("yithume_token") || "";
+        const res = await fetch(`/v1/store/${encodeURIComponent(sid)}/import_csv`, {
+          method: "POST",
+          headers: token ? {"Authorization":"Bearer "+token} : {},
+          body: fd
+        });
+        const data = await res.json().catch(()=> ({}));
+        if(!res.ok || !data || !data.ok){
+          return showAlert(data.error || `CSV import failed (${res.status}).`);
+        }
+        $("csvPasteNote") && ($("csvPasteNote").textContent = `Imported ${data.inserted || 0} products ✅`);
+        showSuccess(`Imported ${data.inserted || 0} products ✅`);
+        try{
+          // Update local stats for step unlocking
+          const stats = { inserted: data.inserted || 0, at: (new Date()).toISOString() };
+          setLocalImportStats(sid, stats);
+        }catch(_){}
+        // Refresh KPIs + orders
+        loadOrders();
+      } catch(err){
+        showAlert("CSV import error.");
+      }
+    });
+
+$("qaOpenStorefront")?.addEventListener("click", ()=>{
+      const sid = getStoreId();
+      if(!sid) return showAlert("Create or load a store first.");
+      window.open(`/s/${sid}`, "_blank");
+    });
+
+    $("saveProductBtn")?.addEventListener("click", async ()=>{
+      const sid = getStoreId();
+      if(!sid) return showAlert("Create or load a store first.");
+      const name = ($("prodName")?.value || "").trim();
+      const price = parseFloat(($("prodPrice")?.value || "").trim() || "0");
+      const description = ($("prodDesc")?.value || "").trim();
+      const category = ($("prodCategory")?.value || "").trim();
+      if(!name || !(price>0)) return showAlert("Please enter a name and a price.");
+
+      const token = localStorage.getItem("auth_token") || localStorage.getItem("yithume_token") || "";
+      try{
+        const res = await fetch(`/api/v1/store/${sid}/product`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? {"Authorization": "Bearer "+token} : {})
+          },
+          body: JSON.stringify({ name, price, description, category, barcode: ($("prodBarcode")?.value||"").trim(), stock: Number(($("prodStock")?.value||"").trim()||0) || undefined })
+        });
+        const data = await res.json().catch(()=>({}));
+        if(!res.ok) throw new Error(data?.error || data?.message || "Failed to save product");
+        $("addProdNote") && ($("addProdNote").textContent = "Saved. Refreshing…");
+        closeAddProduct();
+        // refresh UI
+        window.__reloadDashboard && window.__reloadDashboard();
+      }catch(e){
+        showAlert(String(e?.message || e));
+      }
+    });
+</script>
+
+<script>
+/** Global fallbacks so Account Settings & Integrations always open. */
+(function(){
+  function el(id){ return document.getElementById(id); }
+  function show(id){ const n=el(id); if(n) n.classList.remove('hidden'); }
+  // Account Settings modal opener
+  window.__openAcctModal = function(tab){
+    try{
+      const m = el('accountSettingsModal');
+      if(!m) return;
+      m.classList.remove('hidden');
+      if(tab){
+        document.querySelectorAll('.acctTabPanel').forEach(p=>p.classList.add('hidden'));
+        const panel = el('acctTab_'+tab);
+        if(panel) panel.classList.remove('hidden');
+        document.querySelectorAll('.acctTabBtn').forEach(btn=>{
+          const isActive = btn.getAttribute('data-acct-tab')===tab;
+          btn.classList.toggle('bg-slate-900', isActive);
+          btn.classList.toggle('text-white', isActive);
+          btn.classList.toggle('border', !isActive);
+          btn.classList.toggle('border-slate-200', !isActive);
+          btn.classList.toggle('hover:bg-slate-50', !isActive);
+        });
+      }
+    }catch(e){}
+  };
+  // GitHub modal opener
+  window.__openGitHubModal = function(){ try{ show('githubModal'); }catch(e){} };
+
+  // Expose commit action if the real function exists
+  window.__commitStorefront = window.__commitStorefront || function(){
+    try{
+      if(typeof commitStorefront === 'function') return commitStorefront();
+      const b = el('commitStorefrontBtn'); if(b) b.click();
+    }catch(e){}
+  };
+
+  window.__testGitHub = function(){
+    try{
+      if(typeof testGitHubConnection === 'function') return testGitHubConnection();
+      const b = el('ghTestBtn'); if(b) b.click();
+    }catch(e){}
+  };
+  window.__saveGitHub = function(){
+    try{
+      if(typeof saveGitHubConnection === 'function') return saveGitHubConnection();
+      const b = el('ghConnectBtn'); if(b) b.click();
+    }catch(e){}
+  };
+})();
+</script>
+
+</body>
+
+<script>
+(function(){
+  function el(id){ return document.getElementById(id); }
+  function show(id){ const n=el(id); if(n) n.classList.remove("hidden"); }
+  function hide(id){ const n=el(id); if(n) n.classList.add("hidden"); }
+
+  const STORE_KEY = "yithume_store_id";
+
+  // ---------- Barcode scanning (free) ----------
+  let barcodeStream = null;
+  let barcodeReader = null;
+
+  async function startBarcodeScan(){
+    try{
+      const BarcodeReader = window.ZXing?.BrowserMultiFormatReader;
+      if(!BarcodeReader) throw new Error("Barcode scanner library failed to load");
+      barcodeReader = new BarcodeReader();
+
+      const video = document.createElement("video");
+      video.setAttribute("playsinline", "true");
+      video.className = "w-full rounded-2xl bg-black aspect-video";
+      const wrap = document.createElement("div");
+      wrap.className = "fixed inset-0 z-[100] flex items-center justify-center p-4";
+      wrap.innerHTML = `
+        <div class="absolute inset-0 bg-black/60"></div>
+        <div class="relative w-full max-w-lg rounded-3xl bg-white border border-slate-200 shadow-xl overflow-hidden">
+          <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <div class="text-sm text-slate-500">Scan barcode</div>
+              <div class="text-lg font-semibold">Point your camera at the barcode</div>
+            </div>
+            <button id="closeBarcodeScan" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">Close</button>
+          </div>
+          <div class="p-4">
+            <div id="barcodeVideoMount" class="rounded-2xl overflow-hidden bg-black"></div>
+            <div class="text-xs text-slate-500 mt-2">Tip: keep it steady and fill the frame.</div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(wrap);
+      wrap.querySelector("#barcodeVideoMount").appendChild(video);
+
+      wrap.querySelector("#closeBarcodeScan").onclick = () => {
+        try{ barcodeReader && barcodeReader.reset(); }catch(_){}
+        try{ barcodeStream && barcodeStream.getTracks().forEach(t=>t.stop()); }catch(_){}
+        wrap.remove();
+      };
+
+      // Use the library's built-in camera helper
+      const devices = await barcodeReader.listVideoInputDevices();
+      const deviceId = devices?.[0]?.deviceId;
+      barcodeReader.decodeFromVideoDevice(deviceId || undefined, video, (result, err) => {
+        if(result){
+          const txt = String(result.getText ? result.getText() : result.text || "").trim();
+          if(txt){
+            const b = el("prodBarcode");
+            if(b) b.value = txt.replace(/\s+/g,'');
+          }
+          try{ barcodeReader.reset(); }catch(_){}
+          try{ barcodeStream && barcodeStream.getTracks().forEach(t=>t.stop()); }catch(_){}
+          wrap.remove();
+        }
+      });
+    }catch(e){
+      alert(String(e?.message || e));
+    }
+  }
+
+  el("scanBarcodeBtn")?.addEventListener("click", (e)=>{ e.preventDefault(); startBarcodeScan(); });
+
+  // ---------- AI gating + modal ----------
+  let billing = null;
+  async function loadBilling(){
+    const sid = localStorage.getItem(STORE_KEY) || "";
+    if(!sid) return null;
+    try{
+      const r = await fetch(`/api/v1/billing/status?store_id=${encodeURIComponent(sid)}`);
+      const j = await r.json().catch(()=>null);
+      if(r.ok && j && j.ok){
+        billing = j;
+        const pill = el("aiCreditsPill");
+        if(pill){
+          pill.classList.remove("hidden");
+          pill.textContent = `AI credits: ${j.ai_credits_remaining}/${j.ai_credits_limit} • resets ${j.ai_credits_reset_at ? j.ai_credits_reset_at.slice(0,10) : ""}`;
+        }
+      }
+      return billing;
+    }catch(_){
+      return null;
+    }
+  }
+
+  function openAiScan(){
+    // If no billing info or locked -> paywall
+    if(!billing || !billing.ai_enabled || !["pro","business","enterprise"].includes(String(billing.plan||"").toLowerCase())){
+      show("aiPaywallModal");
+      return;
+    }
+    show("aiScanModal");
+  }
+
+  el("openAiScan")?.addEventListener("click", (e)=>{ e.preventDefault(); openAiScan(); });
+  el("closeAiScan")?.addEventListener("click", ()=>hide("aiScanModal"));
+  el("closeAiPaywall")?.addEventListener("click", ()=>hide("aiPaywallModal"));
+  el("goToBillingBtn")?.addEventListener("click", async ()=>{
+    const storeId = getStoreId();
+    if(!storeId){
+      showAlert("Create or select a store first, then try again.");
+      return;
+    }
+    // Start Stripe Checkout (subscription). Backend returns hosted checkout URL.
+    const out = await fetchJSON("/api/v1/billing/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ store_id: storeId, plan: "pro" })
+    });
+    if(out.ok && out.json && out.json.ok && out.json.url){
+      window.location.href = out.json.url;
+      return;
+    }
+    showAlert(out.json?.error || out.text || "Could not open Stripe checkout.");
+  });
+
+  // ---------- AI scan workflow ----------
+  let aiStream = null;
+  let lastAiCaptureB64 = null;
+  let lastAiResult = null;
+
+  async function aiStartCamera(){
+    try{
+      const v = el("aiVideo");
+      if(!v) return;
+      aiStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+      v.srcObject = aiStream;
+      await v.play();
+      el("aiNote") && (el("aiNote").textContent = "Camera started.");
+    }catch(e){
+      alert(String(e?.message || e));
+    }
+  }
+
+  function aiCapture(){
+    const v = el("aiVideo");
+    const c = el("aiCanvas");
+    if(!v || !c) return;
+    const w = 1024; // resize for cost control
+    const scale = w / (v.videoWidth || w);
+    const h = Math.round((v.videoHeight || w) * scale);
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(v, 0, 0, w, h);
+    const dataUrl = c.toDataURL("image/jpeg", 0.75);
+    lastAiCaptureB64 = dataUrl.split(",")[1] || "";
+    el("aiNote") && (el("aiNote").textContent = "Captured. Ready to run AI.");
+  }
+
+  async function aiRun(){
+    const sid = localStorage.getItem(STORE_KEY) || "";
+    if(!sid) return alert("Missing store_id. Create/select a store first.");
+    if(!lastAiCaptureB64) return alert("Capture a photo first.");
+
+    const hint = (el("aiHintBarcode")?.value || "").trim();
+    el("aiNote") && (el("aiNote").textContent = "Running AI…");
+    try{
+      const r = await fetch("/api/v1/inventory/ai_scan", {
+        method:"POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify({ store_id: sid, image_base64: lastAiCaptureB64, mime:"image/jpeg", hint_barcode: hint })
+      });
+      const j = await r.json().catch(()=>({}));
+      if(r.status === 402){
+        hide("aiScanModal"); show("aiPaywallModal"); return;
+      }
+      if(!r.ok || !j.ok){
+        throw new Error(j?.error || "AI request failed");
+      }
+      lastAiResult = j.result || null;
+      el("aiResult") && (el("aiResult").textContent = JSON.stringify(lastAiResult, null, 2));
+      el("aiNote") && (el("aiNote").textContent = "Done. You can apply to the product form.");
+      // refresh credits pill
+      billing = null;
+      await loadBilling();
+    }catch(e){
+      el("aiNote") && (el("aiNote").textContent = "");
+      alert(String(e?.message || e));
+    }
+  }
+
+  function aiApply(){
+    if(!lastAiResult) return alert("Run AI first.");
+    const name = String(lastAiResult.name || "").trim();
+    const bc = String(lastAiResult.barcode || "").trim();
+    const count = Number(lastAiResult.count || 0) || 0;
+
+    if(el("prodName") && name) el("prodName").value = name;
+    if(el("prodBarcode") && bc) el("prodBarcode").value = bc;
+    if(el("prodStock") && count>0) el("prodStock").value = String(count);
+
+    hide("aiScanModal");
+    // Ensure add product modal is open
+    show("addProductModal");
+  }
+
+  el("aiStartCam")?.addEventListener("click", (e)=>{ e.preventDefault(); aiStartCamera(); });
+  el("aiCapture")?.addEventListener("click", (e)=>{ e.preventDefault(); aiCapture(); });
+  el("aiRun")?.addEventListener("click", (e)=>{ e.preventDefault(); aiRun(); });
+  el("aiApply")?.addEventListener("click", (e)=>{ e.preventDefault(); aiApply(); });
+
+  // Load billing on boot (best effort)
+  document.addEventListener("DOMContentLoaded", async ()=>{
+    await loadBilling();
+
+    // If user returned from Stripe, wait briefly for webhook provisioning, then refresh billing.
+    const paid = qs().get("paid");
+    const sid = qs().get("session_id");
+    if(paid === "1" && sid){
+      let ok = false;
+      for(let i=0;i<6;i++){
+        await new Promise(r=>setTimeout(r, 1200));
+        const b = await loadBilling();
+        if(b && b.ai_enabled){
+          ok = true;
+          break;
+        }
+      }
+      if(ok){
+        showSuccess("Payment confirmed — AI Stock Take is now unlocked ✅");
+      }else{
+        showAlert("Payment received, but access is still provisioning. Refresh in a few seconds.");
+      }
+      // clean up query params
+      setQs("paid", "");
+      setQs("session_id", "");
+    }
+  });
+
+
+})();
+
+  // Paywall: manage subscription (only shown when already active)
+  async function refreshBillingUI(){
+    try{
+      await loadBilling();
+      if(billing && billing.ok){
+        // Credits shown in header pill already; mirror in settings
+        const left = (billing.ai_credits_limit||0) - (billing.ai_credits_used||0);
+        if(el("acctCreditsLeft")) el("acctCreditsLeft").textContent = String(Math.max(0,left));
+        // If already enabled, show manage subscription button in paywall
+        const enabled = !!billing.ai_enabled;
+        if(el("manageSubBtn")) el("manageSubBtn").classList.toggle("hidden", !enabled);
+      }
+    }catch(e){}
+  }
+
+  el("manageSubBtn")?.addEventListener("click", async ()=>{
+    try{ await openBillingPortal(); }catch(e){ alert(String(e?.message||e)); }
+  });
+
+  // Settings -> Billing buttons
+  el("billingUpgradeBtn")?.addEventListener("click", ()=>{
+    show("aiPaywallModal");
+  });
+  el("billingManageBtn")?.addEventListener("click", async ()=>{
+    try{ await openBillingPortal(); }catch(e){ alert(String(e?.message||e)); }
+  });
+
+  // After Stripe return, poll billing status to close the loop
+  (async ()=>{
+    const qs = new URLSearchParams(location.search);
+    if(qs.get("paid")==="1"){
+      // Poll up to ~10s for webhook provisioning
+      for(let i=0;i<8;i++){
+        try{
+          billing = null;
+          await loadBilling();
+          if(billing && billing.ok && billing.ai_enabled){
+            break;
+          }
+        }catch(e){}
+        await new Promise(res=>setTimeout(res, 1200));
+      }
+      // Clean URL (remove paid params)
+      try{
+        const url = new URL(location.href);
+        url.searchParams.delete("paid");
+        url.searchParams.delete("session_id");
+        history.replaceState({}, "", url.toString());
+      }catch(e){}
+    }
+    await refreshBillingUI();
+  })();
+</script>
+
+</html>
