@@ -68,6 +68,79 @@
   </style>
 
   <script src="https://unpkg.com/@zxing/library@latest"></script>
+  <script>
+    // ---- Critical click wiring (runs BEFORE the rest of the page JS) ----
+    // This makes the header buttons work even if later scripts fail.
+    (function(){
+      function gid(id){ return document.getElementById(id); }
+
+      // Account dropdown toggler used by inline onclick on the Account button.
+      window.__toggleAccountMenu = function(e){
+        try{ if(e){ e.preventDefault(); e.stopPropagation(); } }catch(_){}
+        try{
+          var m = gid('accountMenu');
+          if(m) m.classList.toggle('hidden');
+        }catch(_){}
+      };
+
+      // Always-open account settings modal (safe fallback).
+      window.__openAcctModal = window.__openAcctModal || function(tab){
+        try{
+          var m = gid('accountSettingsModal') || gid('adminModal');
+          if(!m) return;
+          m.classList.remove('hidden');
+
+          // If we opened the admin modal, prefer showing the prompt area.
+          // Switch tab if requested (only if accountSettingsModal exists).
+          if(tab && gid('accountSettingsModal')){
+            try{
+              document.querySelectorAll('.acctTabPanel').forEach(function(p){ p.classList.add('hidden'); });
+              var panel = gid('acctTab_'+tab);
+              if(panel) panel.classList.remove('hidden');
+
+              document.querySelectorAll('.acctTabBtn').forEach(function(btn){
+                var isActive = (btn.getAttribute('data-acct-tab')===tab);
+                btn.classList.toggle('bg-slate-900', isActive);
+                btn.classList.toggle('text-white', isActive);
+                btn.classList.toggle('border', !isActive);
+                btn.classList.toggle('border-slate-200', !isActive);
+                btn.classList.toggle('hover:bg-slate-50', !isActive);
+              });
+            }catch(_){}
+          }
+        }catch(_){}
+      };
+
+      // Logout fallback (safe + consistent)
+      window.__logout = function(){
+        try{
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('yithume_token');
+          localStorage.removeItem('yithume_role');
+          localStorage.removeItem('yithume_store_id');
+          localStorage.removeItem('yithume_admin_pin');
+        }catch(_){}
+        try{ window.location.href = '/'; }catch(_){}
+      };
+
+      // Close account menu when clicking outside (but NOT when clicking inside it).
+      document.addEventListener('click', function(ev){
+        try{
+          var m = gid('accountMenu');
+          if(!m || m.classList.contains('hidden')) return;
+
+          var btn = gid('accountBtn');
+          var t = ev && ev.target;
+          if(!t) return;
+          if(btn && (t === btn || btn.contains(t))) return;
+          if(m && (t === m || m.contains(t))) return;
+
+          m.classList.add('hidden');
+        }catch(_){}
+      }, true);
+    })();
+  </script>
+
 </head>
 
 <body class="min-h-screen bg-gradient-to-b from-white to-slate-50 text-slate-900">
