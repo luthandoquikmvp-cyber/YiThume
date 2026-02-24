@@ -4081,7 +4081,17 @@ def v1_store_create():
         "created_at": _now_dt(),
     }
 
-    _col(db, "saas_stores").insert_one(doc)
+    
+    # Attach ownership when a user is logged in (does not break unauthenticated MVP mode)
+    try:
+        user, err = _require_auth(request, db)
+        if user and not err:
+            doc["owner_user_id"] = str(user.get("_id"))
+            doc["owner_email"] = user.get("email")
+    except Exception:
+        pass
+
+_col(db, "saas_stores").insert_one(doc)
 
     return jsonify({
         "ok": True,
@@ -6771,6 +6781,37 @@ def _require_auth(req, db=None):
     if not user:
         return None, ("User not found", 401)
     return user, None
+
+
+# -----------------------------
+# List stores owned by the current logged-in user
+# GET /api/v1/store/mine
+# -----------------------------
+@app.get("/api/v1/store/mine")
+@app.get("/v1/store/mine")
+def v1_store_mine():
+    try:
+        db = get_db()
+        user, err = _require_auth(request, db)
+        if err:
+            msg, code = err
+            return jsonify({"ok": False, "error": msg}), code
+
+        uid = str(user.get("_id"))
+        stores = list(_col(db, "saas_stores").find({"owner_user_id": uid}).sort("created_at", -1).limit(200))
+
+        out = []
+        for s in stores:
+            out.append({
+                "store_id": s.get("_internal_id") or str(s.get("_id")),
+                "name": s.get("name") or "Untitled",
+                "storefront_url": f"/s/{s.get('_internal_id')}" if s.get("_internal_id") else None,
+                "created_at": (s.get("created_at").isoformat() + "Z") if hasattr(s.get("created_at"), "isoformat") else None,
+            })
+
+        return jsonify({"ok": True, "stores": out})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 def _require_role(user, roles):
     return user and user.get("role") in set(roles)
