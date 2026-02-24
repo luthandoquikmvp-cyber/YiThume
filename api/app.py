@@ -4091,7 +4091,7 @@ def v1_store_create():
     except Exception:
         pass
 
-_col(db, "saas_stores").insert_one(doc)
+    _col(db, "saas_stores").insert_one(doc)
 
     return jsonify({
         "ok": True,
