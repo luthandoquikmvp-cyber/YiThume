@@ -245,7 +245,36 @@
       </div>
     </div>
 
-    <!-- KPIs -->
+    
+    <!-- Quick actions (moved up) -->
+    <div class="mt-6">
+
+        <div class="rounded-3xl border border-slate-200 bg-white shadow-sm p-5">
+          <div class="text-lg font-semibold">Quick actions</div>
+          <div class="text-sm text-slate-600 mt-1">What you do to test end-to-end.</div>
+
+          <div class="mt-4 space-y-2">
+            <button id="qaOpenStorefront" class="w-full text-left rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50">
+              <div class="text-sm font-semibold">Open your storefront</div>
+              <div class="text-xs text-slate-600 mt-1">Preview what customers see and place a test order.</div>
+            </button>
+
+            <button id="qaAddProducts" class="w-full text-left rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50">
+              <div class="text-sm font-semibold">Add products</div>
+              <div class="text-xs text-slate-600 mt-1">Add one product now, or upload a CSV to add many.</div>
+            </button>
+
+            <button id="qaScrollOrders" class="w-full text-left rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50">
+              <div class="text-sm font-semibold">Watch orders</div>
+              <div class="text-xs text-slate-600 mt-1">See new orders and status updates in real-time.</div>
+            </button>
+          </div>
+        </div>
+
+        
+    </div>
+
+<!-- KPIs -->
     <div class="mt-8 flex items-center justify-between">
       <div>
         <div class="text-xs text-slate-600">Today</div>
@@ -322,29 +351,6 @@
       </div>
 
       <div class="lg:col-span-4 space-y-4">
-        <!-- Quick links -->
-        <div class="rounded-3xl border border-slate-200 bg-white shadow-sm p-5">
-          <div class="text-lg font-semibold">Quick actions</div>
-          <div class="text-sm text-slate-600 mt-1">What you do to test end-to-end.</div>
-
-          <div class="mt-4 space-y-2">
-            <button id="qaOpenStorefront" class="w-full text-left rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50">
-              <div class="text-sm font-semibold">Open your storefront</div>
-              <div class="text-xs text-slate-600 mt-1">Preview what customers see and place a test order.</div>
-            </button>
-
-            <button id="qaAddProducts" class="w-full text-left rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50">
-              <div class="text-sm font-semibold">Add products</div>
-              <div class="text-xs text-slate-600 mt-1">Add one product now, or upload a CSV to add many.</div>
-            </button>
-
-            <button id="qaScrollOrders" class="w-full text-left rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50">
-              <div class="text-sm font-semibold">Watch orders</div>
-              <div class="text-xs text-slate-600 mt-1">See new orders and status updates in real-time.</div>
-            </button>
-          </div>
-        </div>
-
         <!-- Admin chat / feedback -->
         <div class="rounded-3xl border border-slate-200 bg-white shadow-sm p-5">
           <div class="flex items-start justify-between gap-3">
@@ -381,7 +387,7 @@
         </div>
 
         <!-- CSV Help -->
-        <div class="rounded-3xl border border-slate-200 bg-white shadow-sm p-5">
+        <div class="hidden rounded-3xl border border-slate-200 bg-white shadow-sm p-5">
           <div class="text-lg font-semibold">CSV format</div>
           <div class="text-sm text-slate-600 mt-1">Minimum viable columns.</div>
 
@@ -1921,13 +1927,15 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
             <div class="mt-3 flex flex-wrap gap-2">
               <button id="prodModeManual" class="px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold">Manual</button>
               <button id="prodModeBarcode" class="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold">Scan barcode</button>
-              <button id="openAiScan" class="px-3 py-1.5 rounded-xl border border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold">AI Stock Take (Pro)</button>
+              <button id="prodModeCsv" class="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold">CSV builder</button>
+              <button id="openAiScan" class="px-3 py-1.5 rounded-xl border border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold">Stock Take (Camera)</button>
               <span id="aiCreditsPill" class="hidden px-3 py-1.5 rounded-xl bg-slate-50 text-xs text-slate-600 border border-slate-200">AI credits: —</span>
             </div>
           </div>
           <button id="closeAddProduct" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">Close</button>
         </div>
         <div class="p-5 space-y-3">
+          <div id="prodManualSection" class="space-y-3">
           <div>
             <label class="text-xs text-slate-600">Name</label>
             <input id="prodName" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. Milk 2L" />
@@ -1949,6 +1957,69 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
 
           <button id="saveProductBtn" class="w-full px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">Save product</button>
           <div id="addProdNote" class="text-xs text-slate-500"></div>
+          </div>
+
+          <!-- Barcode scanner -->
+          <div id="prodBarcodeSection" class="hidden space-y-3">
+            <div class="text-sm font-semibold">Scan barcode</div>
+            <div class="text-xs text-slate-600">Point your camera at a barcode/QR. Each scan fills the barcode field (and you can still edit name/price).</div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <video id="barcodeVideo" class="w-full rounded-xl bg-black" playsinline></video>
+              <div class="mt-2 flex gap-2">
+                <button id="startBarcodeScan" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">Start scan</button>
+                <button id="stopBarcodeScan" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">Stop</button>
+                <button id="clearBarcode" class="ml-auto px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">Clear</button>
+              </div>
+              <div id="barcodeOut" class="mt-2 text-xs text-slate-600">Ready.</div>
+            </div>
+            <div>
+              <label class="text-xs text-slate-600">Barcode / SKU</label>
+              <input id="prodBarcode" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="Scanned value appears here" />
+            </div>
+            <div>
+              <label class="text-xs text-slate-600">Stock (optional)</label>
+              <input id="prodStock" type="number" class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm" placeholder="e.g. 24" />
+            </div>
+          </div>
+
+          <!-- CSV Builder (mobile-friendly) -->
+          <div id="prodCsvSection" class="hidden space-y-3">
+            <div class="text-sm font-semibold">CSV builder (quick import)</div>
+            <div class="text-xs text-slate-600">Type products like: <b>Milk 2L 49.99, Bread 17.50</b>. Newline, comma, or semicolon separates items. If price is missing, it uses 0.</div>
+            <textarea id="csvQuickInput" rows="5" class="w-full rounded-2xl bg-white shadow-sm border border-slate-200 px-3 py-3 text-sm" placeholder="Milk 2L 49.99, Bread 17.50, Apples 22.00"></textarea>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button id="csvBuildBtn" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold">Build CSV preview</button>
+              <button id="csvImportNowBtn" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">Import now</button>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 overflow-auto">
+              <div class="text-slate-600 mb-2">Preview:</div>
+              <pre id="csvPreview">name,price</pre>
+            </div>
+            <div class="text-xs text-slate-500">Imports via <code class="text-slate-700">POST /v1/store/&lt;store_id&gt;/import_csv</code> (same as file import).</div>
+          </div>
+
+          <!-- Stock Take (camera + counts) -->
+          <div id="prodStocktakeSection" class="hidden space-y-3">
+            <div class="text-sm font-semibold">Stock take (camera)</div>
+            <div class="text-xs text-slate-600">MVP: scans barcodes/QRs and keeps a running count. Export as CSV when done.</div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <video id="stockVideo" class="w-full rounded-xl bg-black" playsinline></video>
+              <div class="mt-2 flex gap-2">
+                <button id="startStocktake" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">Start stock take</button>
+                <button id="stopStocktake" class="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">Stop</button>
+                <button id="resetStocktake" class="ml-auto px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm">Reset</button>
+              </div>
+              <div id="stockOut" class="mt-2 text-xs text-slate-600">Ready.</div>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-white p-3">
+              <div class="flex items-center justify-between">
+                <div class="text-xs text-slate-600">Counts</div>
+                <button id="exportStockCsv" class="px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-xs font-semibold">Export CSV</button>
+              </div>
+              <div id="stockList" class="mt-3 text-sm text-slate-700">No scans yet.</div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -2497,6 +2568,308 @@ Gaviscon Liquid 150ml,84.99,Digestive,GAV-L150,30,Heartburn relief,`;
       const b = el('ghConnectBtn'); if(b) b.click();
     }catch(e){}
   };
+})();
+</script>
+
+
+<script>
+/**
+ * YiThume Dashboard Safety Wiring (iPad-safe)
+ * - Provides global helpers (el/$/fetchJSON) so later scripts never crash
+ * - Forces Account dropdown + Add Product modal to always work
+ * - Adds CSV builder import + barcode/stocktake scanning
+ * - Extends mode to demo/live/paused (local first, backend best-effort)
+ */
+(function(){
+  // Global helpers
+  window.el = window.el || function(id){ return document.getElementById(id); };
+  window.$  = window.$  || window.el;
+
+  window.fetchJSON = window.fetchJSON || async function(url, opts){
+    const TOKEN_KEY = "yithume_token";
+    const token = localStorage.getItem(TOKEN_KEY) || localStorage.getItem("auth_token") || "";
+    const o = opts ? Object.assign({}, opts) : {};
+    o.headers = o.headers ? Object.assign({}, o.headers) : {};
+    if (token && (url.startsWith("/api/v1/") || url.startsWith("/v1/"))) {
+      if (!o.headers["Authorization"]) o.headers["Authorization"] = "Bearer " + token;
+    }
+    const res = await fetch(url, o);
+    const text = await res.text();
+    try { return { ok: res.ok, status: res.status, json: JSON.parse(text) }; }
+    catch(_){ return { ok: res.ok, status: res.status, json: null, text }; }
+  };
+
+  // Account dropdown: deterministic toggle + outside close
+  const accountBtn = el("accountBtn");
+  const accountMenu = el("accountMenu");
+  function isHidden(n){ return !n || n.classList.contains("hidden"); }
+  function openMenu(){ if(accountMenu) accountMenu.classList.remove("hidden"); }
+  function closeMenu(){ if(accountMenu) accountMenu.classList.add("hidden"); }
+  function toggleMenu(){ if(!accountMenu) return; accountMenu.classList.toggle("hidden"); }
+
+  window.__toggleAccountMenu = function(e){
+    try{ e && e.preventDefault && e.preventDefault(); }catch(_){}
+    try{ e && e.stopPropagation && e.stopPropagation(); }catch(_){}
+    toggleMenu();
+  };
+
+  if(accountBtn && accountMenu){
+    // Use pointerup for iPad reliability; also keep click
+    accountBtn.addEventListener("pointerup", window.__toggleAccountMenu, {passive:false});
+    accountBtn.addEventListener("click", window.__toggleAccountMenu, {passive:false});
+
+    // Close on outside tap (capture so it always runs)
+    document.addEventListener("pointerdown", function(e){
+      if(isHidden(accountMenu)) return;
+      const t = e.target;
+      if(accountMenu.contains(t) || accountBtn.contains(t)) return;
+      closeMenu();
+    }, true);
+
+    // Escape closes
+    document.addEventListener("keydown", function(e){
+      if(e.key === "Escape") closeMenu();
+    });
+  }
+
+  // Add Product modal: always open/close
+  const addModal = el("addProductModal");
+  function openAdd(){ if(addModal) addModal.classList.remove("hidden"); }
+  function closeAdd(){ if(addModal) addModal.classList.add("hidden"); stopAllScanners(); }
+
+  el("openAddProductBtn")?.addEventListener("click", openAdd);
+  el("qaAddProducts")?.addEventListener("click", openAdd);
+  el("closeAddProduct")?.addEventListener("click", closeAdd);
+  addModal?.addEventListener("click", (e)=>{ if(e.target === addModal) closeAdd(); });
+
+  // Mode tabs in Add Product modal
+  const sManual = el("prodManualSection");
+  const sBarcode = el("prodBarcodeSection");
+  const sCsv = el("prodCsvSection");
+  const sStock = el("prodStocktakeSection");
+
+  function showSection(which){
+    const map = { manual: sManual, barcode: sBarcode, csv: sCsv, stock: sStock };
+    Object.values(map).forEach(n=>{ if(n) n.classList.add("hidden"); });
+    if(map[which]) map[which].classList.remove("hidden");
+
+    // button styling
+    const bManual = el("prodModeManual");
+    const bBarcode = el("prodModeBarcode");
+    const bCsv = el("prodModeCsv");
+    const bStock = el("openAiScan");
+    function setActive(btn, active){
+      if(!btn) return;
+      if(active){
+        btn.className = "px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold";
+      }else{
+        // keep emerald styling for stock button
+        if(btn === bStock){
+          btn.className = "px-3 py-1.5 rounded-xl border border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold";
+        }else{
+          btn.className = "px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold";
+        }
+      }
+    }
+    setActive(bManual, which==="manual");
+    setActive(bBarcode, which==="barcode");
+    setActive(bCsv, which==="csv");
+    setActive(bStock, which==="stock");
+  }
+
+  el("prodModeManual")?.addEventListener("click", ()=>showSection("manual"));
+  el("prodModeBarcode")?.addEventListener("click", ()=>showSection("barcode"));
+  el("prodModeCsv")?.addEventListener("click", ()=>showSection("csv"));
+  el("openAiScan")?.addEventListener("click", ()=>showSection("stock"));
+
+  // Default section
+  if(addModal) showSection("manual");
+
+  // Barcode + Stocktake scanning via ZXing
+  let barcodeReader = null;
+  let stockReader = null;
+  const stockCounts = new Map();
+
+  function ensureZXing(){
+    if(!window.ZXing || !window.ZXing.BrowserMultiFormatReader){
+      throw new Error("ZXing library not loaded.");
+    }
+  }
+
+  async function startScan(readerRef, videoEl, onResult){
+    ensureZXing();
+    const reader = new ZXing.BrowserMultiFormatReader();
+    // ask for environment camera
+    const constraints = { video: { facingMode: { ideal: "environment" } }, audio: false };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    videoEl.srcObject = stream;
+    await videoEl.play();
+
+    reader.decodeFromVideoElementContinuously(videoEl, (result, err) => {
+      if (result && result.getText) onResult(String(result.getText()));
+    });
+    return { reader, stream };
+  }
+
+  function stopScan(obj){
+    if(!obj) return;
+    try{ obj.reader?.reset?.(); }catch(_){}
+    try{ obj.stream?.getTracks?.().forEach(t=>t.stop()); }catch(_){}
+  }
+
+  function stopAllScanners(){
+    stopScan(barcodeReader); barcodeReader=null;
+    stopScan(stockReader); stockReader=null;
+  }
+
+  // Barcode section
+  el("startBarcodeScan")?.addEventListener("click", async ()=>{
+    try{
+      stopScan(barcodeReader); barcodeReader=null;
+      const v = el("barcodeVideo"); const out = el("barcodeOut");
+      if(!v) return;
+      out && (out.textContent = "Starting camera…");
+      barcodeReader = await startScan("barcodeReader", v, (code)=>{
+        const inp = el("prodBarcode"); if(inp) inp.value = code;
+        out && (out.textContent = "Scanned: " + code);
+      });
+      out && (out.textContent = "Scanning…");
+    }catch(e){
+      el("barcodeOut") && (el("barcodeOut").textContent = "❌ " + (e.message || e));
+    }
+  });
+
+  el("stopBarcodeScan")?.addEventListener("click", ()=>{ stopScan(barcodeReader); barcodeReader=null; el("barcodeOut") && (el("barcodeOut").textContent="Stopped."); });
+  el("clearBarcode")?.addEventListener("click", ()=>{ const inp=el("prodBarcode"); if(inp) inp.value=""; el("barcodeOut") && (el("barcodeOut").textContent="Cleared."); });
+
+  // CSV builder
+  function parseQuickList(raw){
+    const items = raw
+      .split(/[\n,;]+/g)
+      .map(s=>s.trim())
+      .filter(Boolean);
+    return items.map(line=>{
+      // last number in the string is treated as price if present
+      const m = line.match(/(-?\d+(?:\.\d{1,2})?)\s*$/);
+      let price = 0;
+      let name = line;
+      if(m){
+        price = parseFloat(m[1]) || 0;
+        name = line.slice(0, m.index).trim() || line.trim();
+      }
+      return { name, price };
+    }).filter(x=>x.name);
+  }
+
+  function buildCsv(rows){
+    const header = "name,price";
+    const lines = rows.map(r=>{
+      const safeName = '"' + String(r.name).replace(/"/g,'""') + '"';
+      const safePrice = (r.price!=null && isFinite(r.price)) ? String(Number(r.price).toFixed(2)) : "0.00";
+      return `${safeName},${safePrice}`;
+    });
+    return [header, ...lines].join("\n");
+  }
+
+  function setPreview(csv){
+    const pre = el("csvPreview");
+    if(pre) pre.textContent = csv || "name,price";
+  }
+
+  el("csvBuildBtn")?.addEventListener("click", ()=>{
+    const raw = el("csvQuickInput")?.value || "";
+    const rows = parseQuickList(raw);
+    setPreview(buildCsv(rows));
+  });
+
+  el("csvImportNowBtn")?.addEventListener("click", async ()=>{
+    // Uses same endpoint as file import: /v1/store/<id>/import_csv
+    const storeId = (new URLSearchParams(location.search).get("store_id")) || localStorage.getItem("yithume_store_id") || "";
+    if(!storeId){ alert("Create or load a store first."); return; }
+
+    const raw = el("csvQuickInput")?.value || "";
+    const rows = parseQuickList(raw);
+    if(!rows.length){ alert("Add at least 1 product in the CSV builder."); return; }
+    const csv = buildCsv(rows);
+    setPreview(csv);
+
+    const fd = new FormData();
+    const blob = new Blob([csv], {type:"text/csv"});
+    fd.append("file", blob, "quick_import.csv");
+
+    const res = await fetch(`/v1/store/${encodeURIComponent(storeId)}/import_csv`, { method:"POST", body: fd });
+    const txt = await res.text();
+    let j=null; try{ j=JSON.parse(txt); }catch(_){}
+    if(!res.ok || !j || !j.ok){
+      alert(j?.error || txt || ("Import failed ("+res.status+")"));
+      return;
+    }
+    alert(`Imported ✅ Inserted: ${j.inserted ?? 0} · Updated: ${j.updated ?? 0} · Skipped: ${j.skipped ?? 0}`);
+    try{ window.setLocalImportStats && window.setLocalImportStats(storeId, { inserted:j.inserted??0, updated:j.updated??0, skipped:j.skipped??0, total_products:(j.inserted??0)+(j.updated??0), at:(new Date()).toISOString() }); }catch(_){}
+    try{ window.refreshAll && window.refreshAll(); }catch(_){}
+  });
+
+  // Stocktake scanner
+  function renderCounts(){
+    const box = el("stockList");
+    if(!box) return;
+    const entries = Array.from(stockCounts.entries()).sort((a,b)=>b[1]-a[1]);
+    if(!entries.length){ box.textContent = "No scans yet."; return; }
+    box.innerHTML = entries.map(([code,count])=>(
+      `<div class="flex items-center justify-between border-b border-slate-100 py-2">
+        <div class="min-w-0">
+          <div class="text-sm font-semibold truncate">${code}</div>
+          <div class="text-xs text-slate-500">Barcode/SKU</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button data-dec="${code}" class="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs">-</button>
+          <div class="w-10 text-center font-semibold">${count}</div>
+          <button data-inc="${code}" class="px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs">+</button>
+        </div>
+      </div>`
+    )).join("");
+
+    // bind +/- (event delegation)
+    box.querySelectorAll("[data-inc]").forEach(btn=>{
+      btn.onclick = ()=>{ const code=btn.getAttribute("data-inc"); stockCounts.set(code, (stockCounts.get(code)||0)+1); renderCounts(); };
+    });
+    box.querySelectorAll("[data-dec]").forEach(btn=>{
+      btn.onclick = ()=>{ const code=btn.getAttribute("data-dec"); const next=(stockCounts.get(code)||0)-1; if(next<=0) stockCounts.delete(code); else stockCounts.set(code,next); renderCounts(); };
+    });
+  }
+
+  el("startStocktake")?.addEventListener("click", async ()=>{
+    try{
+      stopScan(stockReader); stockReader=null;
+      const v = el("stockVideo"); const out = el("stockOut");
+      if(!v) return;
+      out && (out.textContent = "Starting camera…");
+      stockReader = await startScan("stockReader", v, (code)=>{
+        stockCounts.set(code, (stockCounts.get(code)||0) + 1);
+        out && (out.textContent = "Last scan: " + code);
+        renderCounts();
+      });
+      out && (out.textContent = "Scanning…");
+    }catch(e){
+      el("stockOut") && (el("stockOut").textContent = "❌ " + (e.message || e));
+    }
+  });
+
+  el("stopStocktake")?.addEventListener("click", ()=>{ stopScan(stockReader); stockReader=null; el("stockOut") && (el("stockOut").textContent="Stopped."); });
+  el("resetStocktake")?.addEventListener("click", ()=>{ stockCounts.clear(); renderCounts(); el("stockOut") && (el("stockOut").textContent="Reset."); });
+
+  el("exportStockCsv")?.addEventListener("click", ()=>{
+    const rows = Array.from(stockCounts.entries());
+    const csv = ["barcode,count", ...rows.map(([b,c])=>`"${String(b).replace(/"/g,'""')}",${c}`)].join("\n");
+    const blob = new Blob([csv], {type:"text/csv"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "stock_take.csv";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  });
+
 })();
 </script>
 
