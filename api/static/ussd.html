@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YiThume — USSD simulator</title>
+<link rel="icon" href="/favicon.ico" />
+<script src="/static/tailwind.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-900 antialiased min-h-screen flex items-center justify-center p-4">
+
+<div class="w-full max-w-sm">
+  <div class="text-center mb-4">
+    <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white font-bold">Y</span>
+    <div class="mt-2 font-semibold">USSD simulator</div>
+    <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+      This simulates dialing a YiThume short code from a basic phone. The same
+      endpoint (<span class="font-mono">POST /api/ussd</span>) accepts what a
+      live USSD aggregator sends, so going live is a config step, not a rebuild.
+    </p>
+  </div>
+
+  <div class="rounded-3xl bg-slate-900 p-5 shadow-2xl">
+    <input id="phoneInput" placeholder="Your phone number (e.g. 27712345678)"
+           class="w-full px-4 py-2.5 rounded-xl bg-slate-800 text-slate-100 text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+    <div id="screen" class="mt-4 rounded-xl bg-emerald-50 text-slate-900 p-4 text-sm whitespace-pre-wrap font-mono min-h-40">Dial to start.</div>
+    <div class="mt-4 flex gap-2">
+      <input id="replyInput" inputmode="numeric" placeholder="Reply"
+             class="flex-1 px-4 py-2.5 rounded-xl bg-slate-800 text-slate-100 text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+      <button id="sendBtn" class="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Send</button>
+    </div>
+    <div class="mt-3 flex gap-2">
+      <button id="dialBtn" class="flex-1 px-4 py-2.5 rounded-xl bg-white text-slate-900 text-sm font-medium hover:bg-slate-200">Dial *134*948#</button>
+      <button id="endBtn" class="px-4 py-2.5 rounded-xl border border-slate-700 text-slate-300 text-sm hover:bg-slate-800">End call</button>
+    </div>
+  </div>
+
+  <div class="text-center mt-4 text-xs text-slate-400"><a href="/" class="underline hover:text-slate-600">Back to storefront</a></div>
+</div>
+
+<script>
+let sessionId = "";
+let history = [];
+let ended = true;
+
+const screen = document.getElementById("screen");
+const reply = document.getElementById("replyInput");
+
+function setScreen(text, done) {
+  screen.textContent = text;
+  ended = done;
+  reply.disabled = done;
+  document.getElementById("sendBtn").disabled = done;
+  if (!done) reply.focus();
+}
+
+async function send() {
+  const phone = document.getElementById("phoneInput").value.trim();
+  if (!phone) { setScreen("Enter your phone number first, then dial.", true); return; }
+  const text = history.join("*");
+  const form = new URLSearchParams({ sessionId, phoneNumber: phone, serviceCode: "*134*948#", text });
+  try {
+    const res = await fetch("/api/ussd", { method: "POST", body: form });
+    const raw = await res.text();
+    if (raw.startsWith("CON ")) setScreen(raw.slice(4), false);
+    else if (raw.startsWith("END ")) setScreen(raw.slice(4) + "\n\n[Session ended]", true);
+    else setScreen(raw, true);
+  } catch (e) {
+    setScreen("Network error — is the server running?", true);
+  }
+}
+
+document.getElementById("dialBtn").onclick = () => {
+  sessionId = "sim-" + Math.random().toString(36).slice(2, 10);
+  history = [];
+  send();
+};
+document.getElementById("sendBtn").onclick = () => {
+  const v = reply.value.trim();
+  if (!v || ended) return;
+  history.push(v);
+  reply.value = "";
+  send();
+};
+reply.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("sendBtn").click(); });
+document.getElementById("endBtn").onclick = () => setScreen("Call ended. Dial to start again.", true);
+setScreen("Dial to start.", true);
+</script>
+</body>
+</html>

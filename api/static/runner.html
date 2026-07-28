@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YiThume — Runner</title>
+<link rel="icon" href="/favicon.ico" />
+<script src="/static/tailwind.js"></script>
+<style>
+  .toast{animation:pop .2s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .pill{font-size:.7rem;font-weight:600;padding:.2rem .55rem;border-radius:999px;white-space:nowrap}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-900 antialiased">
+
+<!-- Login -->
+<div id="loginView" class="min-h-screen flex items-center justify-center p-4">
+  <div class="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-xl">
+    <span class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-600 text-white text-xl font-bold">Y</span>
+    <div class="mt-3 text-lg font-semibold">YiThume Runner</div>
+    <div class="text-sm text-slate-500">Enter the phone number you registered with</div>
+    <input id="loginPhone" type="tel" inputmode="numeric" placeholder="e.g. 27730000001"
+           class="mt-4 w-full px-4 py-3 rounded-xl border border-slate-300 text-center text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+    <button id="loginBtn" class="mt-3 w-full px-5 py-3 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Start working</button>
+    <div id="loginMsg" class="mt-2 text-xs text-red-600"></div>
+    <div class="mt-4 text-xs text-slate-400">Not a runner yet? <a href="/#join" class="underline">Apply on the storefront</a>.</div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="appView" class="hidden max-w-md mx-auto min-h-screen pb-24">
+  <header class="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+    <div>
+      <b id="runnerName"></b>
+      <div class="text-xs text-slate-500" id="runnerArea"></div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="statusBtn" class="pill bg-slate-200 text-slate-600">offline</button>
+      <button id="logoutBtn" class="text-xs px-2.5 py-1.5 rounded-lg border hover:bg-slate-100">Exit</button>
+    </div>
+  </header>
+
+  <!-- Cash panel -->
+  <div class="px-4 mt-4">
+    <div id="cashPanel" class="rounded-2xl bg-white border p-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-xs text-slate-500">Cash in hand (to deposit)</div>
+          <div class="text-2xl font-bold" id="cashInHand">R0.00</div>
+        </div>
+        <button id="remitBtn" class="px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 disabled:opacity-40">Remit cash</button>
+      </div>
+      <div id="cashWarning" class="hidden mt-3 text-xs font-medium text-red-700 bg-red-50 rounded-xl p-3">
+        You are over the cash limit. Deposit your cash and log it here before you can take new jobs.
+      </div>
+      <div class="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+        <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold" id="cashLimit">—</div><div class="text-slate-500">Cash limit</div></div>
+        <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold" id="remitPending">—</div><div class="text-slate-500">Awaiting confirm</div></div>
+        <div class="rounded-xl bg-slate-50 p-2"><div class="font-bold" id="totalEarned">—</div><div class="text-slate-500">Earned to date</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Jobs -->
+  <div class="px-4 mt-5">
+    <b class="text-sm">My jobs</b>
+    <div id="activeJobs" class="mt-2 space-y-3"></div>
+  </div>
+  <div class="px-4 mt-5">
+    <b class="text-sm">Available jobs</b>
+    <div class="text-xs text-slate-500">Go online to take jobs. Jobs in your area show first.</div>
+    <div id="availableJobs" class="mt-2 space-y-3"></div>
+  </div>
+  <div class="px-4 mt-5">
+    <b class="text-sm">Delivered recently</b>
+    <div id="doneJobs" class="mt-2 space-y-2"></div>
+  </div>
+  <div class="px-4 mt-5">
+    <b class="text-sm">My deposits</b>
+    <div id="remitList" class="mt-2 space-y-2"></div>
+  </div>
+</div>
+
+<!-- Deliver PIN modal -->
+<div id="pinModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
+  <div class="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl text-center">
+    <div class="text-lg font-semibold">Delivery PIN</div>
+    <div class="text-sm text-slate-500 mt-1">Ask the buyer for their 4-digit PIN. This confirms they received the goods.</div>
+    <input id="pinInput" inputmode="numeric" maxlength="4" placeholder="0000"
+           class="mt-4 w-full px-4 py-3 rounded-xl border border-slate-300 text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+    <div id="pinMsg" class="mt-2 text-xs text-red-600"></div>
+    <div class="mt-4 flex gap-3">
+      <button id="pinCancel" class="flex-1 px-4 py-2.5 rounded-xl border text-sm hover:bg-slate-100">Back</button>
+      <button id="pinConfirm" class="flex-1 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Mark delivered</button>
+    </div>
+  </div>
+</div>
+
+<!-- Incident modal -->
+<div id="incidentModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
+  <div class="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+    <div class="text-lg font-semibold">Report a problem</div>
+    <div class="text-sm text-slate-500 mt-1">This cancels the job and flags the buyer's number.</div>
+    <select id="incidentReason" class="mt-4 w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white">
+      <option value="no_show">Buyer not there (no-show)</option>
+      <option value="refused_cod">Buyer refused to pay cash</option>
+      <option value="wrong_address">Address does not exist</option>
+    </select>
+    <div class="mt-4 flex gap-3">
+      <button id="incidentCancel" class="flex-1 px-4 py-2.5 rounded-xl border text-sm hover:bg-slate-100">Back</button>
+      <button id="incidentConfirm" class="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700">Report</button>
+    </div>
+  </div>
+</div>
+
+<!-- Remit modal -->
+<div id="remitModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
+  <div class="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+    <div class="text-lg font-semibold">Remit cash</div>
+    <div class="text-sm text-slate-500 mt-1">Deposit your cash at the bank, then log it here. Admin will confirm it.</div>
+    <div class="mt-3 rounded-xl bg-slate-50 p-3 text-sm flex justify-between"><span>Expected total</span><b id="remitExpected">R0.00</b></div>
+    <input id="remitAmount" type="number" step="0.01" min="0" placeholder="Amount deposited (R)"
+           class="mt-3 w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+    <input id="remitRef" placeholder="Deposit reference (slip number)"
+           class="mt-3 w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+    <div id="remitMsg" class="mt-2 text-xs text-red-600"></div>
+    <div class="mt-4 flex gap-3">
+      <button id="remitCancel" class="flex-1 px-4 py-2.5 rounded-xl border text-sm hover:bg-slate-100">Back</button>
+      <button id="remitConfirm" class="flex-1 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-700">Log deposit</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 hidden"></div>
+
+<script>
+const R = v => "R" + Number(v || 0).toFixed(2);
+let PHONE = localStorage.getItem("yithume_runner_phone") || "";
+let ME = null, PIN_JOB = null, INCIDENT_JOB = null;
+
+function toast(msg, ok = true) {
+  const t = document.getElementById("toast");
+  t.innerHTML = `<div class="toast px-4 py-2.5 rounded-xl text-sm text-white shadow-lg ${ok ? "bg-slate-900" : "bg-red-600"}">${msg}</div>`;
+  t.classList.remove("hidden");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.add("hidden"), 2600);
+}
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
+  const data = await res.json().catch(() => ({ ok: false, error: "bad response" }));
+  if (!data.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+function showModal(id, show) {
+  const m = document.getElementById(id);
+  m.classList.toggle("hidden", !show); m.classList.toggle("flex", show);
+}
+
+// ---------- login ----------
+async function login(phone) {
+  try {
+    const { runner } = await api(`/api/runner/me?phone=${encodeURIComponent(phone)}`);
+    PHONE = phone; ME = runner;
+    localStorage.setItem("yithume_runner_phone", phone);
+    document.getElementById("loginView").classList.add("hidden");
+    document.getElementById("appView").classList.remove("hidden");
+    renderMe(); await loadJobs(); await loadRemits();
+  } catch (e) {
+    document.getElementById("loginMsg").textContent = e.message;
+  }
+}
+document.getElementById("loginBtn").onclick = () => login(document.getElementById("loginPhone").value.trim());
+document.getElementById("loginPhone").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("loginBtn").click(); });
+document.getElementById("logoutBtn").onclick = () => {
+  localStorage.removeItem("yithume_runner_phone");
+  location.reload();
+};
+
+// ---------- profile / cash ----------
+function renderMe() {
+  document.getElementById("runnerName").textContent = ME.name;
+  document.getElementById("runnerArea").textContent = (ME.area || "") + " • " + ME.deliveries_done + " deliveries";
+  const sb = document.getElementById("statusBtn");
+  sb.textContent = ME.status;
+  sb.className = "pill " + (ME.status === "online" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600");
+  document.getElementById("cashInHand").textContent = R(ME.cash_in_hand);
+  document.getElementById("cashLimit").textContent = R(ME.cash_limit);
+  document.getElementById("remitPending").textContent = R(ME.remit_pending);
+  document.getElementById("totalEarned").textContent = R(ME.total_earned);
+  document.getElementById("cashWarning").classList.toggle("hidden", !ME.blocked);
+  document.getElementById("remitBtn").disabled = ME.cash_in_hand <= 0;
+}
+async function refreshMe() {
+  const { runner } = await api(`/api/runner/me?phone=${encodeURIComponent(PHONE)}`);
+  ME = runner; renderMe();
+}
+document.getElementById("statusBtn").onclick = async () => {
+  const next = ME.status === "online" ? "offline" : "online";
+  await api("/api/runner/status", { method: "POST", body: JSON.stringify({ phone: PHONE, status: next }) });
+  ME.status = next; renderMe();
+  toast(next === "online" ? "You are online — you can take jobs" : "You are offline");
+};
+
+// ---------- jobs ----------
+function jobCard(j, kind) {
+  const pay = j.payment_method === "cod"
+    ? `<span class="pill bg-amber-100 text-amber-700">Collect ${R(j.total)} cash</span>`
+    : `<span class="pill bg-sky-100 text-sky-700">Prepaid — no cash</span>`;
+  let actions = "";
+  if (kind === "available") {
+    actions = `<button data-act="accept" data-id="${j._id}" class="w-full mt-3 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Accept job (earn ${R(j.runner_earning)})</button>`;
+  } else if (j.status === "assigned") {
+    actions = `<button data-act="pickup" data-id="${j._id}" class="w-full mt-3 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-700">I have collected the goods</button>
+      <button data-act="incident" data-id="${j._id}" class="w-full mt-2 px-4 py-2 rounded-xl border text-xs text-red-600 hover:bg-red-50">Report a problem</button>`;
+  } else if (j.status === "picked_up") {
+    actions = `<button data-act="deliver" data-id="${j._id}" class="w-full mt-3 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Delivered — enter buyer PIN</button>
+      <button data-act="incident" data-id="${j._id}" class="w-full mt-2 px-4 py-2 rounded-xl border text-xs text-red-600 hover:bg-red-50">Report a problem</button>`;
+  }
+  return `<div class="rounded-2xl bg-white border p-4">
+    <div class="flex items-center justify-between">
+      <b class="font-mono">${j.code}</b>${pay}
+    </div>
+    <div class="mt-2 text-sm">${j.items.map(i => `${i.qty} x ${esc(i.name)}${i.seller_name ? ` <span class="text-slate-400">(${esc(i.seller_name)})</span>` : ""}`).join("<br>")}</div>
+    <div class="mt-2 text-sm"><b>${esc(j.buyer_name)}</b> — ${esc(j.address)}, ${esc(j.area)}</div>
+    <div class="text-xs text-slate-500 mt-1">Buyer: <a class="underline" href="tel:${j.buyer_phone}">${j.buyer_phone}</a> • You earn ${R(j.runner_earning)}</div>
+    ${actions}</div>`;
+}
+
+async function loadJobs() {
+  const data = await api(`/api/runner/jobs?phone=${encodeURIComponent(PHONE)}`);
+  document.getElementById("activeJobs").innerHTML =
+    data.active.map(j => jobCard(j, "active")).join("") ||
+    `<div class="rounded-2xl border border-dashed p-4 text-center text-sm text-slate-400 bg-white">No active jobs.</div>`;
+  document.getElementById("availableJobs").innerHTML =
+    data.available.map(j => jobCard(j, "available")).join("") ||
+    `<div class="rounded-2xl border border-dashed p-4 text-center text-sm text-slate-400 bg-white">No jobs waiting right now. Check back soon.</div>`;
+  document.getElementById("doneJobs").innerHTML =
+    data.delivered.map(j => `<div class="rounded-xl bg-white border px-4 py-2.5 text-sm flex justify-between">
+      <span class="font-mono">${j.code}</span><span class="text-slate-500">${esc(j.area)}</span><b>${R(j.runner_earning)}</b></div>`).join("") ||
+    `<div class="text-xs text-slate-400">Nothing delivered yet.</div>`;
+  document.querySelectorAll("[data-act]").forEach(b => b.onclick = () => handleAction(b.dataset.act, b.dataset.id));
+}
+
+async function handleAction(act, id) {
+  try {
+    if (act === "accept") {
+      await api(`/api/runner/orders/${id}/accept`, { method: "POST", body: JSON.stringify({ phone: PHONE }) });
+      toast("Job accepted — go collect the goods");
+    } else if (act === "pickup") {
+      await api(`/api/runner/orders/${id}/pickup`, { method: "POST", body: JSON.stringify({ phone: PHONE }) });
+      toast("Marked as collected — deliver to the buyer");
+    } else if (act === "deliver") {
+      PIN_JOB = id;
+      document.getElementById("pinInput").value = "";
+      document.getElementById("pinMsg").textContent = "";
+      showModal("pinModal", true);
+      document.getElementById("pinInput").focus();
+      return;
+    } else if (act === "incident") {
+      INCIDENT_JOB = id;
+      showModal("incidentModal", true);
+      return;
+    }
+    await loadJobs(); await refreshMe();
+  } catch (e) { toast(e.message, false); }
+}
+
+// ---------- deliver PIN ----------
+document.getElementById("pinCancel").onclick = () => showModal("pinModal", false);
+document.getElementById("pinConfirm").onclick = async () => {
+  const pin = document.getElementById("pinInput").value.trim();
+  try {
+    await api(`/api/runner/orders/${PIN_JOB}/deliver`, { method: "POST", body: JSON.stringify({ phone: PHONE, pin }) });
+    showModal("pinModal", false);
+    toast("Delivered — well done");
+    await loadJobs(); await refreshMe();
+  } catch (e) { document.getElementById("pinMsg").textContent = e.message; }
+};
+
+// ---------- incident ----------
+document.getElementById("incidentCancel").onclick = () => showModal("incidentModal", false);
+document.getElementById("incidentConfirm").onclick = async () => {
+  try {
+    await api(`/api/runner/orders/${INCIDENT_JOB}/incident`, {
+      method: "POST",
+      body: JSON.stringify({ phone: PHONE, reason: document.getElementById("incidentReason").value }),
+    });
+    showModal("incidentModal", false);
+    toast("Reported — job cancelled");
+    await loadJobs(); await refreshMe();
+  } catch (e) { toast(e.message, false); }
+};
+
+// ---------- remit ----------
+document.getElementById("remitBtn").onclick = () => {
+  document.getElementById("remitExpected").textContent = R(ME.cash_in_hand);
+  document.getElementById("remitAmount").value = ME.cash_in_hand;
+  document.getElementById("remitRef").value = "";
+  document.getElementById("remitMsg").textContent = "";
+  showModal("remitModal", true);
+};
+document.getElementById("remitCancel").onclick = () => showModal("remitModal", false);
+document.getElementById("remitConfirm").onclick = async () => {
+  try {
+    await api("/api/runner/remit", { method: "POST", body: JSON.stringify({
+      phone: PHONE,
+      amount: document.getElementById("remitAmount").value,
+      reference: document.getElementById("remitRef").value,
+    })});
+    showModal("remitModal", false);
+    toast("Deposit logged — admin will confirm it");
+    await refreshMe(); await loadRemits();
+  } catch (e) { document.getElementById("remitMsg").textContent = e.message; }
+};
+
+async function loadRemits() {
+  const { remittances } = await api(`/api/runner/remittances?phone=${encodeURIComponent(PHONE)}`);
+  const color = { pending: "bg-amber-100 text-amber-700", confirmed: "bg-emerald-100 text-emerald-700", rejected: "bg-red-100 text-red-600" };
+  document.getElementById("remitList").innerHTML = remittances.map(r =>
+    `<div class="rounded-xl bg-white border px-4 py-2.5 text-sm flex items-center justify-between">
+      <div><b>${R(r.amount)}</b><span class="text-xs text-slate-500 ml-2">${esc(r.reference) || "no reference"}</span></div>
+      <span class="pill ${color[r.status] || "bg-slate-200"}">${r.status}</span></div>`).join("") ||
+    `<div class="text-xs text-slate-400">No deposits logged yet.</div>`;
+}
+
+// ---------- refresh loop ----------
+setInterval(async () => {
+  if (!PHONE || document.getElementById("appView").classList.contains("hidden")) return;
+  try { await loadJobs(); await refreshMe(); } catch (e) {}
+}, 20000);
+
+if (PHONE) { document.getElementById("loginPhone").value = PHONE; login(PHONE); }
+</script>
+</body>
+</html>

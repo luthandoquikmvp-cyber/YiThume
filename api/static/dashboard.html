@@ -41,18 +41,21 @@
       </div>
       <div class="flex items-center gap-3">
         <span id="storageBadge" class="hidden sm:inline text-xs px-2.5 py-1 rounded-lg bg-slate-100 text-slate-500"></span>
-        <a href="/" class="text-sm text-slate-600 hover:text-slate-900">Storefront ↗</a>
+        <a href="/" class="text-sm text-slate-600 hover:text-slate-900">Storefront</a>
         <button id="lockBtn" class="text-sm px-3 py-1.5 rounded-lg border hover:bg-slate-100">Lock</button>
       </div>
     </div>
     <nav class="max-w-7xl mx-auto px-4 pb-2 flex gap-2 overflow-x-auto" id="tabs">
       <button data-tab="overview" class="tab-btn active px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Overview</button>
       <button data-tab="orders" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Orders</button>
+      <button data-tab="settlement" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Settlement</button>
+      <button data-tab="payouts" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Payouts</button>
       <button data-tab="products" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Products</button>
       <button data-tab="sellers" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Sellers</button>
       <button data-tab="runners" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Runners</button>
       <button data-tab="nodes" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Nodes</button>
       <button data-tab="marketplaces" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Marketplaces</button>
+      <button data-tab="settings" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Settings</button>
     </nav>
   </header>
 
@@ -81,19 +84,51 @@
     <section id="tab-orders" class="hidden">
       <div class="flex flex-wrap items-center gap-2 mb-4" id="orderFilters"></div>
       <div class="rounded-2xl bg-white border p-5 overflow-x-auto">
-        <table class="w-full"><thead><tr><th>Code</th><th>Buyer</th><th>Items</th><th>Total</th><th>Status</th><th>Runner</th><th>Actions</th></tr></thead>
+        <table class="w-full"><thead><tr><th>Code</th><th>Buyer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Runner</th><th>Actions</th></tr></thead>
         <tbody id="ordersBody"></tbody></table>
+      </div>
+    </section>
+
+    <!-- Settlement -->
+    <section id="tab-settlement" class="hidden">
+      <div class="grid md:grid-cols-3 gap-3 mb-6" id="settlementCards"></div>
+      <div class="rounded-2xl bg-white border p-5 overflow-x-auto">
+        <b class="text-sm">Runner remittances</b>
+        <div class="text-xs text-slate-500 mt-1">Runners log bank deposits of the cash they collected. Confirm a deposit to settle its orders; reject it to put the cash back on the runner's balance.</div>
+        <table class="w-full mt-3"><thead><tr><th>When</th><th>Runner</th><th>Deposited</th><th>Expected</th><th>Reference</th><th>Orders</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="remittancesBody"></tbody></table>
+      </div>
+      <div class="mt-6 rounded-2xl bg-white border p-5 overflow-x-auto">
+        <b class="text-sm">Runner cash in hand</b>
+        <table class="w-full mt-3"><thead><tr><th>Runner</th><th>Area</th><th>Status</th><th>Cash in hand</th></tr></thead>
+        <tbody id="cashBody"></tbody></table>
+      </div>
+      <div class="mt-6 rounded-2xl bg-white border p-5 overflow-x-auto">
+        <b class="text-sm">Flagged buyers</b>
+        <div class="text-xs text-slate-500 mt-1">Buyers with no-show or refused-COD strikes. Prepay-only buyers must pay by EFT before delivery.</div>
+        <table class="w-full mt-3"><thead><tr><th>Phone</th><th>Strikes</th><th>Orders placed</th><th>Last incident</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="buyersBody"></tbody></table>
+      </div>
+    </section>
+
+    <!-- Payouts -->
+    <section id="tab-payouts" class="hidden">
+      <div class="rounded-2xl bg-white border p-5 overflow-x-auto">
+        <b class="text-sm">Payout queue</b>
+        <div class="text-xs text-slate-500 mt-1">What's owed to each seller, runner and node for settled orders. Pay outside the app (EFT), then mark it paid here.</div>
+        <table class="w-full mt-3"><thead><tr><th>Who</th><th>Role</th><th>Orders</th><th>Amount owed</th><th>Actions</th></tr></thead>
+        <tbody id="payoutsBody"></tbody></table>
       </div>
     </section>
 
     <!-- Products -->
     <section id="tab-products" class="hidden">
       <div class="flex justify-between items-center mb-4">
-        <input id="productSearch" placeholder="Filter products…" class="px-4 py-2 rounded-xl border border-slate-300 bg-white text-sm w-64" />
+        <input id="productSearch" placeholder="Filter products" class="px-4 py-2 rounded-xl border border-slate-300 bg-white text-sm w-64" />
         <button onclick="openProductModal()" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">+ Add product</button>
       </div>
       <div class="rounded-2xl bg-white border p-5 overflow-x-auto">
-        <table class="w-full"><thead><tr><th></th><th>Name</th><th>Category</th><th>Seller</th><th>Marketplace</th><th>Price</th><th>Stock</th><th>Active</th><th></th></tr></thead>
+        <table class="w-full"><thead><tr><th>Name</th><th>Category</th><th>Seller</th><th>Marketplace</th><th>Price</th><th>Stock</th><th>Active</th><th></th></tr></thead>
         <tbody id="productsBody"></tbody></table>
       </div>
     </section>
@@ -103,6 +138,34 @@
     <section id="tab-runners" class="hidden"></section>
     <section id="tab-nodes" class="hidden"></section>
     <section id="tab-marketplaces" class="hidden"></section>
+
+    <!-- Settings -->
+    <section id="tab-settings" class="hidden">
+      <div class="max-w-xl rounded-2xl bg-white border p-6">
+        <b class="text-sm">Fees &amp; policy</b>
+        <div class="text-xs text-slate-500 mt-1">These rates are frozen onto each order at checkout — changing them only affects new orders.</div>
+        <form id="settingsForm" class="mt-4 space-y-4 text-sm">
+          <label class="block">Delivery fee (R)
+            <input name="delivery_fee" type="number" step="0.01" min="0" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-slate-300" /></label>
+          <label class="block">Platform commission (share of item subtotal, e.g. 0.10 = 10%)
+            <input name="platform_rate" type="number" step="0.01" min="0" max="1" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-slate-300" /></label>
+          <label class="block">Runner earning (share of delivery fee, e.g. 0.80 = 80%)
+            <input name="runner_rate" type="number" step="0.01" min="0" max="1" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-slate-300" /></label>
+          <label class="block">Node commission (share of delivery fee, e.g. 0.20 = 20%)
+            <input name="node_rate" type="number" step="0.01" min="0" max="1" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-slate-300" /></label>
+          <label class="block">COD limit (R) — orders above this must be EFT-paid upfront
+            <input name="cod_cap" type="number" step="1" min="0" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-slate-300" /></label>
+          <label class="block">Buyer strikes before prepay-only
+            <input name="strike_limit" type="number" step="1" min="1" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-slate-300" /></label>
+          <label class="block">Runner cash-in-hand limit (R) — blocks new jobs above this
+            <input name="runner_cash_limit" type="number" step="1" min="0" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-slate-300" /></label>
+          <label class="block">EFT payment details (shown to buyers)
+            <textarea name="eft_details" rows="2" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-slate-300"></textarea></label>
+          <button class="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Save settings</button>
+          <span id="settingsMsg" class="text-xs text-slate-500 ml-2"></span>
+        </form>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -117,10 +180,7 @@
         <input name="price" required type="number" step="0.01" min="0" placeholder="Price (R)" class="px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
         <input name="stock" type="number" min="0" placeholder="Stock" class="px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
       </div>
-      <div class="grid grid-cols-2 gap-3">
-        <input name="category" placeholder="Category" class="px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
-        <input name="emoji" placeholder="Emoji (e.g. 🌽)" class="px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
-      </div>
+      <input name="category" placeholder="Category" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
       <select name="seller_id" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white" id="sellerSelect"><option value="">— Seller —</option></select>
       <select name="marketplace_id" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white" id="marketplaceSelect"><option value="">— Marketplace (optional) —</option></select>
       <input name="image_url" placeholder="Image URL (optional)" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
@@ -147,9 +207,9 @@
 const R = v => "R" + Number(v || 0).toFixed(2);
 let PIN = sessionStorage.getItem("yithume_pin") || "";
 const H = () => ({ "Content-Type": "application/json", "X-Admin-Pin": PIN });
-const STATUS_COLORS = { pending: "bg-amber-100 text-amber-700", confirmed: "bg-sky-100 text-sky-700", assigned: "bg-indigo-100 text-indigo-700", picked_up: "bg-violet-100 text-violet-700", delivered: "bg-emerald-100 text-emerald-700", cancelled: "bg-red-100 text-red-600" };
+const STATUS_COLORS = { awaiting_otp: "bg-slate-200 text-slate-600", pending: "bg-amber-100 text-amber-700", confirmed: "bg-sky-100 text-sky-700", assigned: "bg-indigo-100 text-indigo-700", picked_up: "bg-violet-100 text-violet-700", delivered: "bg-emerald-100 text-emerald-700", cancelled: "bg-red-100 text-red-600" };
 const NEXT_STATUS = { pending: "confirmed", confirmed: "assigned", assigned: "picked_up", picked_up: "delivered" };
-const NEXT_LABEL = { confirmed: "Confirm ✅", assigned: "Assign 🏃", picked_up: "Picked up 📦", delivered: "Delivered 🎉" };
+const NEXT_LABEL = { confirmed: "Confirm", assigned: "Assign", picked_up: "Picked up", delivered: "Delivered" };
 let CACHE = { sellers: [], runners: [], products: [], orders: [] };
 let orderStatusFilter = "";
 
@@ -206,8 +266,9 @@ async function loadOverview() {
   const cards = [
     ["GMV", R(stats.gmv)], ["Platform revenue", R(stats.platform_revenue)],
     ["Orders", stats.orders_total], ["Pending orders", stats.orders_by_status.pending || 0],
-    ["Products", stats.products], ["Sellers", `${stats.sellers}${stats.sellers_pending ? ` (${stats.sellers_pending} pending)` : ""}`],
-    ["Runners online", `${stats.runners_online}/${stats.runners}`], ["Markets connected", stats.marketplaces],
+    ["Cash with runners", R(stats.cash_with_runners)], ["Payouts owed", R(stats.payouts_owed)],
+    ["Runners online", `${stats.runners_online}/${stats.runners}`],
+    ["Deposits to confirm", stats.remittances_pending],
   ];
   document.getElementById("statCards").innerHTML = cards.map(([k, v]) =>
     `<div class="rounded-2xl bg-white border p-4"><div class="text-xs text-slate-500">${k}</div><div class="text-xl font-bold mt-1">${v}</div></div>`).join("");
@@ -219,7 +280,7 @@ async function loadOverview() {
       <b class="w-6 text-right">${n}</b>
     </div>`).join("") || `<div class="text-xs text-slate-400">No orders yet.</div>`;
   document.getElementById("topProducts").innerHTML = stats.top_products.map(p =>
-    `<div class="flex justify-between"><span>${esc(p.name)}</span><b>${p.qty}×</b></div>`).join("") || `<div class="text-xs text-slate-400">No sales yet.</div>`;
+    `<div class="flex justify-between"><span>${esc(p.name)}</span><b>${p.qty}</b></div>`).join("") || `<div class="text-xs text-slate-400">No sales yet.</div>`;
   document.getElementById("recentOrders").innerHTML = stats.recent_orders.map(o => `
     <tr><td class="font-mono font-semibold">${o.code}</td><td>${esc(o.buyer.name)}</td><td>${o.items.length}</td><td>${R(o.total)}</td>
     <td><span class="status-pill ${STATUS_COLORS[o.status]}">${o.status}</span></td>
@@ -228,11 +289,20 @@ async function loadOverview() {
 
 // ---------- orders ----------
 function renderOrderFilters() {
-  const statuses = ["", "pending", "confirmed", "assigned", "picked_up", "delivered", "cancelled"];
+  const statuses = ["", "awaiting_otp", "pending", "confirmed", "assigned", "picked_up", "delivered", "cancelled"];
   document.getElementById("orderFilters").innerHTML = statuses.map(s =>
     `<button onclick="setOrderFilter('${s}')" class="px-3 py-1.5 rounded-full border text-xs font-medium ${orderStatusFilter === s ? "bg-slate-900 text-white border-slate-900" : "bg-white hover:bg-slate-100"}">${s || "All"}</button>`).join("");
 }
 function setOrderFilter(s) { orderStatusFilter = s; loadOrders(); }
+
+function payCell(o) {
+  const m = (o.payment || {}).method || "cod";
+  const label = m === "cod" ? "Cash" : "EFT";
+  const cash = (o.settlement || {}).cash_status || "";
+  const cashLabel = { with_runner: "cash with runner", remit_pending: "deposit pending", settled: "settled" }[cash] || "";
+  return `<span class="status-pill ${m === "cod" ? "bg-amber-100 text-amber-700" : "bg-sky-100 text-sky-700"}">${label}</span>` +
+    (cashLabel ? `<div class="text-xs text-slate-400 mt-1">${cashLabel}</div>` : "");
+}
 
 async function loadOrders() {
   renderOrderFilters();
@@ -244,32 +314,141 @@ async function loadOrders() {
     let actions = "";
     if (o.status === "confirmed" && !o.runner_id) {
       actions += `<select id="rsel-${o._id}" class="px-2 py-1 rounded-lg border text-xs bg-white mr-1"><option value="auto">Auto-assign</option>${runnerOptions}</select>
-        <button onclick="assignRunner('${o._id}')" class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs">Assign 🏃</button>`;
+        <button onclick="assignRunner('${o._id}')" class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs">Assign</button>`;
+    } else if (next === "delivered") {
+      actions += `<button onclick="deliverOrder('${o._id}')" class="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs">Delivered (PIN)</button>`;
     } else if (next) {
       actions += `<button onclick="advanceOrder('${o._id}','${next}')" class="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs">${NEXT_LABEL[next]}</button>`;
     }
-    if (!["delivered", "cancelled", "picked_up"].includes(o.status)) {
+    if (!["delivered", "cancelled"].includes(o.status)) {
       actions += ` <button onclick="advanceOrder('${o._id}','cancelled')" class="px-2.5 py-1 rounded-lg border text-xs text-red-600 hover:bg-red-50">Cancel</button>`;
+      if (["confirmed", "assigned", "picked_up"].includes(o.status)) {
+        actions += ` <button onclick="reportIncident('${o._id}')" class="px-2.5 py-1 rounded-lg border text-xs text-red-600 hover:bg-red-50">No-show</button>`;
+      }
     }
+    const pinNote = o.delivery_pin && !["delivered", "cancelled"].includes(o.status)
+      ? `<div class="text-xs text-slate-400">PIN ${o.delivery_pin}</div>` : "";
     return `<tr>
-      <td class="font-mono font-semibold">${o.code}</td>
-      <td>${esc(o.buyer.name)}<div class="text-xs text-slate-400">${o.buyer.phone} • ${esc(o.buyer.area)}</div></td>
-      <td class="text-xs">${o.items.map(i => `${i.qty}× ${esc(i.name)}`).join("<br>")}</td>
+      <td class="font-mono font-semibold">${o.code}<div class="text-xs font-sans font-normal text-slate-400">${o.channel}</div></td>
+      <td>${esc(o.buyer.name)}<div class="text-xs text-slate-400">${o.buyer.phone} — ${esc(o.buyer.area)}</div></td>
+      <td class="text-xs">${o.items.map(i => `${i.qty} x ${esc(i.name)}`).join("<br>")}</td>
       <td>${R(o.total)}</td>
-      <td><span class="status-pill ${STATUS_COLORS[o.status]}">${o.status}</span></td>
+      <td>${payCell(o)}</td>
+      <td><span class="status-pill ${STATUS_COLORS[o.status]}">${o.status}</span>${pinNote}</td>
       <td>${esc(o.runner_name) || "—"}</td>
       <td class="whitespace-nowrap">${actions || "—"}</td></tr>`;
-  }).join("") || `<tr><td colspan="7" class="text-slate-400">No orders${orderStatusFilter ? " with this status" : " yet"}.</td></tr>`;
+  }).join("") || `<tr><td colspan="8" class="text-slate-400">No orders${orderStatusFilter ? " with this status" : " yet"}.</td></tr>`;
 }
 async function advanceOrder(id, status) {
   await api(`/api/orders/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
-  toast(`Order → ${status}`); loadOrders(); loadOverview();
+  toast(`Order marked ${status}`); loadOrders(); loadOverview();
+}
+async function deliverOrder(id) {
+  const pin = prompt("Enter the buyer's 4-digit delivery PIN:");
+  if (!pin) return;
+  await api(`/api/orders/${id}`, { method: "PATCH", body: JSON.stringify({ status: "delivered", delivery_pin: pin.trim() }) });
+  toast("Order delivered"); loadOrders(); loadOverview();
+}
+async function reportIncident(id) {
+  if (!confirm("Log a no-show / refused-COD incident? This cancels the order and adds a strike against the buyer's number.")) return;
+  await api(`/api/orders/${id}/incident`, { method: "POST", body: JSON.stringify({ reason: "no_show" }) });
+  toast("Incident logged"); loadOrders(); loadOverview(); loadSettlement();
 }
 async function assignRunner(id) {
   const sel = document.getElementById("rsel-" + id);
   await api(`/api/orders/${id}`, { method: "PATCH", body: JSON.stringify({ runner_id: sel.value, status: "assigned" }) });
-  toast("Runner assigned 🏃"); loadOrders(); loadOverview();
+  toast("Runner assigned"); loadOrders(); loadOverview();
 }
+
+// ---------- settlement ----------
+async function loadSettlement() {
+  const [{ stats }, { remittances }, { buyers }, runnersData] = await Promise.all([
+    api("/api/stats"), api("/api/remittances"), api("/api/buyers"), api("/api/runners")]);
+  CACHE.runners = runnersData.runners;
+  document.getElementById("settlementCards").innerHTML = [
+    ["Cash with runners", R(stats.cash_with_runners)],
+    ["Deposits awaiting confirmation", stats.remittances_pending],
+    ["Prepay-only buyers", stats.buyers_flagged],
+  ].map(([k, v]) => `<div class="rounded-2xl bg-white border p-4"><div class="text-xs text-slate-500">${k}</div><div class="text-xl font-bold mt-1">${v}</div></div>`).join("");
+
+  const remColor = { pending: "bg-amber-100 text-amber-700", confirmed: "bg-emerald-100 text-emerald-700", rejected: "bg-red-100 text-red-600" };
+  document.getElementById("remittancesBody").innerHTML = remittances.map(r => {
+    const mismatch = Number(r.amount) !== Number(r.expected_total);
+    const actions = r.status === "pending"
+      ? `<button onclick="resolveRemittance('${r._id}','confirm')" class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs">Confirm</button>
+         <button onclick="resolveRemittance('${r._id}','reject')" class="px-2.5 py-1 rounded-lg border text-xs text-red-600 hover:bg-red-50">Reject</button>` : "—";
+    return `<tr>
+      <td class="text-slate-500">${new Date(r.created_at).toLocaleString()}</td>
+      <td>${esc(r.runner_name)}</td>
+      <td><b>${R(r.amount)}</b></td>
+      <td>${R(r.expected_total)}${mismatch ? `<div class="text-xs text-red-600">mismatch</div>` : ""}</td>
+      <td>${esc(r.reference) || "—"}</td>
+      <td class="text-xs">${(r.order_codes || []).join(", ")}</td>
+      <td><span class="status-pill ${remColor[r.status]}">${r.status}</span></td>
+      <td class="whitespace-nowrap">${actions}</td></tr>`;
+  }).join("") || `<tr><td colspan="8" class="text-slate-400">No remittances yet.</td></tr>`;
+
+  document.getElementById("cashBody").innerHTML = CACHE.runners.map(r => `
+    <tr><td>${esc(r.name)}</td><td>${esc(r.area) || "—"}</td>
+    <td><span class="status-pill ${r.status === "online" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}">${r.status}</span></td>
+    <td><b>${R(r.cash_in_hand)}</b></td></tr>`).join("") || `<tr><td colspan="4" class="text-slate-400">No runners.</td></tr>`;
+
+  document.getElementById("buyersBody").innerHTML = buyers.map(b => {
+    const last = (b.incidents || []).slice(-1)[0];
+    return `<tr>
+      <td class="font-mono">${b.phone}</td><td>${b.strikes}</td><td>${b.orders_placed || 0}</td>
+      <td class="text-xs text-slate-500">${last ? `${esc(last.reason)} (${esc(last.order_code)})` : "—"}</td>
+      <td><span class="status-pill ${b.prepay_only ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-700"}">${b.prepay_only ? "prepay only" : "watch"}</span></td>
+      <td class="whitespace-nowrap">
+        <button onclick="patchBuyer('${b._id}',{prepay_only:${!b.prepay_only}})" class="px-2.5 py-1 rounded-lg border text-xs hover:bg-slate-100">${b.prepay_only ? "Allow COD" : "Force prepay"}</button>
+        <button onclick="patchBuyer('${b._id}',{reset_strikes:true})" class="px-2.5 py-1 rounded-lg border text-xs hover:bg-slate-100">Reset</button>
+      </td></tr>`;
+  }).join("") || `<tr><td colspan="6" class="text-slate-400">No flagged buyers.</td></tr>`;
+}
+async function resolveRemittance(id, action) {
+  await api(`/api/remittances/${id}/${action}`, { method: "POST" });
+  toast(action === "confirm" ? "Deposit confirmed — orders settled" : "Deposit rejected");
+  loadSettlement(); loadOverview(); loadPayouts();
+}
+async function patchBuyer(id, patch) {
+  await api(`/api/buyers/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+  loadSettlement();
+}
+
+// ---------- payouts ----------
+async function loadPayouts() {
+  const { payouts } = await api("/api/payouts");
+  window._PAYOUTS = payouts;
+  document.getElementById("payoutsBody").innerHTML = payouts.map((p, i) => `
+    <tr><td>${esc(p.key) || "—"}</td>
+    <td><span class="status-pill bg-slate-200 text-slate-600">${p.role}</span></td>
+    <td class="text-xs">${p.order_codes.join(", ")}</td>
+    <td><b>${R(p.total)}</b></td>
+    <td><button onclick="markPaid(${i})" class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs">Mark as paid</button></td></tr>`).join("") ||
+    `<tr><td colspan="5" class="text-slate-400">Nothing owed right now. Payouts appear here once orders are settled.</td></tr>`;
+}
+async function markPaid(i) {
+  const p = window._PAYOUTS[i];
+  if (!confirm(`Mark ${R(p.total)} to ${p.key} (${p.role}) as paid? Do the actual EFT outside the app first.`)) return;
+  await api("/api/payouts/mark_paid", { method: "POST", body: JSON.stringify({ role: p.role, key: p.key, order_ids: p.order_ids }) });
+  toast("Marked as paid"); loadPayouts(); loadOverview();
+}
+
+// ---------- settings ----------
+async function loadSettings() {
+  const { settings } = await api("/api/settings");
+  const f = document.getElementById("settingsForm");
+  for (const k of ["delivery_fee", "platform_rate", "runner_rate", "node_rate", "cod_cap", "strike_limit", "runner_cash_limit", "eft_details"])
+    if (f[k]) f[k].value = settings[k];
+}
+document.getElementById("settingsForm").onsubmit = async (ev) => {
+  ev.preventDefault();
+  const payload = Object.fromEntries(new FormData(ev.target).entries());
+  await api("/api/settings", { method: "PATCH", body: JSON.stringify(payload) });
+  document.getElementById("settingsMsg").textContent = "Saved.";
+  setTimeout(() => document.getElementById("settingsMsg").textContent = "", 2000);
+  toast("Settings saved");
+};
 
 // ---------- products ----------
 async function loadProducts() {
@@ -282,14 +461,13 @@ function renderProducts() {
   const items = CACHE.products.filter(p => !q || [p.name, p.category, p.seller_name].join(" ").toLowerCase().includes(q));
   document.getElementById("productsBody").innerHTML = items.map(p => `
     <tr>
-      <td class="text-xl">${p.image_url ? `<img src="${esc(p.image_url)}" class="h-8 w-8 rounded object-cover">` : (p.emoji || "🛍️")}</td>
       <td class="font-medium">${esc(p.name)}</td><td>${esc(p.category)}</td><td>${esc(p.seller_name)}</td><td>${esc(p.marketplace_name) || "—"}</td>
       <td>${R(p.price)}</td><td>${p.stock ?? "—"}</td>
       <td><button onclick="toggleProduct('${p._id}',${!p.active})" class="status-pill ${p.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}">${p.active ? "active" : "hidden"}</button></td>
       <td class="whitespace-nowrap">
         <button onclick="openProductModal('${p._id}')" class="px-2.5 py-1 rounded-lg border text-xs hover:bg-slate-100">Edit</button>
         <button onclick="deleteProduct('${p._id}')" class="px-2.5 py-1 rounded-lg border text-xs text-red-600 hover:bg-red-50">Delete</button>
-      </td></tr>`).join("") || `<tr><td colspan="9" class="text-slate-400">No products.</td></tr>`;
+      </td></tr>`).join("") || `<tr><td colspan="8" class="text-slate-400">No products.</td></tr>`;
 }
 document.getElementById("productSearch").oninput = renderProducts;
 
@@ -305,7 +483,7 @@ function openProductModal(id) {
     mkts.map(m => `<option value="${m._id}">${esc(m.name)}</option>`).join("");
   if (id) {
     const p = CACHE.products.find(x => x._id === id);
-    for (const k of ["name", "price", "stock", "category", "emoji", "image_url"]) form[k].value = p[k] ?? "";
+    for (const k of ["name", "price", "stock", "category", "image_url"]) form[k].value = p[k] ?? "";
     form.seller_id.value = p.seller_id || ""; form.marketplace_id.value = p.marketplace_id || "";
   }
   modal.classList.remove("hidden"); modal.classList.add("flex");
@@ -314,7 +492,7 @@ function closeProductModal() { const m = document.getElementById("productModal")
 document.getElementById("productForm").onsubmit = async (ev) => {
   ev.preventDefault();
   const f = ev.target;
-  const payload = { name: f.name.value, price: f.price.value, stock: f.stock.value || 0, category: f.category.value, emoji: f.emoji.value, image_url: f.image_url.value, seller_id: f.seller_id.value, marketplace_id: f.marketplace_id.value };
+  const payload = { name: f.name.value, price: f.price.value, stock: f.stock.value || 0, category: f.category.value, image_url: f.image_url.value, seller_id: f.seller_id.value, marketplace_id: f.marketplace_id.value };
   if (f._id.value) await api(`/api/products/${f._id.value}`, { method: "PATCH", body: JSON.stringify(payload) });
   else await api("/api/products", { method: "POST", body: JSON.stringify(payload) });
   closeProductModal(); toast("Product saved"); loadProducts();
@@ -326,7 +504,7 @@ async function deleteProduct(id) { if (!confirm("Delete this product?")) return;
 const ENTITIES = {
   sellers: { title: "Sellers", cols: [["shop_name", "Shop"], ["owner_name", "Owner"], ["phone", "Phone"], ["area", "Area"], ["approved", "Approved"]],
     fields: [["shop_name", "Shop name", "text"], ["owner_name", "Owner name", "text"], ["phone", "Phone", "text"], ["area", "Area", "text"]] },
-  runners: { title: "Runners", cols: [["name", "Name"], ["phone", "Phone"], ["area", "Area"], ["vehicle", "Vehicle"], ["deliveries_done", "Drops"], ["status", "Status"], ["approved", "Approved"]],
+  runners: { title: "Runners", cols: [["name", "Name"], ["phone", "Phone"], ["area", "Area"], ["vehicle", "Vehicle"], ["deliveries_done", "Drops"], ["cash_in_hand", "Cash in hand"], ["status", "Status"], ["approved", "Approved"]],
     fields: [["name", "Name", "text"], ["phone", "Phone", "text"], ["area", "Area", "text"], ["vehicle", "Vehicle", "text"]] },
   nodes: { title: "Delivery nodes", cols: [["name", "Node"], ["operator_name", "Operator"], ["phone", "Phone"], ["territory", "Territory"], ["commission_rate", "Commission"], ["runners_count", "Runners"]],
     fields: [["name", "Node name", "text"], ["operator_name", "Operator", "text"], ["phone", "Phone", "text"], ["territory", "Territory", "text"], ["commission_rate", "Commission rate (e.g. 0.05)", "number"], ["runners_count", "Runners", "number"]] },
@@ -344,6 +522,7 @@ async function loadEntity(entity) {
     if (key === "status" && entity === "runners") return `<button onclick="patchEntity('runners','${item._id}',{status:'${item.status === "online" ? "offline" : "online"}'})" class="status-pill ${item.status === "online" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}">${item.status}</button>`;
     if (key === "status" && entity === "marketplaces") return `<button onclick="patchEntity('marketplaces','${item._id}',{status:'${item.status === "connected" ? "pending" : "connected"}'})" class="status-pill ${item.status === "connected" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}">${item.status}</button>`;
     if (key === "commission_rate") return (Number(item[key] || 0) * 100).toFixed(0) + "%";
+    if (key === "cash_in_hand") return R(item[key]);
     return esc(item[key]) || "—";
   };
   document.getElementById("tab-" + entity).innerHTML = `
@@ -391,7 +570,7 @@ function closeEntityModal() { const m = document.getElementById("entityModal"); 
 // ---------- boot ----------
 async function loadAll() {
   await Promise.all([loadEntity("sellers"), loadEntity("runners"), loadEntity("nodes"), loadEntity("marketplaces")]);
-  await Promise.all([loadOverview(), loadOrders(), loadProducts()]);
+  await Promise.all([loadOverview(), loadOrders(), loadProducts(), loadSettlement(), loadPayouts(), loadSettings()]);
 }
 if (PIN) tryUnlock(PIN);
 </script>
