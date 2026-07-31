@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>YiThume — The commerce network that reaches every market.</title>
-<meta name="description" content="YiThume is the commerce network that reaches every market: a marketplace that also connects marketplaces, powered by local runners who deliver where couriers won't go. Buy online or straight from WhatsApp." />
+<title>YiThume — Create your marketplace. The runners are already there.</title>
+<meta name="description" content="YiThume is the layer between hard-to-reach markets and their customers. Create your own marketplace in minutes and get a courier network with it — local runners, kiosk pickup points, and a wallet that holds the money until the goods arrive." />
 <link rel="icon" href="/favicon.ico" />
 <script src="/static/tailwind.js"></script>
 <style>
   html{scroll-behavior:smooth}
   .badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .6rem;border-radius:999px;font-size:.7rem;font-weight:600}
-  .tile{display:inline-flex;height:3rem;width:3rem;align-items:center;justify-content:center;border-radius:.75rem;background:#ecfdf5;color:#047857;font-weight:700;font-size:1.1rem}
-  #cartDrawer{transition:transform .25s ease}
   .toast{animation:pop .2s ease}
   @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .step{counter-increment:step}
+  .step::before{content:counter(step);display:inline-flex;height:1.75rem;width:1.75rem;align-items:center;justify-content:center;border-radius:.6rem;background:#065f46;color:#fff;font-weight:700;font-size:.8rem}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
@@ -26,15 +26,15 @@
       <span class="text-xl font-semibold tracking-tight">YiThume</span>
     </a>
     <nav class="hidden md:flex items-center gap-6 text-sm text-slate-600">
-      <a href="#shop" class="hover:text-slate-900">Shop</a>
       <a href="#how" class="hover:text-slate-900">How it works</a>
-      <a href="#track" class="hover:text-slate-900">Track order</a>
-      <a href="#join" class="hover:text-slate-900">Join the network</a>
-      <a href="/runner" class="hover:text-slate-900">Runners</a>
+      <a href="#coverage" class="hover:text-slate-900">Coverage</a>
+      <a href="/markets" class="hover:text-slate-900">Browse markets</a>
+      <a href="#runners" class="hover:text-slate-900">Deliver with us</a>
     </nav>
-    <button id="cartBtn" class="relative px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">
-      Cart <span id="cartCount" class="ml-1 inline-flex h-5 min-w-5 px-1 items-center justify-center rounded-full bg-white text-emerald-700 text-xs font-bold">0</span>
-    </button>
+    <div class="flex items-center gap-2">
+      <a href="/console" class="hidden sm:inline px-3 py-2 rounded-xl border border-slate-300 text-sm font-medium hover:bg-slate-100">Sign in</a>
+      <a href="#create" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Create marketplace</a>
+    </div>
   </div>
 </header>
 
@@ -42,426 +42,292 @@
 <section class="bg-white border-b border-slate-200">
   <div class="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-20 grid md:grid-cols-2 gap-10 items-center">
     <div>
-      <div class="badge bg-emerald-100 text-emerald-700 mb-4">Starting in the Eastern Cape — expanding everywhere</div>
-      <h1 class="text-4xl sm:text-5xl font-bold leading-tight">One network. <span class="text-emerald-600">Every market</span>.</h1>
+      <div class="badge bg-emerald-100 text-emerald-700 mb-4">
+        <span id="heroRunners">—</span> runners live across <span id="heroAreas">—</span> areas
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-bold leading-tight">
+        The runners are already there. <span class="text-emerald-600">Build your market on top.</span>
+      </h1>
       <p class="mt-4 text-slate-600 max-w-xl">
-        YiThume connects markets, marketplaces and sellers into one network — with local runners who deliver
-        where couriers won't go. Shop below and pay cash on delivery or by EFT. No app needed.
+        YiThume is the layer between hard-to-reach markets and their customers. Create your own
+        marketplace in minutes — sellers, storefront, checkout — and the courier network comes with it.
       </p>
       <div class="mt-6 flex flex-wrap gap-3">
-        <a href="#shop" class="px-5 py-3 rounded-2xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Start shopping</a>
-        <a href="#join" class="px-5 py-3 rounded-2xl border border-slate-300 text-sm font-medium hover:bg-slate-100">Sell or deliver with us</a>
+        <a href="#create" class="px-5 py-3 rounded-2xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Create your marketplace</a>
+        <a href="/markets" class="px-5 py-3 rounded-2xl border border-slate-300 text-sm font-medium hover:bg-slate-100">Browse live markets</a>
       </div>
-      <div class="mt-8 grid grid-cols-3 gap-3 max-w-md text-center">
-        <div class="rounded-2xl border bg-slate-50 p-3"><div class="text-lg font-bold" id="statProducts">—</div><div class="text-xs text-slate-500">Products</div></div>
-        <div class="rounded-2xl border bg-slate-50 p-3"><div class="text-lg font-bold" id="statSellers">—</div><div class="text-xs text-slate-500">Sellers &amp; markets</div></div>
-        <div class="rounded-2xl border bg-slate-50 p-3"><div class="text-lg font-bold">Same-day</div><div class="text-xs text-slate-500">Local delivery</div></div>
-      </div>
+      <p class="mt-4 text-xs text-slate-500">Free to start. Your storefront is live the moment you verify your number.</p>
     </div>
-    <div class="rounded-3xl border bg-gradient-to-br from-emerald-600 to-emerald-800 text-white p-8 shadow-lg">
-      <div class="text-sm uppercase tracking-widest text-emerald-200 font-semibold">The YiThume network</div>
+
+    <div class="rounded-3xl border bg-gradient-to-br from-emerald-700 to-emerald-900 text-white p-8 shadow-lg">
+      <div class="text-sm uppercase tracking-widest text-emerald-200 font-semibold">What you get on day one</div>
       <ul class="mt-4 space-y-4 text-sm">
-        <li><b>A marketplace</b><div class="text-emerald-100">Sellers launch storefronts in minutes and reach the whole network.</div></li>
-        <li><b>A network of marketplaces</b><div class="text-emerald-100">Town markets and spaza shops plug in — one liquidity pool, every market.</div></li>
-        <li><b>Local runners</b><div class="text-emerald-100">People who know the streets deliver where couriers won't go.</div></li>
-        <li><b>Any phone works</b><div class="text-emerald-100">Order on the web, get updates on WhatsApp, or dial in by USSD on a basic phone.</div></li>
+        <li><b>A runner network</b><div class="text-emerald-100">Local runners who already work the streets couriers won't drive down.</div></li>
+        <li><b>Kiosk pickup points</b><div class="text-emerald-100">Couriers stop at the townline. We take it from the kiosk to the door — or your customer collects for less.</div></li>
+        <li><b>A wallet that protects both sides</b><div class="text-emerald-100">Buyers prepay, the money is held, and it only reaches the seller once the buyer gives their PIN.</div></li>
+        <li><b>Your own storefront</b><div class="text-emerald-100">Your name, your sellers, your prices, your commission — on your own web address.</div></li>
       </ul>
     </div>
   </div>
 </section>
 
-<!-- Shop -->
-<section id="shop" class="py-12 sm:py-16">
+<!-- What this is not -->
+<section class="bg-slate-900 text-white">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 py-12 text-center">
+    <h2 class="text-2xl sm:text-3xl font-bold">We're not a delivery company.</h2>
+    <p class="mt-3 text-slate-300 max-w-2xl mx-auto">
+      And we're not another marketplace competing with yours. YiThume is the software that gives
+      any market its own storefront, its own couriers, and a wallet that holds the money until the
+      goods arrive. You run the market. We run the road.
+    </p>
+  </div>
+</section>
+
+<!-- Coverage -->
+<section id="coverage" class="py-12 sm:py-16">
   <div class="max-w-6xl mx-auto px-4 sm:px-6">
-    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
       <div>
-        <h2 class="text-2xl sm:text-3xl font-bold">Shop the network</h2>
-        <p class="text-slate-600 text-sm mt-1">Live products from sellers and connected markets.</p>
+        <h2 class="text-2xl sm:text-3xl font-bold">Where the network already reaches</h2>
+        <p class="text-slate-600 text-sm mt-1">Live runner and pickup-point coverage. Your marketplace draws on all of it.</p>
       </div>
-      <input id="searchBox" type="search" placeholder="Search products, sellers, markets"
-             class="w-full sm:w-80 px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+      <a href="#runners" class="text-sm text-emerald-700 font-medium hover:underline">Your area missing? Become a runner →</a>
     </div>
-    <div id="categoryPills" class="mt-4 flex flex-wrap gap-2"></div>
-    <div id="productGrid" class="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
-    <div id="emptyState" class="hidden mt-10 text-center text-slate-500 text-sm">No products match your search.</div>
+    <div id="coverageGrid" class="mt-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
   </div>
 </section>
 
 <!-- How it works -->
 <section id="how" class="py-12 sm:py-16 bg-white border-y border-slate-200">
-  <div class="max-w-6xl mx-auto px-4 sm:px-6">
-    <h2 class="text-2xl sm:text-3xl font-bold">How YiThume works</h2>
-    <div class="mt-6 grid md:grid-cols-4 gap-4 text-sm">
-      <div class="rounded-2xl border p-5 bg-slate-50"><b class="block">1. Build your basket</b><p class="text-slate-600 mt-1">Shop products from every seller and market on the network, in one cart.</p></div>
-      <div class="rounded-2xl border p-5 bg-slate-50"><b class="block">2. Confirm with a code</b><p class="text-slate-600 mt-1">We send a one-time code to your phone so we know the order is really yours.</p></div>
-      <div class="rounded-2xl border p-5 bg-slate-50"><b class="block">3. A runner collects</b><p class="text-slate-600 mt-1">A local runner picks up from the seller or market stall — no warehouse needed.</p></div>
-      <div class="rounded-2xl border p-5 bg-slate-50"><b class="block">4. Delivered to your door</b><p class="text-slate-600 mt-1">Give the runner your delivery PIN when your goods arrive. Pay cash or EFT.</p></div>
+  <div class="max-w-6xl mx-auto px-4 sm:px-6" style="counter-reset:step">
+    <h2 class="text-2xl sm:text-3xl font-bold">From nothing to a working market</h2>
+    <div class="mt-6 grid md:grid-cols-5 gap-4 text-sm">
+      <div class="step rounded-2xl border p-5 bg-slate-50"><b class="block mt-3">Pick your areas</b><p class="text-slate-600 mt-1">Tell us which towns you serve. We show you the runners already there.</p></div>
+      <div class="step rounded-2xl border p-5 bg-slate-50"><b class="block mt-3">Delivery is ready</b><p class="text-slate-600 mt-1">The shared runner pool covers you immediately. Recruit your own later — they get first pick of your jobs.</p></div>
+      <div class="step rounded-2xl border p-5 bg-slate-50"><b class="block mt-3">Add your sellers</b><p class="text-slate-600 mt-1">Spaza shops, stalls, farmers. They apply from your storefront; you approve.</p></div>
+      <div class="step rounded-2xl border p-5 bg-slate-50"><b class="block mt-3">You're live</b><p class="text-slate-600 mt-1">Your storefront works on the web, on WhatsApp, and by USSD on a basic phone.</p></div>
+      <div class="step rounded-2xl border p-5 bg-slate-50"><b class="block mt-3">Money moves safely</b><p class="text-slate-600 mt-1">Held at checkout, released on the delivery PIN, paid out to your bank.</p></div>
     </div>
   </div>
 </section>
 
-<!-- Track -->
-<section id="track" class="py-12 sm:py-16">
-  <div class="max-w-3xl mx-auto px-4 sm:px-6">
-    <h2 class="text-2xl sm:text-3xl font-bold">Track your order</h2>
-    <p class="text-slate-600 text-sm mt-1">Enter your order code (e.g. YT-A1B2C) or the phone number you ordered with.</p>
-    <div class="mt-4 flex flex-col sm:flex-row gap-3">
-      <input id="trackInput" placeholder="Order code or phone number"
-             class="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-      <button id="trackBtn" class="px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-700">Track</button>
+<!-- Create -->
+<section id="create" class="py-12 sm:py-16">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 grid md:grid-cols-2 gap-8 items-start">
+    <div>
+      <h2 class="text-2xl sm:text-3xl font-bold">Create your marketplace</h2>
+      <p class="text-slate-600 text-sm mt-2">
+        Takes a minute. You'll get a storefront address, an operator console, and delivery from the
+        shared runner network straight away.
+      </p>
+      <div class="mt-5 rounded-2xl border bg-white p-5">
+        <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Your storefront will be</div>
+        <div class="mt-1 font-mono text-sm text-emerald-700 break-all" id="slugPreview">yithume.app/m/your-market</div>
+      </div>
+      <ul class="mt-5 space-y-2 text-sm text-slate-600">
+        <li>· You set your own delivery fee and your own commission on sellers.</li>
+        <li>· YiThume takes 2% of goods sold. No monthly fee.</li>
+        <li>· New markets start with a lower escrow cap until they've proven a few deliveries.</li>
+      </ul>
     </div>
-    <div id="trackResults" class="mt-6 space-y-4"></div>
-  </div>
-</section>
 
-<!-- Join -->
-<section id="join" class="py-12 sm:py-16 bg-white border-t border-slate-200">
-  <div class="max-w-6xl mx-auto px-4 sm:px-6">
-    <h2 class="text-2xl sm:text-3xl font-bold">Join the network</h2>
-    <p class="text-slate-600 text-sm mt-1">Sellers reach every market. Runners earn on every drop.</p>
-    <div class="mt-6 grid md:grid-cols-2 gap-6">
-      <form id="sellerForm" class="rounded-3xl border p-6 bg-slate-50 space-y-3">
-        <div class="text-lg font-semibold">Become a seller</div>
-        <input name="shop_name" required placeholder="Shop / stall name" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+    <form id="createForm" class="rounded-3xl border p-6 bg-white space-y-3 shadow-sm">
+      <div id="createStep1" class="space-y-3">
+        <div class="text-lg font-semibold">Tell us about your market</div>
+        <input name="name" required placeholder="Marketplace name (e.g. Ngcobo Town Market)" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+        <input name="tagline" placeholder="One line about it (optional)" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+        <input name="areas" required placeholder="Towns you serve, comma separated" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
         <input name="owner_name" placeholder="Your name" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
         <input name="phone" required placeholder="WhatsApp number (e.g. 27712345678)" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
-        <input name="area" placeholder="Town / area" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
-        <button class="w-full px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Apply to sell</button>
-        <div class="form-msg text-xs text-slate-500"></div>
-      </form>
-      <form id="runnerForm" class="rounded-3xl border p-6 bg-slate-50 space-y-3">
-        <div class="text-lg font-semibold">Become a runner</div>
-        <input name="name" required placeholder="Your name" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
-        <input name="phone" required placeholder="WhatsApp number (e.g. 27712345678)" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
-        <input name="area" placeholder="Town / area you know best" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
-        <select name="vehicle" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white">
-          <option value="">How will you deliver?</option>
-          <option>On foot</option><option>Bicycle</option><option>Motorbike</option><option>Car</option><option>Bakkie</option>
-        </select>
-        <button class="w-full px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-700">Apply to deliver</button>
-        <div class="form-msg text-xs text-slate-500"></div>
-        <div class="text-xs text-slate-500">Already a runner? <a href="/runner" class="underline">Open the runner app</a>.</div>
-      </form>
+        <div>
+          <input name="pin" required type="password" inputmode="numeric" placeholder="Choose a PIN (4+ digits)" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+          <p class="text-xs text-slate-500 mt-1">This is how you'll sign in to your console. Don't share it.</p>
+        </div>
+        <button type="submit" class="w-full px-5 py-3 rounded-2xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Create marketplace</button>
+        <div id="createMsg" class="text-xs text-red-600"></div>
+      </div>
+
+      <div id="createStep2" class="hidden text-center space-y-3">
+        <div class="text-lg font-semibold">Confirm your number</div>
+        <p class="text-sm text-slate-600">We sent a 6-digit code. Entering it opens your storefront.</p>
+        <div id="otpDemo" class="hidden rounded-xl bg-amber-50 text-amber-800 text-sm p-3"></div>
+        <input id="otpInput" inputmode="numeric" maxlength="6" placeholder="000000"
+               class="w-full px-4 py-3 rounded-xl border border-slate-300 text-center text-2xl tracking-widest" />
+        <button type="button" id="verifyBtn" class="w-full px-5 py-3 rounded-2xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Open my marketplace</button>
+        <div id="otpMsg" class="text-xs text-red-600"></div>
+      </div>
+    </form>
+  </div>
+</section>
+
+<!-- Runners -->
+<section id="runners" class="py-12 sm:py-16 bg-white border-t border-slate-200">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 grid md:grid-cols-2 gap-8 items-start">
+    <div>
+      <h2 class="text-2xl sm:text-3xl font-bold">Deliver with us</h2>
+      <p class="text-slate-600 text-sm mt-2">
+        Runners are the reason any of this works. Join the shared pool and you'll get jobs from every
+        marketplace in your area — not just one.
+      </p>
+      <ul class="mt-4 space-y-2 text-sm text-slate-600">
+        <li>· Prepaid orders come to you first — the money is already in the system.</li>
+        <li>· You're paid for a wasted trip. If a customer doesn't show, you still earn.</li>
+        <li>· Work on foot, by bike, by car. You choose when you're online.</li>
+      </ul>
+      <p class="mt-4 text-sm text-slate-500">Already a runner? <a href="/runner" class="underline">Open the runner app</a>.</p>
     </div>
+    <form id="runnerForm" class="rounded-3xl border p-6 bg-slate-50 space-y-3">
+      <div class="text-lg font-semibold">Become a runner</div>
+      <input name="name" required placeholder="Your name" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+      <input name="phone" required placeholder="WhatsApp number (e.g. 27712345678)" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+      <input name="area" required placeholder="Town / area you know best" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+      <select name="vehicle" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white">
+        <option value="">How will you deliver?</option>
+        <option>On foot</option><option>Bicycle</option><option>Motorbike</option><option>Car</option><option>Bakkie</option>
+      </select>
+      <button type="submit" class="w-full px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-700">Apply to deliver</button>
+      <div class="form-msg text-xs text-slate-500"></div>
+    </form>
+  </div>
+</section>
+
+<!-- Markets teaser -->
+<section class="py-12 sm:py-16">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6">
+    <div class="flex items-end justify-between gap-3">
+      <h2 class="text-2xl sm:text-3xl font-bold">Markets already running on YiThume</h2>
+      <a href="/markets" class="text-sm text-emerald-700 font-medium hover:underline">See all →</a>
+    </div>
+    <div id="marketTeaser" class="mt-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
   </div>
 </section>
 
 <footer class="border-t border-slate-200 py-10 text-center text-sm text-slate-500">
   <div class="font-semibold text-slate-700">YiThume</div>
-  <div class="mt-1">One network. Every market. — <a href="/runner" class="underline hover:text-slate-700">Runner app</a> · <a href="/dashboard" class="underline hover:text-slate-700">Dashboard</a></div>
+  <div class="mt-1">Create your marketplace. The runners are already there.</div>
+  <div class="mt-2">
+    <a href="/markets" class="underline hover:text-slate-700">Markets</a> ·
+    <a href="/console" class="underline hover:text-slate-700">Operator console</a> ·
+    <a href="/runner" class="underline hover:text-slate-700">Runner app</a> ·
+    <a href="/kiosk" class="underline hover:text-slate-700">Kiosk</a>
+  </div>
 </footer>
-
-<!-- Cart drawer -->
-<div id="cartOverlay" class="fixed inset-0 bg-black/40 z-40 hidden"></div>
-<aside id="cartDrawer" class="fixed top-0 right-0 h-full w-full sm:w-[420px] bg-white z-50 shadow-2xl translate-x-full flex flex-col">
-  <div class="p-5 border-b flex items-center justify-between">
-    <div class="text-lg font-semibold">Your basket</div>
-    <button id="closeCart" class="h-9 w-9 rounded-xl border hover:bg-slate-100">&times;</button>
-  </div>
-  <div id="cartItems" class="flex-1 overflow-y-auto p-5 space-y-3"></div>
-  <div class="p-5 border-t space-y-3">
-    <div class="flex justify-between text-sm"><span>Subtotal</span><b id="cartSubtotal">R0.00</b></div>
-    <div class="flex justify-between text-sm text-slate-500"><span>Delivery</span><span id="cartDelivery">R25.00</span></div>
-    <div class="flex justify-between text-base"><span class="font-semibold">Total</span><b id="cartTotal" class="text-emerald-700">R0.00</b></div>
-    <button id="checkoutBtn" class="w-full px-5 py-3 rounded-2xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-40" disabled>Checkout</button>
-  </div>
-</aside>
-
-<!-- Checkout modal -->
-<div id="checkoutModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
-  <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-    <div id="checkoutStep1">
-      <div class="text-lg font-semibold">Delivery details</div>
-      <form id="checkoutForm" class="mt-4 space-y-3">
-        <input name="name" required placeholder="Your name" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
-        <input name="phone" required placeholder="WhatsApp number (e.g. 27712345678)" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
-        <input name="area" required placeholder="Town / area" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
-        <input name="address" required placeholder="Delivery address or landmark" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
-        <div class="pt-1">
-          <div class="text-sm font-medium">How will you pay?</div>
-          <label class="mt-2 flex items-start gap-3 rounded-xl border p-3 cursor-pointer has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50">
-            <input type="radio" name="payment_method" value="cod" checked class="mt-0.5 accent-emerald-600" />
-            <span class="text-sm"><b>Pay cash on delivery</b><span id="codNote" class="block text-xs text-slate-500">Pay the runner when your goods arrive.</span></span>
-          </label>
-          <label class="mt-2 flex items-start gap-3 rounded-xl border p-3 cursor-pointer has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50">
-            <input type="radio" name="payment_method" value="eft" class="mt-0.5 accent-emerald-600" />
-            <span class="text-sm"><b>I've paid by EFT</b><span id="eftNote" class="block text-xs text-slate-500"></span></span>
-          </label>
-        </div>
-        <div class="flex gap-3 pt-1">
-          <button type="button" id="cancelCheckout" class="flex-1 px-4 py-2.5 rounded-xl border text-sm hover:bg-slate-100">Back</button>
-          <button type="submit" class="flex-1 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Place order</button>
-        </div>
-        <div id="checkoutMsg" class="text-xs text-red-600"></div>
-      </form>
-    </div>
-    <div id="checkoutStepOtp" class="hidden text-center">
-      <div class="text-lg font-semibold">Confirm your order</div>
-      <div class="mt-1 text-sm text-slate-600" id="otpHint">We sent a 6-digit code to your phone. Enter it to confirm your order.</div>
-      <div id="otpDemo" class="hidden mt-3 rounded-xl bg-amber-50 text-amber-800 text-sm p-3"></div>
-      <input id="otpInput" inputmode="numeric" maxlength="6" placeholder="000000"
-             class="mt-4 w-full px-4 py-3 rounded-xl border border-slate-300 text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-      <div id="otpMsg" class="mt-2 text-xs text-red-600"></div>
-      <button id="otpVerify" class="mt-4 w-full px-5 py-3 rounded-2xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Confirm order</button>
-      <button id="otpResend" class="mt-2 w-full px-5 py-2.5 rounded-xl border text-sm hover:bg-slate-100">Resend code</button>
-    </div>
-    <div id="checkoutStep2" class="hidden text-center">
-      <div class="text-lg font-semibold">Order placed</div>
-      <div class="mt-1 text-sm text-slate-600">Your order code is <b id="orderCode" class="text-emerald-700"></b>. Save it to track your delivery.</div>
-      <div id="eftInstructions" class="hidden mt-3 rounded-xl bg-slate-50 text-slate-700 text-sm p-3 text-left"></div>
-      <div class="mt-3 text-xs text-slate-500">When your order is confirmed you'll receive a 4-digit delivery PIN. Only give it to the runner once you have your goods.</div>
-      <a id="waLink" href="#" target="_blank" rel="noopener" class="mt-4 block w-full px-5 py-3 rounded-2xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Send order on WhatsApp</a>
-      <button id="doneCheckout" class="mt-2 w-full px-5 py-2.5 rounded-xl border text-sm hover:bg-slate-100">Done</button>
-    </div>
-  </div>
-</div>
 
 <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 hidden"></div>
 
 <script>
-const R = v => "R" + Number(v).toFixed(2);
-let CONFIG = { delivery_fee: 25.0, cod_cap: 400.0, eft_details: "", whatsapp_enabled: false };
-let PRODUCTS = [], activeCategory = "", cart = JSON.parse(localStorage.getItem("yithume_cart") || "{}");
-let PENDING_ORDER = null;
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let PENDING = null;
 
 function toast(msg, ok = true) {
   const t = document.getElementById("toast");
-  t.innerHTML = `<div class="toast px-4 py-2.5 rounded-xl text-sm text-white shadow-lg ${ok ? "bg-slate-900" : "bg-red-600"}">${msg}</div>`;
+  t.innerHTML = `<div class="toast px-4 py-2.5 rounded-xl text-sm text-white shadow-lg ${ok ? "bg-slate-900" : "bg-red-600"}">${esc(msg)}</div>`;
   t.classList.remove("hidden");
-  clearTimeout(t._h); t._h = setTimeout(() => t.classList.add("hidden"), 2600);
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.add("hidden"), 3000);
 }
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const initial = s => esc((s || "?").trim().charAt(0).toUpperCase());
 
-// ---------- config & products ----------
-async function loadConfig() {
+const slugify = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+
+// ---------- coverage: the proof the network exists ----------
+async function loadCoverage() {
   try {
-    const data = await fetch("/api/config").then(r => r.json());
-    if (data.ok) CONFIG = data.config;
+    const data = await fetch("/api/coverage").then(r => r.json());
+    document.getElementById("heroRunners").textContent = data.totals.runners;
+    document.getElementById("heroAreas").textContent = data.totals.areas;
+    const grid = document.getElementById("coverageGrid");
+    grid.innerHTML = data.coverage.map(c => `
+      <div class="rounded-2xl border bg-white p-5">
+        <div class="font-semibold">${esc(c.area)}</div>
+        <div class="mt-3 flex items-baseline gap-2">
+          <span class="text-2xl font-bold text-emerald-700">${c.runners}</span>
+          <span class="text-xs text-slate-500">runner${c.runners === 1 ? "" : "s"}</span>
+        </div>
+        <div class="mt-1 text-xs text-slate-500">${c.online} online now${c.points ? ` · ${c.points} pickup point${c.points === 1 ? "" : "s"}` : ""}</div>
+      </div>`).join("") || `<div class="text-sm text-slate-500">No coverage yet — be the first runner in your town.</div>`;
   } catch (e) {}
-  document.getElementById("eftNote").textContent =
-    (CONFIG.eft_details || "Pay by EFT first.") + " Use your order code as reference.";
-  renderCart();
 }
 
-async function loadProducts() {
+async function loadMarkets() {
   try {
-    const [pr, cr] = await Promise.all([fetch("/api/products").then(r => r.json()), fetch("/api/categories").then(r => r.json())]);
-    PRODUCTS = pr.products || [];
-    renderPills(cr.categories || []);
-    renderGrid();
-    document.getElementById("statProducts").textContent = PRODUCTS.length;
-    const sellers = new Set(PRODUCTS.map(p => p.seller_name).filter(Boolean));
-    const mkts = new Set(PRODUCTS.map(p => p.marketplace_name).filter(Boolean));
-    document.getElementById("statSellers").textContent = sellers.size + mkts.size;
-  } catch (e) { toast("Could not load products", false); }
+    const data = await fetch("/api/marketplaces").then(r => r.json());
+    const tiers = { trusted: "bg-emerald-100 text-emerald-700", verified: "bg-sky-100 text-sky-700", unverified: "bg-slate-100 text-slate-500" };
+    document.getElementById("marketTeaser").innerHTML = (data.marketplaces || []).slice(0, 6).map(m => `
+      <a href="/m/${encodeURIComponent(m.slug)}" class="rounded-2xl border bg-white p-5 hover:shadow-md transition block">
+        <div class="flex items-center justify-between gap-2">
+          <div class="font-semibold">${esc(m.name)}</div>
+          <span class="badge ${tiers[m.trust_tier] || tiers.unverified}">${esc(m.trust_tier)}</span>
+        </div>
+        <div class="text-xs text-slate-500 mt-1">${esc((m.areas || []).join(", "))}</div>
+        <div class="text-sm text-slate-600 mt-2">${esc(m.tagline || "")}</div>
+      </a>`).join("") || `<div class="text-sm text-slate-500">No marketplaces yet — yours could be the first.</div>`;
+  } catch (e) {}
 }
 
-function renderPills(cats) {
-  const el = document.getElementById("categoryPills");
-  const pill = (label, val) => `<button data-cat="${val}" class="cat-pill px-3.5 py-1.5 rounded-full border text-xs font-medium ${activeCategory === val ? "bg-emerald-600 text-white border-emerald-600" : "bg-white hover:bg-slate-100"}">${label}</button>`;
-  el.innerHTML = pill("All", "") + cats.map(c => pill(c, c)).join("");
-  el.querySelectorAll(".cat-pill").forEach(b => b.onclick = () => { activeCategory = b.dataset.cat; renderPills(cats); renderGrid(); });
-}
-
-function renderGrid() {
-  const q = document.getElementById("searchBox").value.trim().toLowerCase();
-  const items = PRODUCTS.filter(p =>
-    (!activeCategory || p.category === activeCategory) &&
-    (!q || [p.name, p.category, p.seller_name, p.marketplace_name].join(" ").toLowerCase().includes(q)));
-  const grid = document.getElementById("productGrid");
-  document.getElementById("emptyState").classList.toggle("hidden", items.length > 0);
-  grid.innerHTML = items.map(p => `
-    <div class="rounded-2xl border bg-white p-4 flex flex-col shadow-sm hover:shadow-md transition">
-      <div>${p.image_url ? `<img src="${esc(p.image_url)}" alt="" class="h-16 w-16 object-cover rounded-xl">` : `<span class="tile">${initial(p.name)}</span>`}</div>
-      <div class="mt-3 font-semibold text-sm leading-snug">${esc(p.name)}</div>
-      <div class="text-xs text-slate-500 mt-0.5">${esc(p.seller_name) || ""}${p.marketplace_name ? " — " + esc(p.marketplace_name) : ""}</div>
-      <div class="mt-auto pt-3 flex items-center justify-between">
-        <b class="text-emerald-700">${R(p.price)}</b>
-        <button data-id="${p._id}" class="add-btn px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-medium hover:bg-slate-700">Add</button>
-      </div>
-    </div>`).join("");
-  grid.querySelectorAll(".add-btn").forEach(b => b.onclick = () => addToCart(b.dataset.id));
-}
-
-// ---------- cart ----------
-function saveCart() { localStorage.setItem("yithume_cart", JSON.stringify(cart)); renderCart(); }
-function addToCart(id) { cart[id] = (cart[id] || 0) + 1; saveCart(); toast("Added to basket"); }
-function setQty(id, qty) { if (qty <= 0) delete cart[id]; else cart[id] = qty; saveCart(); }
-
-function cartEntries() {
-  return Object.entries(cart).map(([id, qty]) => ({ p: PRODUCTS.find(x => x._id === id), qty })).filter(e => e.p);
-}
-
-function cartTotal() {
-  const entries = cartEntries();
-  const sub = entries.reduce((s, e) => s + e.p.price * e.qty, 0);
-  return entries.length ? sub + Number(CONFIG.delivery_fee) : 0;
-}
-
-function renderCart() {
-  const entries = cartEntries();
-  const count = entries.reduce((s, e) => s + e.qty, 0);
-  document.getElementById("cartCount").textContent = count;
-  const sub = entries.reduce((s, e) => s + e.p.price * e.qty, 0);
-  document.getElementById("cartSubtotal").textContent = R(sub);
-  document.getElementById("cartDelivery").textContent = R(CONFIG.delivery_fee);
-  document.getElementById("cartTotal").textContent = R(count ? sub + Number(CONFIG.delivery_fee) : 0);
-  document.getElementById("checkoutBtn").disabled = count === 0;
-  document.getElementById("cartItems").innerHTML = entries.length ? entries.map(e => `
-    <div class="flex items-center gap-3 rounded-2xl border p-3">
-      <span class="tile" style="height:2.25rem;width:2.25rem;font-size:.9rem">${initial(e.p.name)}</span>
-      <div class="flex-1 min-w-0"><div class="text-sm font-medium truncate">${esc(e.p.name)}</div><div class="text-xs text-slate-500">${R(e.p.price)}</div></div>
-      <div class="flex items-center gap-2">
-        <button class="h-7 w-7 rounded-lg border hover:bg-slate-100" onclick="setQty('${e.p._id}',${e.qty - 1})">&minus;</button>
-        <span class="text-sm w-5 text-center">${e.qty}</span>
-        <button class="h-7 w-7 rounded-lg border hover:bg-slate-100" onclick="setQty('${e.p._id}',${e.qty + 1})">+</button>
-      </div>
-    </div>`).join("") : `<div class="text-center text-sm text-slate-500 mt-10">Your basket is empty.</div>`;
-}
-
-function openCart(open) {
-  document.getElementById("cartDrawer").style.transform = open ? "translateX(0)" : "";
-  document.getElementById("cartDrawer").classList.toggle("translate-x-full", !open);
-  document.getElementById("cartOverlay").classList.toggle("hidden", !open);
-}
-document.getElementById("cartBtn").onclick = () => openCart(true);
-document.getElementById("closeCart").onclick = () => openCart(false);
-document.getElementById("cartOverlay").onclick = () => openCart(false);
-
-// ---------- checkout ----------
-const modal = document.getElementById("checkoutModal");
-function showStep(step) {
-  for (const id of ["checkoutStep1", "checkoutStepOtp", "checkoutStep2"])
-    document.getElementById(id).classList.toggle("hidden", id !== step);
-}
-document.getElementById("checkoutBtn").onclick = () => {
-  openCart(false);
-  showStep("checkoutStep1");
-  const total = cartTotal();
-  const codRadio = document.querySelector('input[name="payment_method"][value="cod"]');
-  const overCap = total > Number(CONFIG.cod_cap);
-  codRadio.disabled = overCap;
-  if (overCap) {
-    codRadio.checked = false;
-    document.querySelector('input[name="payment_method"][value="eft"]').checked = true;
-    document.getElementById("codNote").textContent =
-      `Not available for orders over ${R(CONFIG.cod_cap)} — please pay by EFT.`;
-  } else {
-    document.getElementById("codNote").textContent = "Pay the runner when your goods arrive.";
-  }
-  modal.classList.remove("hidden"); modal.classList.add("flex");
+// ---------- create a marketplace ----------
+document.querySelector('#createForm [name="name"]').oninput = (ev) => {
+  document.getElementById("slugPreview").textContent =
+    "yithume.app/m/" + (slugify(ev.target.value) || "your-market");
 };
-document.getElementById("cancelCheckout").onclick = () => { modal.classList.add("hidden"); modal.classList.remove("flex"); openCart(true); };
-document.getElementById("doneCheckout").onclick = () => { modal.classList.add("hidden"); modal.classList.remove("flex"); };
 
-document.getElementById("checkoutForm").onsubmit = async (ev) => {
+document.getElementById("createForm").onsubmit = async (ev) => {
   ev.preventDefault();
   const f = new FormData(ev.target);
+  const msg = document.getElementById("createMsg"); msg.textContent = "";
   const payload = {
-    buyer: { name: f.get("name"), phone: f.get("phone"), area: f.get("area"), address: f.get("address") },
-    items: cartEntries().map(e => ({ product_id: e.p._id, qty: e.qty })),
-    payment_method: f.get("payment_method") || "cod",
-    channel: "web",
+    name: f.get("name"), tagline: f.get("tagline"),
+    areas: f.get("areas"), owner_name: f.get("owner_name"),
+    phone: f.get("phone"), pin: f.get("pin"),
   };
-  const msg = document.getElementById("checkoutMsg"); msg.textContent = "";
   try {
-    const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const res = await fetch("/api/marketplaces", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await res.json();
     if (!data.ok) { msg.textContent = data.error || "Something went wrong"; return; }
-    PENDING_ORDER = data;
-    cart = {}; saveCart();
-    document.getElementById("otpInput").value = "";
-    document.getElementById("otpMsg").textContent = "";
-    showOtpDemo(data.otp_demo);
-    showStep("checkoutStepOtp");
+    PENDING = data;
+    if (data.otp_demo) {
+      const el = document.getElementById("otpDemo");
+      el.textContent = `Demo mode (WhatsApp not connected): your code is ${data.otp_demo}`;
+      el.classList.remove("hidden");
+    }
+    document.getElementById("createStep1").classList.add("hidden");
+    document.getElementById("createStep2").classList.remove("hidden");
     document.getElementById("otpInput").focus();
   } catch (e) { msg.textContent = "Network error — please try again."; }
 };
 
-function showOtpDemo(code) {
-  const el = document.getElementById("otpDemo");
-  if (code) {
-    el.textContent = `Demo mode (WhatsApp not connected): your code is ${code}`;
-    el.classList.remove("hidden");
-  } else {
-    el.classList.add("hidden");
-  }
-}
-
-document.getElementById("otpVerify").onclick = async () => {
-  const code = document.getElementById("otpInput").value.trim();
+document.getElementById("verifyBtn").onclick = async () => {
   const msg = document.getElementById("otpMsg"); msg.textContent = "";
   try {
-    const res = await fetch(`/api/orders/${PENDING_ORDER.order._id}/verify-otp`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+    const res = await fetch("/api/marketplaces/verify", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ marketplace_id: PENDING.marketplace_id,
+                             code: document.getElementById("otpInput").value.trim() }) });
     const data = await res.json();
     if (!data.ok) { msg.textContent = data.error || "Wrong code"; return; }
-    document.getElementById("orderCode").textContent = PENDING_ORDER.order.code;
-    document.getElementById("waLink").href = PENDING_ORDER.whatsapp_url;
-    const eftEl = document.getElementById("eftInstructions");
-    if (PENDING_ORDER.eft_instructions) {
-      eftEl.textContent = PENDING_ORDER.eft_instructions;
-      eftEl.classList.remove("hidden");
-    } else {
-      eftEl.classList.add("hidden");
-    }
-    showStep("checkoutStep2");
+    localStorage.setItem("yithume_console_token", data.token);
+    localStorage.setItem("yithume_console_slug", data.slug);
+    toast("Your marketplace is live");
+    setTimeout(() => { window.location.href = "/console"; }, 700);
   } catch (e) { msg.textContent = "Network error — please try again."; }
 };
 
-document.getElementById("otpResend").onclick = async () => {
+// ---------- runner application ----------
+document.getElementById("runnerForm").onsubmit = async (ev) => {
+  ev.preventDefault();
+  const form = ev.target;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const msgEl = form.querySelector(".form-msg");
   try {
-    const data = await fetch(`/api/orders/${PENDING_ORDER.order._id}/resend-otp`, { method: "POST" }).then(r => r.json());
-    if (data.ok) { showOtpDemo(data.otp_demo); toast("Code sent again"); }
-  } catch (e) { toast("Could not resend the code", false); }
+    const res = await fetch("/api/apply/runner", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json());
+    msgEl.textContent = res.ok ? res.message : (res.error || "Something went wrong");
+    msgEl.className = "form-msg text-xs " + (res.ok ? "text-emerald-700 font-medium" : "text-red-600");
+    if (res.ok) form.reset();
+  } catch (e) { msgEl.textContent = "Network error — please try again."; msgEl.className = "form-msg text-xs text-red-600"; }
 };
 
-// ---------- tracking ----------
-const STATUS_LABELS = { awaiting_otp: "Waiting for your code", pending: "Pending", confirmed: "Confirmed", assigned: "Runner assigned", picked_up: "Picked up", delivered: "Delivered", cancelled: "Cancelled" };
-document.getElementById("trackBtn").onclick = async () => {
-  const v = document.getElementById("trackInput").value.trim();
-  if (!v) return;
-  const key = v.toUpperCase().startsWith("YT-") ? "code" : "phone";
-  const box = document.getElementById("trackResults");
-  box.innerHTML = `<div class="text-sm text-slate-500">Searching…</div>`;
-  try {
-    const data = await fetch(`/api/orders/track?${key}=${encodeURIComponent(v)}`).then(r => r.json());
-    if (!data.ok || !data.orders.length) { box.innerHTML = `<div class="text-sm text-slate-500">No orders found.</div>`; return; }
-    box.innerHTML = data.orders.map(o => `
-      <div class="rounded-2xl border bg-white p-5">
-        <div class="flex items-center justify-between flex-wrap gap-2">
-          <b>${o.code}</b>
-          <span class="badge bg-emerald-100 text-emerald-700">${STATUS_LABELS[o.status] || o.status}</span>
-        </div>
-        <div class="text-xs text-slate-500 mt-1">${o.items.map(i => `${i.qty} x ${esc(i.name)}`).join(", ")} — Total ${R(o.total)}${o.runner_name ? " — Runner: " + esc(o.runner_name) : ""}${o.payment_method ? " — " + (o.payment_method === "cod" ? "Cash on delivery" : "EFT") : ""}</div>
-        ${o.delivery_pin ? `<div class="mt-2 text-sm rounded-xl bg-amber-50 text-amber-800 p-3">Your delivery PIN is <b>${o.delivery_pin}</b>. Only give it to the runner once you have your goods.</div>` : ""}
-        <div class="mt-3 flex flex-wrap gap-2 text-xs">${(o.timeline || []).map(t => `<span class="px-2 py-1 rounded-lg bg-slate-100">${STATUS_LABELS[t.status] || t.status} <span class="text-slate-400">${new Date(t.at).toLocaleString()}</span></span>`).join("")}</div>
-      </div>`).join("");
-  } catch (e) { box.innerHTML = `<div class="text-sm text-red-600">Could not reach the server.</div>`; }
-};
-
-// ---------- applications ----------
-function wireApply(formId, url) {
-  const form = document.getElementById(formId);
-  form.onsubmit = async (ev) => {
-    ev.preventDefault();
-    const data = Object.fromEntries(new FormData(form).entries());
-    const msgEl = form.querySelector(".form-msg");
-    try {
-      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json());
-      msgEl.textContent = res.ok ? res.message : (res.error || "Something went wrong");
-      msgEl.className = "form-msg text-xs " + (res.ok ? "text-emerald-700 font-medium" : "text-red-600");
-      if (res.ok) form.reset();
-    } catch (e) { msgEl.textContent = "Network error — please try again."; msgEl.className = "form-msg text-xs text-red-600"; }
-  };
-}
-wireApply("sellerForm", "/api/apply/seller");
-wireApply("runnerForm", "/api/apply/runner");
-
-document.getElementById("searchBox").oninput = renderGrid;
-loadConfig();
-loadProducts().then(renderCart);
+loadCoverage();
+loadMarkets();
 </script>
 </body>
 </html>

@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YiThume — Operator console</title>
+<link rel="icon" href="/favicon.ico" />
+<script src="/static/tailwind.js"></script>
+<style>
+  .tab-btn.active{background:#059669;color:#fff}
+  .toast{animation:pop .2s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .badge{display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .55rem;border-radius:999px;font-size:.7rem;font-weight:600;white-space:nowrap}
+  table{font-size:.82rem}
+  th{font-weight:600;text-align:left;color:#64748b;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
+  td,th{padding:.6rem .75rem;border-bottom:1px solid #e2e8f0;vertical-align:middle}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-900 antialiased">
+
+<!-- Sign in -->
+<div id="gate" class="fixed inset-0 z-50 bg-slate-900 flex items-center justify-center p-4">
+  <div class="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-2xl">
+    <span class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-600 text-white text-xl font-bold">Y</span>
+    <div class="mt-3 text-lg font-semibold">Operator console</div>
+    <div class="text-sm text-slate-500">Sign in to your marketplace</div>
+    <input id="loginPhone" inputmode="tel" placeholder="Your WhatsApp number"
+           class="mt-4 w-full px-4 py-3 rounded-xl border border-slate-300 text-sm" />
+    <input id="loginPin" type="password" inputmode="numeric" placeholder="PIN"
+           class="mt-2 w-full px-4 py-3 rounded-xl border border-slate-300 text-center text-lg tracking-widest" />
+    <button id="loginBtn" class="mt-3 w-full px-5 py-3 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Sign in</button>
+    <div id="loginMsg" class="mt-2 text-xs text-red-600"></div>
+    <div class="mt-4 text-xs text-slate-500">No marketplace yet? <a href="/#create" class="underline">Create one</a>.</div>
+  </div>
+</div>
+
+<div id="shell" class="hidden min-h-screen">
+  <header class="sticky top-0 z-30 bg-white border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white font-bold text-sm">Y</span>
+        <b id="hdrName" class="truncate">—</b>
+        <span id="hdrTier" class="badge bg-slate-100 text-slate-500 hidden sm:inline">—</span>
+      </div>
+      <div class="flex items-center gap-3 text-sm">
+        <a id="hdrStore" href="#" target="_blank" rel="noopener" class="text-slate-600 hover:text-slate-900 hidden sm:inline">View storefront ↗</a>
+        <button id="logoutBtn" class="px-3 py-1.5 rounded-lg border hover:bg-slate-100">Sign out</button>
+      </div>
+    </div>
+    <nav class="max-w-7xl mx-auto px-4 pb-2 flex gap-2 overflow-x-auto" id="tabs">
+      <button data-tab="setup" class="tab-btn active px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Setup</button>
+      <button data-tab="orders" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Orders</button>
+      <button data-tab="products" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Products</button>
+      <button data-tab="sellers" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Sellers</button>
+      <button data-tab="money" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Money</button>
+      <button data-tab="storefront" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Storefront</button>
+    </nav>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6">
+    <!-- Setup -->
+    <section id="tab-setup">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="statCards"></div>
+      <div class="mt-6 rounded-2xl bg-white border p-5">
+        <b class="text-sm">Get your market going</b>
+        <div id="checklist" class="mt-4 space-y-3 text-sm"></div>
+      </div>
+      <div class="mt-6 rounded-2xl bg-white border p-5 overflow-x-auto">
+        <b class="text-sm">Recent orders</b>
+        <table class="w-full mt-3"><thead><tr><th>Code</th><th>Buyer</th><th>Total</th><th>Pay</th><th>Status</th></tr></thead>
+        <tbody id="recentOrders"></tbody></table>
+      </div>
+    </section>
+
+    <!-- Orders -->
+    <section id="tab-orders" class="hidden">
+      <div class="flex flex-wrap items-center gap-2 mb-4" id="orderFilters"></div>
+      <div class="rounded-2xl bg-white border p-5 overflow-x-auto">
+        <table class="w-full"><thead><tr><th>Code</th><th>Buyer</th><th>Items</th><th>Total</th><th>Pay</th><th>Status</th><th>Runner</th><th>Actions</th></tr></thead>
+        <tbody id="ordersBody"></tbody></table>
+      </div>
+    </section>
+
+    <!-- Products -->
+    <section id="tab-products" class="hidden">
+      <div class="flex justify-between items-center mb-4 gap-3">
+        <input id="productSearch" placeholder="Filter products" class="px-4 py-2 rounded-xl border border-slate-300 bg-white text-sm w-64" />
+        <button onclick="openProductModal()" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">+ Add product</button>
+      </div>
+      <div class="rounded-2xl bg-white border p-5 overflow-x-auto">
+        <table class="w-full"><thead><tr><th>Name</th><th>Category</th><th>Seller</th><th>Price</th><th>Stock</th><th>Active</th><th></th></tr></thead>
+        <tbody id="productsBody"></tbody></table>
+      </div>
+    </section>
+
+    <!-- Sellers -->
+    <section id="tab-sellers" class="hidden">
+      <div class="flex justify-between items-center mb-4">
+        <p class="text-sm text-slate-500">Sellers apply from your storefront. Approve them to let their goods go live.</p>
+        <button onclick="openSellerModal()" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">+ Add seller</button>
+      </div>
+      <div class="rounded-2xl bg-white border p-5 overflow-x-auto">
+        <table class="w-full"><thead><tr><th>Shop</th><th>Owner</th><th>Phone</th><th>Area</th><th>Approved</th><th></th></tr></thead>
+        <tbody id="sellersBody"></tbody></table>
+      </div>
+    </section>
+
+    <!-- Money -->
+    <section id="tab-money" class="hidden">
+      <div class="grid md:grid-cols-3 gap-3 mb-6" id="moneyCards"></div>
+      <div class="rounded-2xl bg-white border p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <b class="text-sm">Cash out</b>
+            <div class="text-xs text-slate-500 mt-1">Paid to your bank account. An admin approves each withdrawal.</div>
+          </div>
+          <div class="flex gap-2">
+            <input id="withdrawAmount" type="number" min="1" step="1" placeholder="Amount (R)" class="px-4 py-2 rounded-xl border border-slate-300 text-sm w-36" />
+            <button id="withdrawBtn" class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-700">Request</button>
+          </div>
+        </div>
+        <div id="withdrawMsg" class="mt-2 text-xs"></div>
+        <table class="w-full mt-4"><thead><tr><th>When</th><th>Amount</th><th>Status</th><th>Note</th></tr></thead>
+        <tbody id="withdrawalsBody"></tbody></table>
+      </div>
+      <div class="mt-6 rounded-2xl bg-white border p-5 overflow-x-auto">
+        <b class="text-sm">Owed to your sellers</b>
+        <div class="text-xs text-slate-500 mt-1">From settled orders. Pay them, then mark it here.</div>
+        <table class="w-full mt-3"><thead><tr><th>Seller</th><th>Orders</th><th>Amount</th><th></th></tr></thead>
+        <tbody id="payoutsBody"></tbody></table>
+      </div>
+      <div class="mt-6 rounded-2xl bg-white border p-5 overflow-x-auto">
+        <b class="text-sm">Disputes</b>
+        <table class="w-full mt-3"><thead><tr><th>Order</th><th>Raised by</th><th>Reason</th><th>Status</th></tr></thead>
+        <tbody id="disputesBody"></tbody></table>
+      </div>
+    </section>
+
+    <!-- Storefront -->
+    <section id="tab-storefront" class="hidden">
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="rounded-2xl bg-white border p-5 space-y-3">
+          <b class="text-sm">Your market</b>
+          <input id="fName" placeholder="Marketplace name" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+          <input id="fTagline" placeholder="One line about it" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+          <input id="fAreas" placeholder="Towns you serve, comma separated" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+          <select id="fAccent" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white">
+            <option value="emerald">Green</option><option value="amber">Amber</option>
+            <option value="sky">Blue</option><option value="rose">Rose</option><option value="violet">Violet</option>
+          </select>
+          <label class="flex items-center gap-2 text-sm">
+            <input id="fShared" type="checkbox" class="accent-emerald-600" />
+            Use the shared YiThume runner pool
+          </label>
+          <button id="saveMarket" class="w-full px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Save</button>
+        </div>
+
+        <div class="rounded-2xl bg-white border p-5 space-y-3">
+          <b class="text-sm">Charges</b>
+          <div><label class="text-xs text-slate-500">Delivery fee (R)</label>
+            <input id="sDelivery" type="number" step="0.5" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" /></div>
+          <div><label class="text-xs text-slate-500">Your commission on sellers (%)</label>
+            <input id="sMarket" type="number" step="0.5" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" /></div>
+          <div><label class="text-xs text-slate-500">Cash-on-delivery cap (R)</label>
+            <input id="sCodCap" type="number" step="10" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" /></div>
+          <div><label class="text-xs text-slate-500">Cash-on-delivery surcharge (R)</label>
+            <input id="sCodSur" type="number" step="1" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" /></div>
+          <div><label class="text-xs text-slate-500">EFT details shown to buyers</label>
+            <input id="sEft" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" /></div>
+          <button id="saveSettings" class="w-full px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Save charges</button>
+          <p class="text-xs text-slate-500">YiThume takes 2% of goods sold. Runner and node shares are set by the network.</p>
+        </div>
+
+        <div class="rounded-2xl bg-white border p-5 space-y-3 md:col-span-2">
+          <b class="text-sm">Bank account for payouts</b>
+          <p class="text-xs text-slate-500">Needed before you can withdraw. Changing it pauses withdrawals for 48 hours.</p>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <input id="bHolder" placeholder="Account holder" class="px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+            <input id="bBank" placeholder="Bank name" class="px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+            <input id="bAccount" placeholder="Account number" class="px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+            <input id="bCode" placeholder="Branch / bank code" class="px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+          </div>
+          <button id="saveBank" class="px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-700">Save bank details</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Modals -->
+<div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
+  <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div id="modalTitle" class="text-lg font-semibold"></div>
+    <div id="modalBody" class="mt-4 space-y-3"></div>
+    <div class="mt-5 flex gap-3">
+      <button onclick="closeModal()" class="flex-1 px-4 py-2.5 rounded-xl border text-sm hover:bg-slate-100">Cancel</button>
+      <button id="modalSave" class="flex-1 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Save</button>
+    </div>
+    <div id="modalMsg" class="mt-2 text-xs text-red-600"></div>
+  </div>
+</div>
+
+<div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 hidden"></div>
+
+<script>
+const R = v => "R" + Number(v || 0).toFixed(2);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let TOKEN = localStorage.getItem("yithume_console_token") || "";
+let ME = null, ORDERS = [], PRODUCTS = [], SELLERS = [], orderFilter = "";
+
+function toast(msg, ok = true) {
+  const t = document.getElementById("toast");
+  t.innerHTML = `<div class="toast px-4 py-2.5 rounded-xl text-sm text-white shadow-lg ${ok ? "bg-slate-900" : "bg-red-600"}">${esc(msg)}</div>`;
+  t.classList.remove("hidden");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.add("hidden"), 2800);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { "Content-Type": "application/json", "X-Console-Token": TOKEN, ...(opts.headers || {}) },
+  });
+  if (res.status === 401) { signOut(); throw new Error("signed out"); }
+  return res.json();
+}
+
+// ---------- auth ----------
+function signOut() {
+  localStorage.removeItem("yithume_console_token");
+  TOKEN = "";
+  document.getElementById("gate").classList.remove("hidden");
+  document.getElementById("shell").classList.add("hidden");
+}
+document.getElementById("logoutBtn").onclick = async () => {
+  try { await api("/api/console/logout", { method: "POST" }); } catch (e) {}
+  signOut();
+};
+
+document.getElementById("loginBtn").onclick = async () => {
+  const msg = document.getElementById("loginMsg"); msg.textContent = "";
+  const res = await fetch("/api/console/login", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone: document.getElementById("loginPhone").value.trim(),
+                           pin: document.getElementById("loginPin").value.trim() }) }).then(r => r.json());
+  if (!res.ok) { msg.textContent = res.error || "Could not sign in"; return; }
+  TOKEN = res.token;
+  localStorage.setItem("yithume_console_token", TOKEN);
+  boot();
+};
+document.getElementById("loginPin").onkeydown = e => { if (e.key === "Enter") document.getElementById("loginBtn").click(); };
+
+// ---------- tabs ----------
+document.getElementById("tabs").onclick = (ev) => {
+  const btn = ev.target.closest(".tab-btn");
+  if (!btn) return;
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b === btn));
+  document.querySelectorAll("main > section").forEach(s => s.classList.add("hidden"));
+  document.getElementById("tab-" + btn.dataset.tab).classList.remove("hidden");
+  refresh(btn.dataset.tab);
+};
+
+// ---------- data ----------
+async function boot() {
+  const me = await api("/api/console/me");
+  if (!me.ok || me.role !== "operator") { signOut(); return; }
+  ME = me;
+  document.getElementById("gate").classList.add("hidden");
+  document.getElementById("shell").classList.remove("hidden");
+  document.getElementById("hdrName").textContent = me.marketplace.name;
+  const tiers = { trusted: "bg-emerald-100 text-emerald-700", verified: "bg-sky-100 text-sky-700", unverified: "bg-amber-100 text-amber-800" };
+  const tier = me.marketplace.trust.tier;
+  const badge = document.getElementById("hdrTier");
+  badge.className = "badge hidden sm:inline " + (tiers[tier] || tiers.unverified);
+  badge.textContent = tier;
+  document.getElementById("hdrStore").href = me.setup.storefront_url;
+  fillStorefrontForm();
+  refresh("setup");
+}
+
+async function refresh(tab) {
+  if (tab === "setup") return loadSetup();
+  if (tab === "orders") return loadOrders();
+  if (tab === "products") return loadProducts();
+  if (tab === "sellers") return loadSellers();
+  if (tab === "money") return loadMoney();
+}
+
+function card(label, value, tone = "") {
+  return `<div class="rounded-2xl bg-white border p-4">
+    <div class="text-xs text-slate-500">${esc(label)}</div>
+    <div class="text-xl font-bold mt-1 ${tone}">${esc(value)}</div></div>`;
+}
+
+async function loadSetup() {
+  const [stats, me] = await Promise.all([api("/api/stats"), api("/api/console/me")]);
+  ME = me;
+  const s = stats.stats;
+  document.getElementById("statCards").innerHTML =
+    card("Orders", s.orders_total) +
+    card("Sales", R(s.gmv)) +
+    card("Your earnings", R((s.wallet || {}).available || 0), "text-emerald-700") +
+    card("Held in escrow", R(s.in_escrow));
+
+  const done = (ok, text, action) => `
+    <div class="flex items-start gap-3">
+      <span class="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${ok ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-500"}">${ok ? "✓" : "·"}</span>
+      <div class="flex-1"><span class="${ok ? "text-slate-500 line-through" : "font-medium"}">${text}</span>
+      ${!ok && action ? `<div class="text-xs text-slate-500 mt-0.5">${action}</div>` : ""}</div>
+    </div>`;
+  const su = me.setup;
+  document.getElementById("checklist").innerHTML =
+    done(true, `Delivery ready — ${su.runners_available} runner${su.runners_available === 1 ? "" : "s"} cover your areas`, "") +
+    done(su.sellers > 0, "Add your first seller", "Sellers can apply from your storefront, or add them under Sellers.") +
+    done(su.products > 0, "List your first product", "Add it under Products, or let sellers send you their stock list.") +
+    done(!!(me.marketplace.bank || {}).account_no, "Add bank details", "Needed before you can withdraw your earnings.") +
+    done(me.marketplace.trust.deliveries >= 5, "Complete 5 deliveries to unlock withdrawals",
+         `${me.marketplace.trust.deliveries} done so far.`);
+
+  document.getElementById("recentOrders").innerHTML = (s.recent_orders || []).map(o => `
+    <tr><td class="font-medium">${esc(o.code)}</td><td>${esc(o.buyer.name)}</td>
+    <td>${R(o.total)}</td><td>${esc(o.payment?.method || "")}</td>
+    <td>${statusPill(o.status)}</td></tr>`).join("") ||
+    `<tr><td colspan="5" class="text-slate-500">No orders yet.</td></tr>`;
+}
+
+const STATUS_TONE = {
+  delivered: "bg-emerald-100 text-emerald-700", collected: "bg-emerald-100 text-emerald-700",
+  cancelled: "bg-red-100 text-red-700", awaiting_otp: "bg-slate-100 text-slate-500",
+  at_point: "bg-sky-100 text-sky-700", in_transit: "bg-sky-100 text-sky-700",
+};
+const statusPill = s => `<span class="badge ${STATUS_TONE[s] || "bg-amber-100 text-amber-800"}">${esc(String(s).replace(/_/g, " "))}</span>`;
+
+async function loadOrders() {
+  const data = await api("/api/orders" + (orderFilter ? `?status=${orderFilter}` : ""));
+  ORDERS = data.orders || [];
+  const statuses = ["", "pending", "confirmed", "assigned", "picked_up", "at_point", "delivered", "cancelled"];
+  document.getElementById("orderFilters").innerHTML = statuses.map(s =>
+    `<button data-s="${s}" class="ofilter px-3 py-1.5 rounded-xl border text-xs font-medium ${orderFilter === s ? "bg-slate-900 text-white" : "bg-white"}">${s || "All"}</button>`).join("");
+  document.querySelectorAll(".ofilter").forEach(b => b.onclick = () => { orderFilter = b.dataset.s; loadOrders(); });
+
+  document.getElementById("ordersBody").innerHTML = ORDERS.map(o => {
+    const acts = [];
+    if (o.status === "pending") acts.push(`<button onclick="setStatus('${o._id}','confirmed')" class="px-2 py-1 rounded-lg bg-emerald-600 text-white text-xs">Confirm</button>`);
+    if (o.status === "confirmed") acts.push(`<button onclick="assign('${o._id}')" class="px-2 py-1 rounded-lg bg-slate-900 text-white text-xs">Assign runner</button>`);
+    if (!["delivered", "collected", "cancelled"].includes(o.status))
+      acts.push(`<button onclick="incident('${o._id}')" class="px-2 py-1 rounded-lg border text-xs">Failed</button>`);
+    const pay = o.payment?.method === "wallet"
+      ? `<span class="badge bg-emerald-100 text-emerald-700">wallet</span>`
+      : `<span class="badge bg-slate-100 text-slate-600">${esc(o.payment?.method || "")}</span>`;
+    return `<tr>
+      <td class="font-medium">${esc(o.code)}</td>
+      <td>${esc(o.buyer.name)}<div class="text-xs text-slate-400">${esc(o.buyer.phone)}</div></td>
+      <td class="text-xs">${o.items.map(i => `${i.qty}× ${esc(i.name)}`).join("<br>")}</td>
+      <td>${R(o.total)}</td><td>${pay}</td><td>${statusPill(o.status)}</td>
+      <td class="text-xs">${esc(o.runner_name || "—")}</td>
+      <td><div class="flex gap-1 flex-wrap">${acts.join("")}</div></td></tr>`;
+  }).join("") || `<tr><td colspan="8" class="text-slate-500">No orders.</td></tr>`;
+}
+
+window.setStatus = async (id, status) => {
+  const res = await api(`/api/orders/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+  toast(res.ok ? `Order ${status}` : res.error, res.ok);
+  loadOrders();
+};
+window.assign = async (id) => {
+  const res = await api(`/api/orders/${id}`, { method: "PATCH", body: JSON.stringify({ runner_id: "auto" }) });
+  toast(res.ok ? `Assigned to ${res.order.runner_name}` : res.error, res.ok);
+  loadOrders();
+};
+window.incident = async (id) => {
+  if (!confirm("Mark this delivery as failed? The runner is still paid for the trip.")) return;
+  const res = await api(`/api/orders/${id}/incident`, { method: "POST", body: JSON.stringify({ reason: "no_show" }) });
+  if (res.ok) toast(`Runner paid ${R(res.failure.attempt_fee)} for the trip`);
+  else toast(res.error, false);
+  loadOrders();
+};
+
+async function loadProducts() {
+  const data = await api("/api/products?all=1");
+  PRODUCTS = data.products || [];
+  renderProducts();
+}
+document.getElementById("productSearch").oninput = renderProducts;
+
+function renderProducts() {
+  const q = document.getElementById("productSearch").value.trim().toLowerCase();
+  const rows = PRODUCTS.filter(p => !q || p.name.toLowerCase().includes(q));
+  document.getElementById("productsBody").innerHTML = rows.map(p => `
+    <tr><td class="font-medium">${esc(p.name)}</td><td>${esc(p.category)}</td>
+    <td>${esc(p.seller_name || "—")}</td><td>${R(p.price)}</td><td>${p.stock}</td>
+    <td><button onclick="toggleProduct('${p._id}',${!p.active})" class="badge ${p.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}">${p.active ? "live" : "hidden"}</button></td>
+    <td><button onclick="deleteProduct('${p._id}')" class="text-xs text-red-600 hover:underline">Delete</button></td></tr>`).join("")
+    || `<tr><td colspan="7" class="text-slate-500">No products yet.</td></tr>`;
+}
+
+window.toggleProduct = async (id, active) => {
+  await api(`/api/products/${id}`, { method: "PATCH", body: JSON.stringify({ active }) });
+  loadProducts();
+};
+window.deleteProduct = async (id) => {
+  if (!confirm("Delete this product?")) return;
+  await api(`/api/products/${id}`, { method: "DELETE" });
+  loadProducts();
+};
+
+async function loadSellers() {
+  const data = await api("/api/sellers");
+  SELLERS = data.sellers || [];
+  document.getElementById("sellersBody").innerHTML = SELLERS.map(s => `
+    <tr><td class="font-medium">${esc(s.shop_name)}</td><td>${esc(s.owner_name || "—")}</td>
+    <td>${esc(s.phone || "")}</td><td>${esc(s.area || "")}</td>
+    <td><button onclick="toggleSeller('${s._id}',${!s.approved})" class="badge ${s.approved ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"}">${s.approved ? "approved" : "pending"}</button></td>
+    <td><button onclick="deleteSeller('${s._id}')" class="text-xs text-red-600 hover:underline">Remove</button></td></tr>`).join("")
+    || `<tr><td colspan="6" class="text-slate-500">No sellers yet. They can apply from your storefront.</td></tr>`;
+}
+window.toggleSeller = async (id, approved) => {
+  await api(`/api/sellers/${id}`, { method: "PATCH", body: JSON.stringify({ approved }) });
+  loadSellers();
+};
+window.deleteSeller = async (id) => {
+  if (!confirm("Remove this seller?")) return;
+  await api(`/api/sellers/${id}`, { method: "DELETE" });
+  loadSellers();
+};
+
+async function loadMoney() {
+  const [me, payouts, withdrawals, disputes] = await Promise.all([
+    api("/api/console/me"), api("/api/payouts"), api("/api/withdrawals"), api("/api/disputes")]);
+  ME = me;
+  document.getElementById("moneyCards").innerHTML =
+    card("Available to withdraw", R(me.wallet.available), "text-emerald-700") +
+    card("Failed-delivery reserve", R(me.reserve.balance)) +
+    card("Owed to your sellers", R((payouts.payouts || []).reduce((s, p) => s + p.total, 0)));
+
+  document.getElementById("withdrawalsBody").innerHTML = (withdrawals.withdrawals || []).map(w => `
+    <tr><td class="text-xs">${new Date(w.created_at).toLocaleDateString()}</td>
+    <td>${R(w.amount)}</td><td>${statusPill(w.status)}</td>
+    <td class="text-xs text-slate-500">${esc(w.hold_reason || "")}</td></tr>`).join("")
+    || `<tr><td colspan="4" class="text-slate-500">No withdrawals yet.</td></tr>`;
+
+  document.getElementById("payoutsBody").innerHTML = (payouts.payouts || []).map(p => `
+    <tr><td class="font-medium">${esc(p.key)}</td><td>${p.orders}</td><td>${R(p.total)}</td>
+    <td><button onclick='markPaid(${JSON.stringify(JSON.stringify(p))})' class="px-2 py-1 rounded-lg bg-slate-900 text-white text-xs">Mark paid</button></td></tr>`).join("")
+    || `<tr><td colspan="4" class="text-slate-500">Nothing owed right now.</td></tr>`;
+
+  document.getElementById("disputesBody").innerHTML = (disputes.disputes || []).map(d => `
+    <tr><td class="font-medium">${esc(d.order_code)}</td><td>${esc(d.raiser)}</td>
+    <td class="text-xs">${esc(d.reason)}</td><td>${statusPill(d.status)}</td></tr>`).join("")
+    || `<tr><td colspan="4" class="text-slate-500">No disputes.</td></tr>`;
+}
+
+window.markPaid = async (json) => {
+  const p = JSON.parse(json);
+  const res = await api("/api/payouts/mark_paid", { method: "POST",
+    body: JSON.stringify({ role: p.role, key: p.key, order_ids: p.order_ids }) });
+  toast(res.ok ? "Marked paid" : res.error, res.ok);
+  loadMoney();
+};
+
+document.getElementById("withdrawBtn").onclick = async () => {
+  const amount = Number(document.getElementById("withdrawAmount").value || 0);
+  const msg = document.getElementById("withdrawMsg");
+  const res = await api("/api/wallet/withdraw", { method: "POST", body: JSON.stringify({ amount }) });
+  msg.textContent = res.ok
+    ? (res.withdrawal.status === "held" ? `Requested — ${res.withdrawal.hold_reason}` : "Requested. An admin will approve it.")
+    : res.error;
+  msg.className = "mt-2 text-xs " + (res.ok ? "text-emerald-700" : "text-red-600");
+  loadMoney();
+};
+
+// ---------- storefront settings ----------
+function fillStorefrontForm() {
+  const m = ME.marketplace;
+  document.getElementById("fName").value = m.name || "";
+  document.getElementById("fTagline").value = m.tagline || "";
+  document.getElementById("fAreas").value = (m.areas || []).join(", ");
+  document.getElementById("fAccent").value = m.accent || "emerald";
+  document.getElementById("fShared").checked = m.use_shared_runners !== false;
+  const b = m.bank || {};
+  document.getElementById("bHolder").value = b.holder || "";
+  document.getElementById("bBank").value = b.bank_name || "";
+  document.getElementById("bAccount").value = b.account_no || "";
+  document.getElementById("bCode").value = b.bank_code || "";
+  api("/api/settings").then(s => {
+    if (!s.ok) return;
+    document.getElementById("sDelivery").value = s.settings.delivery_fee;
+    document.getElementById("sMarket").value = (s.settings.marketplace_rate * 100).toFixed(1);
+    document.getElementById("sCodCap").value = s.settings.cod_cap;
+    document.getElementById("sCodSur").value = s.settings.cod_surcharge;
+    document.getElementById("sEft").value = s.settings.eft_details;
+  });
+}
+
+document.getElementById("saveMarket").onclick = async () => {
+  const res = await api("/api/console/marketplace", { method: "PATCH", body: JSON.stringify({
+    name: document.getElementById("fName").value,
+    tagline: document.getElementById("fTagline").value,
+    areas: document.getElementById("fAreas").value,
+    accent: document.getElementById("fAccent").value,
+    use_shared_runners: document.getElementById("fShared").checked }) });
+  toast(res.ok ? "Saved" : res.error, res.ok);
+  if (res.ok) boot();
+};
+
+document.getElementById("saveSettings").onclick = async () => {
+  const res = await api("/api/settings", { method: "PATCH", body: JSON.stringify({
+    delivery_fee: document.getElementById("sDelivery").value,
+    marketplace_rate: Number(document.getElementById("sMarket").value) / 100,
+    cod_cap: document.getElementById("sCodCap").value,
+    cod_surcharge: document.getElementById("sCodSur").value,
+    eft_details: document.getElementById("sEft").value }) });
+  toast(res.ok ? "Charges saved" : res.error, res.ok);
+};
+
+document.getElementById("saveBank").onclick = async () => {
+  const res = await api("/api/console/marketplace", { method: "PATCH", body: JSON.stringify({
+    bank: { holder: document.getElementById("bHolder").value,
+            bank_name: document.getElementById("bBank").value,
+            account_no: document.getElementById("bAccount").value,
+            bank_code: document.getElementById("bCode").value } }) });
+  toast(res.ok ? "Bank details saved — withdrawals pause for 48 hours" : res.error, res.ok);
+  if (res.ok) boot();
+};
+
+// ---------- modals ----------
+const modal = document.getElementById("modal");
+window.closeModal = () => { modal.classList.add("hidden"); modal.classList.remove("flex"); };
+function openModal(title, fields, onSave) {
+  document.getElementById("modalTitle").textContent = title;
+  document.getElementById("modalMsg").textContent = "";
+  document.getElementById("modalBody").innerHTML = fields.map(f =>
+    f.type === "select"
+      ? `<select id="m_${f.k}" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white">${f.options.map(o => `<option value="${esc(o.v)}">${esc(o.label)}</option>`).join("")}</select>`
+      : `<input id="m_${f.k}" type="${f.type || "text"}" placeholder="${esc(f.label)}" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />`).join("");
+  document.getElementById("modalSave").onclick = async () => {
+    const values = Object.fromEntries(fields.map(f => [f.k, document.getElementById("m_" + f.k).value]));
+    const err = await onSave(values);
+    if (err) document.getElementById("modalMsg").textContent = err;
+    else closeModal();
+  };
+  modal.classList.remove("hidden"); modal.classList.add("flex");
+}
+
+window.openProductModal = () => openModal("Add product", [
+  { k: "name", label: "Product name" },
+  { k: "price", label: "Price (R)", type: "number" },
+  { k: "category", label: "Category" },
+  { k: "stock", label: "Stock", type: "number" },
+  { k: "seller_id", label: "Seller", type: "select",
+    options: [{ v: "", label: "No seller" }].concat(SELLERS.map(s => ({ v: s._id, label: s.shop_name }))) },
+], async (v) => {
+  const res = await api("/api/products", { method: "POST", body: JSON.stringify(v) });
+  if (!res.ok) return res.error;
+  toast("Product added"); loadProducts();
+});
+
+window.openSellerModal = () => openModal("Add seller", [
+  { k: "shop_name", label: "Shop name" },
+  { k: "owner_name", label: "Owner name" },
+  { k: "phone", label: "Phone" },
+  { k: "area", label: "Area" },
+], async (v) => {
+  const res = await api("/api/sellers", { method: "POST", body: JSON.stringify(v) });
+  if (!res.ok) return res.error;
+  toast("Seller added"); loadSellers();
+});
+
+// Products tab needs sellers loaded for its dropdown.
+if (TOKEN) boot().catch(() => signOut());
+</script>
+</body>
+</html>

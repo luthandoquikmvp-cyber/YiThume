@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Loading market — YiThume</title>
+<link rel="icon" href="/favicon.ico" />
+<script src="/static/tailwind.js"></script>
+<style>
+  html{scroll-behavior:smooth}
+  /* the cart drawer parks off-screen to the right; don't let it widen the page */
+  body{overflow-x:hidden}
+  .badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .6rem;border-radius:999px;font-size:.7rem;font-weight:600}
+  .tile{display:inline-flex;height:3rem;width:3rem;align-items:center;justify-content:center;border-radius:.75rem;background:var(--accent-soft,#ecfdf5);color:var(--accent-ink,#047857);font-weight:700;font-size:1.1rem}
+  #cartDrawer{transition:transform .25s ease}
+  .toast{animation:pop .2s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .accent-bg{background:var(--accent,#059669)}
+  .accent-bg:hover{background:var(--accent-dark,#047857)}
+  .accent-text{color:var(--accent-ink,#047857)}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased">
+
+<header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-slate-200">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-2 min-w-0">
+      <span id="storeInitial" class="inline-flex h-9 w-9 items-center justify-center rounded-xl accent-bg text-white font-bold">·</span>
+      <div class="min-w-0">
+        <div id="storeName" class="text-lg font-semibold tracking-tight truncate">Loading…</div>
+        <div id="storeAreas" class="text-xs text-slate-500 truncate"></div>
+      </div>
+    </div>
+    <nav class="hidden md:flex items-center gap-5 text-sm text-slate-600">
+      <a href="#shop" class="hover:text-slate-900">Shop</a>
+      <a href="#track" class="hover:text-slate-900">Track order</a>
+      <a href="#wallet" class="hover:text-slate-900">Wallet</a>
+      <a href="#sell" class="hover:text-slate-900">Sell here</a>
+    </nav>
+    <button id="cartBtn" class="relative px-4 py-2 rounded-xl accent-bg text-white text-sm font-medium">
+      Cart <span id="cartCount" class="ml-1 inline-flex h-5 min-w-5 px-1 items-center justify-center rounded-full bg-white accent-text text-xs font-bold">0</span>
+    </button>
+  </div>
+</header>
+
+<section class="bg-white border-b border-slate-200">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-10 flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <div id="trustBadge" class="badge bg-slate-100 text-slate-500 mb-2">—</div>
+      <h1 id="storeTagline" class="text-2xl sm:text-3xl font-bold"></h1>
+      <p class="mt-2 text-sm text-slate-600">
+        Delivered by local runners · Pay from your wallet and the money is held until you get your goods.
+      </p>
+    </div>
+    <a href="/markets" class="text-sm text-slate-500 hover:text-slate-900 underline">All markets</a>
+  </div>
+</section>
+
+<section id="shop" class="py-10">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6">
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+      <h2 class="text-xl font-bold">What's for sale</h2>
+      <input id="searchBox" type="search" placeholder="Search products or sellers"
+             class="w-full sm:w-80 px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-sm" />
+    </div>
+    <div id="categoryPills" class="mt-4 flex flex-wrap gap-2"></div>
+    <div id="productGrid" class="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+    <div id="emptyState" class="hidden mt-10 text-center text-slate-500 text-sm">Nothing matches your search.</div>
+  </div>
+</section>
+
+<!-- Wallet -->
+<section id="wallet" class="py-10 bg-white border-y border-slate-200">
+  <div class="max-w-3xl mx-auto px-4 sm:px-6">
+    <h2 class="text-xl font-bold">Your wallet</h2>
+    <p class="text-slate-600 text-sm mt-1">
+      Top up once, then order without cash. Your money is held safely until you confirm you got your goods —
+      if it doesn't arrive, you get it back.
+    </p>
+    <div class="mt-4 flex flex-col sm:flex-row gap-3">
+      <input id="walletPhone" placeholder="Your phone number" class="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+      <button id="walletCheck" class="px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-700">Check balance</button>
+    </div>
+    <div id="walletBox" class="hidden mt-4 rounded-2xl border bg-slate-50 p-5">
+      <div class="flex flex-wrap items-baseline justify-between gap-3">
+        <div>
+          <div class="text-xs text-slate-500 uppercase tracking-wide">Available</div>
+          <div id="walletAvailable" class="text-2xl font-bold accent-text">R0.00</div>
+        </div>
+        <div id="walletHeldWrap" class="hidden text-sm text-slate-500">Held for orders: <b id="walletHeld">R0.00</b></div>
+      </div>
+      <div id="walletOwed" class="hidden mt-3 rounded-xl bg-red-50 text-red-700 text-sm p-3"></div>
+      <div class="mt-4 flex flex-col sm:flex-row gap-2">
+        <input id="topupAmount" type="number" min="1" step="1" placeholder="Amount to add (R)" class="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+        <button id="topupBtn" class="px-5 py-2.5 rounded-xl accent-bg text-white text-sm font-medium">Top up</button>
+      </div>
+      <div id="walletMsg" class="mt-2 text-xs text-slate-500"></div>
+      <div id="walletHistory" class="mt-4 space-y-1 text-xs text-slate-500"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Track -->
+<section id="track" class="py-10">
+  <div class="max-w-3xl mx-auto px-4 sm:px-6">
+    <h2 class="text-xl font-bold">Track your order</h2>
+    <p class="text-slate-600 text-sm mt-1">Enter your order code (e.g. YT-A1B2C) or the phone number you ordered with.</p>
+    <div class="mt-4 flex flex-col sm:flex-row gap-3">
+      <input id="trackInput" placeholder="Order code or phone number" class="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-sm" />
+      <button id="trackBtn" class="px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-700">Track</button>
+    </div>
+    <div id="trackResults" class="mt-6 space-y-4"></div>
+  </div>
+</section>
+
+<!-- Sell here -->
+<section id="sell" class="py-10 bg-white border-t border-slate-200">
+  <div class="max-w-3xl mx-auto px-4 sm:px-6">
+    <h2 class="text-xl font-bold">Sell on this market</h2>
+    <p class="text-slate-600 text-sm mt-1">Apply to <span class="store-name-inline font-medium"></span>. The operator approves sellers.</p>
+    <form id="sellerForm" class="mt-4 grid sm:grid-cols-2 gap-3">
+      <input name="shop_name" required placeholder="Shop / stall name" class="px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+      <input name="owner_name" placeholder="Your name" class="px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+      <input name="phone" required placeholder="WhatsApp number" class="px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+      <input name="area" placeholder="Town / area" class="px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+      <button type="submit" class="sm:col-span-2 px-5 py-2.5 rounded-xl accent-bg text-white text-sm font-medium">Apply to sell</button>
+      <div class="form-msg sm:col-span-2 text-xs text-slate-500"></div>
+    </form>
+  </div>
+</section>
+
+<footer class="border-t border-slate-200 py-10 text-center text-sm text-slate-500">
+  <div id="footerName" class="font-semibold text-slate-700"></div>
+  <div class="mt-1">Running on <a href="/" class="underline hover:text-slate-700">YiThume</a> — create your own marketplace</div>
+</footer>
+
+<!-- Cart drawer -->
+<div id="cartOverlay" class="fixed inset-0 bg-black/40 z-40 hidden"></div>
+<aside id="cartDrawer" class="fixed top-0 right-0 h-full w-full sm:w-[420px] bg-white z-50 shadow-2xl translate-x-full flex flex-col">
+  <div class="p-5 border-b flex items-center justify-between">
+    <div class="text-lg font-semibold">Your basket</div>
+    <button id="closeCart" class="h-9 w-9 rounded-xl border hover:bg-slate-100">&times;</button>
+  </div>
+  <div id="cartItems" class="flex-1 overflow-y-auto p-5 space-y-3"></div>
+  <div class="p-5 border-t space-y-3">
+    <div class="flex justify-between text-sm"><span>Subtotal</span><b id="cartSubtotal">R0.00</b></div>
+    <div class="flex justify-between text-sm text-slate-500"><span>Delivery</span><span id="cartDelivery">R0.00</span></div>
+    <div class="flex justify-between text-base"><span class="font-semibold">Total</span><b id="cartTotal" class="accent-text">R0.00</b></div>
+    <button id="checkoutBtn" class="w-full px-5 py-3 rounded-2xl accent-bg text-white text-sm font-medium disabled:opacity-40" disabled>Checkout</button>
+  </div>
+</aside>
+
+<!-- Checkout modal -->
+<div id="checkoutModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4">
+  <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div id="checkoutStep1">
+      <div class="text-lg font-semibold">Delivery details</div>
+      <form id="checkoutForm" class="mt-4 space-y-3">
+        <input name="name" required placeholder="Your name" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+        <input name="phone" required placeholder="WhatsApp number (e.g. 27712345678)" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+
+        <div class="pt-1">
+          <div class="text-sm font-medium">How should it reach you?</div>
+          <label class="mt-2 flex items-start gap-3 rounded-xl border p-3 cursor-pointer has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50">
+            <input type="radio" name="fulfilment" value="door" checked class="mt-0.5 accent-emerald-600" />
+            <span class="text-sm"><b>Deliver to my door</b><span class="block text-xs text-slate-500">A local runner brings it to you.</span></span>
+          </label>
+          <label id="pointOption" class="hidden mt-2 items-start gap-3 rounded-xl border p-3 cursor-pointer has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50">
+            <input type="radio" name="fulfilment" value="point" class="mt-0.5 accent-emerald-600" />
+            <span class="text-sm flex-1"><b>Collect at a pickup point</b><span id="pointSaving" class="block text-xs text-emerald-700 font-medium"></span>
+              <select name="pickup_point_id" class="mt-2 w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"></select>
+            </span>
+          </label>
+        </div>
+
+        <div id="addressFields" class="space-y-3">
+          <input name="area" required placeholder="Town / area" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+          <input name="address" required placeholder="Delivery address or landmark" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+        </div>
+
+        <div class="pt-1">
+          <div class="text-sm font-medium">How will you pay?</div>
+          <label class="mt-2 flex items-start gap-3 rounded-xl border p-3 cursor-pointer has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50">
+            <input type="radio" name="payment_method" value="wallet" checked class="mt-0.5 accent-emerald-600" />
+            <span class="text-sm"><b>Pay from my wallet</b>
+              <span class="badge bg-emerald-100 text-emerald-700 ml-1">protected</span>
+              <span class="block text-xs text-slate-500">Held until you give your delivery PIN. If it doesn't arrive, you get it back.</span></span>
+          </label>
+          <label class="mt-2 flex items-start gap-3 rounded-xl border p-3 cursor-pointer has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50">
+            <input type="radio" name="payment_method" value="cod" class="mt-0.5 accent-emerald-600" />
+            <span class="text-sm"><b>Cash on delivery</b>
+              <span id="codNote" class="block text-xs text-slate-500"></span></span>
+          </label>
+          <label class="mt-2 flex items-start gap-3 rounded-xl border p-3 cursor-pointer has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50">
+            <input type="radio" name="payment_method" value="eft" class="mt-0.5 accent-emerald-600" />
+            <span class="text-sm"><b>I've paid by EFT</b><span id="eftNote" class="block text-xs text-slate-500"></span></span>
+          </label>
+        </div>
+        <div class="flex gap-3 pt-1">
+          <button type="button" id="cancelCheckout" class="flex-1 px-4 py-2.5 rounded-xl border text-sm hover:bg-slate-100">Back</button>
+          <button type="submit" class="flex-1 px-4 py-2.5 rounded-xl accent-bg text-white text-sm font-medium">Place order</button>
+        </div>
+        <div id="checkoutMsg" class="text-xs text-red-600"></div>
+      </form>
+    </div>
+
+    <!-- Top up the shortfall, rather than bouncing the order -->
+    <div id="checkoutStepTopup" class="hidden text-center">
+      <div class="text-lg font-semibold">Almost there</div>
+      <div class="mt-2 text-sm text-slate-600" id="shortfallText"></div>
+      <button id="topupShortfall" class="mt-4 w-full px-5 py-3 rounded-2xl accent-bg text-white text-sm font-medium">Top up and place order</button>
+      <button id="switchToCod" class="mt-2 w-full px-5 py-2.5 rounded-xl border text-sm hover:bg-slate-100">Pay cash on delivery instead</button>
+      <div id="topupMsg" class="mt-2 text-xs text-red-600"></div>
+    </div>
+
+    <div id="checkoutStepOtp" class="hidden text-center">
+      <div class="text-lg font-semibold">Confirm your order</div>
+      <div class="mt-1 text-sm text-slate-600">We sent a 6-digit code to your phone.</div>
+      <div id="otpDemo" class="hidden mt-3 rounded-xl bg-amber-50 text-amber-800 text-sm p-3"></div>
+      <input id="otpInput" inputmode="numeric" maxlength="6" placeholder="000000"
+             class="mt-4 w-full px-4 py-3 rounded-xl border border-slate-300 text-center text-2xl tracking-widest" />
+      <div id="otpMsg" class="mt-2 text-xs text-red-600"></div>
+      <button id="otpVerify" class="mt-4 w-full px-5 py-3 rounded-2xl accent-bg text-white text-sm font-medium">Confirm order</button>
+      <button id="otpResend" class="mt-2 w-full px-5 py-2.5 rounded-xl border text-sm hover:bg-slate-100">Resend code</button>
+    </div>
+
+    <div id="checkoutStep2" class="hidden text-center">
+      <div class="text-lg font-semibold">Order placed</div>
+      <div class="mt-1 text-sm text-slate-600">Your order code is <b id="orderCode" class="accent-text"></b>. Save it to track your delivery.</div>
+      <div id="eftInstructions" class="hidden mt-3 rounded-xl bg-slate-50 text-slate-700 text-sm p-3 text-left"></div>
+      <div class="mt-3 text-xs text-slate-500">When your order is confirmed you'll get a 4-digit delivery PIN. Only give it once you have your goods — it's what releases the payment.</div>
+      <a id="waLink" href="#" target="_blank" rel="noopener" class="mt-4 block w-full px-5 py-3 rounded-2xl accent-bg text-white text-sm font-medium">Send order on WhatsApp</a>
+      <button id="doneCheckout" class="mt-2 w-full px-5 py-2.5 rounded-xl border text-sm hover:bg-slate-100">Done</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 hidden"></div>
+
+<script>
+const SLUG = decodeURIComponent(location.pathname.split("/m/")[1] || "").replace(/\/$/, "");
+const R = v => "R" + Number(v || 0).toFixed(2);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const initial = s => esc((s || "?").trim().charAt(0).toUpperCase());
+const CART_KEY = "yithume_cart_" + SLUG;
+
+let MARKET = null, CONFIG = {}, PRODUCTS = [], POINTS = [], activeCategory = "";
+let cart = JSON.parse(localStorage.getItem(CART_KEY) || "{}");
+let PENDING_ORDER = null, PENDING_PAYLOAD = null;
+
+const ACCENTS = {
+  emerald: ["#059669", "#047857", "#ecfdf5"],
+  amber:   ["#d97706", "#b45309", "#fffbeb"],
+  sky:     ["#0284c7", "#0369a1", "#f0f9ff"],
+  rose:    ["#e11d48", "#be123c", "#fff1f2"],
+  violet:  ["#7c3aed", "#6d28d9", "#f5f3ff"],
+};
+
+function toast(msg, ok = true) {
+  const t = document.getElementById("toast");
+  t.innerHTML = `<div class="toast px-4 py-2.5 rounded-xl text-sm text-white shadow-lg ${ok ? "bg-slate-900" : "bg-red-600"}">${esc(msg)}</div>`;
+  t.classList.remove("hidden");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.add("hidden"), 2800);
+}
+
+// ---------- market ----------
+async function loadMarket() {
+  const res = await fetch(`/api/marketplaces/${encodeURIComponent(SLUG)}`);
+  const data = await res.json();
+  if (!data.ok) {
+    document.body.innerHTML = `<div class="min-h-screen flex items-center justify-center p-6 text-center">
+      <div><div class="text-2xl font-bold">Market not found</div>
+      <p class="mt-2 text-slate-600">This storefront doesn't exist or isn't open.</p>
+      <a href="/markets" class="mt-4 inline-block px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm">Browse markets</a></div></div>`;
+    throw new Error("no market");
+  }
+  MARKET = data.marketplace;
+  const [accent, dark, soft] = ACCENTS[MARKET.accent] || ACCENTS.emerald;
+  document.documentElement.style.setProperty("--accent", accent);
+  document.documentElement.style.setProperty("--accent-dark", dark);
+  document.documentElement.style.setProperty("--accent-soft", soft);
+  document.documentElement.style.setProperty("--accent-ink", dark);
+
+  document.title = `${MARKET.name} — YiThume`;
+  document.getElementById("storeName").textContent = MARKET.name;
+  document.getElementById("storeInitial").textContent = initial(MARKET.name);
+  document.getElementById("storeAreas").textContent = (MARKET.areas || []).join(" · ");
+  document.getElementById("storeTagline").textContent = MARKET.tagline || `Shop ${MARKET.name}`;
+  document.getElementById("footerName").textContent = MARKET.name;
+  document.querySelectorAll(".store-name-inline").forEach(el => el.textContent = MARKET.name);
+
+  const tiers = {
+    trusted: ["bg-emerald-100 text-emerald-700", "Trusted market"],
+    verified: ["bg-sky-100 text-sky-700", "Verified market"],
+    unverified: ["bg-amber-100 text-amber-800", "New market — smaller orders only"],
+  };
+  const [cls, label] = tiers[MARKET.trust_tier] || tiers.unverified;
+  const badge = document.getElementById("trustBadge");
+  badge.className = "badge mb-2 " + cls;
+  badge.textContent = `${label} · ${MARKET.deliveries} deliveries`;
+}
+
+async function loadConfig() {
+  const data = await fetch(`/api/config?marketplace=${encodeURIComponent(SLUG)}`).then(r => r.json());
+  if (data.ok) CONFIG = data.config;
+  document.getElementById("eftNote").textContent =
+    (CONFIG.eft_details || "Pay by EFT first.") + " Use your order code as reference.";
+  document.getElementById("codNote").textContent =
+    `Costs ${R(CONFIG.cod_surcharge)} more — cash trips are more expensive to run. Not protected if something goes wrong.`;
+  renderCart();
+}
+
+async function loadPoints() {
+  try {
+    const data = await fetch(`/api/pickup_points/public?marketplace=${encodeURIComponent(SLUG)}`).then(r => r.json());
+    POINTS = data.pickup_points || [];
+    if (!POINTS.length) return;
+    document.getElementById("pointOption").classList.remove("hidden");
+    document.getElementById("pointOption").classList.add("flex");
+    document.querySelector('[name="pickup_point_id"]').innerHTML =
+      POINTS.map(p => `<option value="${p._id}">${esc(p.name)} — ${esc(p.area)}${p.hours ? " (" + esc(p.hours) + ")" : ""}</option>`).join("");
+    document.getElementById("pointSaving").textContent =
+      `Save ${R(Number(CONFIG.delivery_fee) * 0.4)} — collect when it suits you.`;
+  } catch (e) {}
+}
+
+async function loadProducts() {
+  const [pr, cr] = await Promise.all([
+    fetch(`/api/products?marketplace=${encodeURIComponent(SLUG)}`).then(r => r.json()),
+    fetch(`/api/categories?marketplace=${encodeURIComponent(SLUG)}`).then(r => r.json()),
+  ]);
+  PRODUCTS = pr.products || [];
+  renderPills(cr.categories || []);
+  renderGrid();
+}
+
+function renderPills(cats) {
+  const el = document.getElementById("categoryPills");
+  const pill = (label, val) => `<button data-cat="${esc(val)}" class="cat-pill px-3.5 py-1.5 rounded-full border text-xs font-medium ${activeCategory === val ? "accent-bg text-white" : "bg-white hover:bg-slate-100"}">${esc(label)}</button>`;
+  el.innerHTML = pill("All", "") + cats.map(c => pill(c, c)).join("");
+  el.querySelectorAll(".cat-pill").forEach(b => b.onclick = () => { activeCategory = b.dataset.cat; renderPills(cats); renderGrid(); });
+}
+
+function renderGrid() {
+  const q = document.getElementById("searchBox").value.trim().toLowerCase();
+  const items = PRODUCTS.filter(p =>
+    (!activeCategory || p.category === activeCategory) &&
+    (!q || [p.name, p.category, p.seller_name].join(" ").toLowerCase().includes(q)));
+  const grid = document.getElementById("productGrid");
+  document.getElementById("emptyState").classList.toggle("hidden", items.length > 0);
+  grid.innerHTML = items.map(p => `
+    <div class="rounded-2xl border bg-white p-4 flex flex-col shadow-sm hover:shadow-md transition">
+      <div>${p.image_url ? `<img src="${esc(p.image_url)}" alt="" class="h-16 w-16 object-cover rounded-xl">` : `<span class="tile">${initial(p.name)}</span>`}</div>
+      <div class="mt-3 font-semibold text-sm leading-snug">${esc(p.name)}</div>
+      <div class="text-xs text-slate-500 mt-0.5">${esc(p.seller_name || "")}</div>
+      <div class="mt-auto pt-3 flex items-center justify-between">
+        <b class="accent-text">${R(p.price)}</b>
+        <button data-id="${p._id}" class="add-btn px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-medium hover:bg-slate-700">Add</button>
+      </div>
+    </div>`).join("");
+  grid.querySelectorAll(".add-btn").forEach(b => b.onclick = () => addToCart(b.dataset.id));
+}
+
+// ---------- cart ----------
+function saveCart() { localStorage.setItem(CART_KEY, JSON.stringify(cart)); renderCart(); }
+function addToCart(id) { cart[id] = (cart[id] || 0) + 1; saveCart(); toast("Added to basket"); }
+window.setQty = (id, qty) => { if (qty <= 0) delete cart[id]; else cart[id] = qty; saveCart(); };
+
+function cartEntries() {
+  return Object.entries(cart).map(([id, qty]) => ({ p: PRODUCTS.find(x => x._id === id), qty })).filter(e => e.p);
+}
+
+function currentDelivery() {
+  const mode = document.querySelector('input[name="fulfilment"]:checked');
+  const method = document.querySelector('input[name="payment_method"]:checked');
+  let fee = Number(CONFIG.delivery_fee || 0);
+  if (mode && mode.value === "point") fee = fee * 0.6;
+  if (method && method.value === "cod") fee += Number(CONFIG.cod_surcharge || 0);
+  return Math.round(fee * 100) / 100;
+}
+
+function renderCart() {
+  const entries = cartEntries();
+  const count = entries.reduce((s, e) => s + e.qty, 0);
+  const sub = entries.reduce((s, e) => s + e.p.price * e.qty, 0);
+  const delivery = count ? currentDelivery() : 0;
+  document.getElementById("cartCount").textContent = count;
+  document.getElementById("cartSubtotal").textContent = R(sub);
+  document.getElementById("cartDelivery").textContent = R(delivery);
+  document.getElementById("cartTotal").textContent = R(sub + delivery);
+  document.getElementById("checkoutBtn").disabled = count === 0;
+  document.getElementById("cartItems").innerHTML = entries.length ? entries.map(e => `
+    <div class="flex items-center gap-3 rounded-2xl border p-3">
+      <span class="tile" style="height:2.25rem;width:2.25rem;font-size:.9rem">${initial(e.p.name)}</span>
+      <div class="flex-1 min-w-0"><div class="text-sm font-medium truncate">${esc(e.p.name)}</div><div class="text-xs text-slate-500">${R(e.p.price)}</div></div>
+      <div class="flex items-center gap-2">
+        <button class="h-7 w-7 rounded-lg border hover:bg-slate-100" onclick="setQty('${e.p._id}',${e.qty - 1})">&minus;</button>
+        <span class="text-sm w-5 text-center">${e.qty}</span>
+        <button class="h-7 w-7 rounded-lg border hover:bg-slate-100" onclick="setQty('${e.p._id}',${e.qty + 1})">+</button>
+      </div>
+    </div>`).join("") : `<div class="text-center text-sm text-slate-500 mt-10">Your basket is empty.</div>`;
+}
+
+function openCart(open) {
+  document.getElementById("cartDrawer").classList.toggle("translate-x-full", !open);
+  document.getElementById("cartOverlay").classList.toggle("hidden", !open);
+}
+document.getElementById("cartBtn").onclick = () => openCart(true);
+document.getElementById("closeCart").onclick = () => openCart(false);
+document.getElementById("cartOverlay").onclick = () => openCart(false);
+
+// ---------- checkout ----------
+const modal = document.getElementById("checkoutModal");
+function showStep(step) {
+  for (const id of ["checkoutStep1", "checkoutStepTopup", "checkoutStepOtp", "checkoutStep2"])
+    document.getElementById(id).classList.toggle("hidden", id !== step);
+}
+document.getElementById("checkoutBtn").onclick = () => {
+  openCart(false); showStep("checkoutStep1");
+  modal.classList.remove("hidden"); modal.classList.add("flex");
+};
+document.getElementById("cancelCheckout").onclick = () => { modal.classList.add("hidden"); modal.classList.remove("flex"); openCart(true); };
+document.getElementById("doneCheckout").onclick = () => { modal.classList.add("hidden"); modal.classList.remove("flex"); };
+
+document.querySelectorAll('input[name="fulfilment"], input[name="payment_method"]').forEach(el => {
+  el.onchange = () => {
+    const atPoint = document.querySelector('input[name="fulfilment"]:checked').value === "point";
+    const fields = document.getElementById("addressFields");
+    fields.classList.toggle("hidden", atPoint);
+    fields.querySelectorAll("input").forEach(i => i.required = !atPoint);
+    renderCart();
+  };
+});
+
+function buildPayload(form) {
+  const f = new FormData(form);
+  const atPoint = f.get("fulfilment") === "point";
+  return {
+    marketplace: SLUG,
+    buyer: {
+      name: f.get("name"), phone: f.get("phone"),
+      area: atPoint ? (POINTS.find(p => p._id === f.get("pickup_point_id")) || {}).area || "" : f.get("area"),
+      address: atPoint ? "Collect at pickup point" : f.get("address"),
+    },
+    items: cartEntries().map(e => ({ product_id: e.p._id, qty: e.qty })),
+    payment_method: f.get("payment_method") || "wallet",
+    pickup_point_id: atPoint ? f.get("pickup_point_id") : "",
+    channel: "web",
+  };
+}
+
+async function submitOrder(payload) {
+  const res = await fetch("/api/orders", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  return { res, data: await res.json() };
+}
+
+document.getElementById("checkoutForm").onsubmit = async (ev) => {
+  ev.preventDefault();
+  const msg = document.getElementById("checkoutMsg"); msg.textContent = "";
+  PENDING_PAYLOAD = buildPayload(ev.target);
+  try {
+    const { res, data } = await submitOrder(PENDING_PAYLOAD);
+    if (res.status === 402) {
+      // Short on wallet — offer to top up exactly the gap instead of bouncing.
+      document.getElementById("shortfallText").innerHTML =
+        `Your wallet has <b>${R(data.balance)}</b> and this order is <b>${R(data.required)}</b>.<br>Add <b>${R(data.shortfall)}</b> to finish.`;
+      document.getElementById("topupShortfall").dataset.amount = data.shortfall;
+      showStep("checkoutStepTopup");
+      return;
+    }
+    if (!data.ok) { msg.textContent = data.error || "Something went wrong"; return; }
+    afterOrder(data);
+  } catch (e) { msg.textContent = "Network error — please try again."; }
+};
+
+document.getElementById("topupShortfall").onclick = async (ev) => {
+  const amount = Number(ev.target.dataset.amount || 0);
+  const msg = document.getElementById("topupMsg"); msg.textContent = "";
+  try {
+    const top = await fetch("/api/wallet/topup", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: PENDING_PAYLOAD.buyer.phone, amount }) }).then(r => r.json());
+    if (!top.ok) { msg.textContent = top.error || "Could not start the top-up"; return; }
+    if (top.checkout_url) { window.location.href = top.checkout_url; return; }
+    msg.textContent = "Could not reach the payment page.";
+  } catch (e) { msg.textContent = "Network error — please try again."; }
+};
+
+document.getElementById("switchToCod").onclick = async () => {
+  PENDING_PAYLOAD.payment_method = "cod";
+  const { data } = await submitOrder(PENDING_PAYLOAD);
+  if (!data.ok) { document.getElementById("topupMsg").textContent = data.error || "Something went wrong"; return; }
+  afterOrder(data);
+};
+
+function afterOrder(data) {
+  PENDING_ORDER = data;
+  cart = {}; saveCart();
+  document.getElementById("otpInput").value = "";
+  document.getElementById("otpMsg").textContent = "";
+  const el = document.getElementById("otpDemo");
+  if (data.otp_demo) { el.textContent = `Demo mode (WhatsApp not connected): your code is ${data.otp_demo}`; el.classList.remove("hidden"); }
+  else el.classList.add("hidden");
+  showStep("checkoutStepOtp");
+  document.getElementById("otpInput").focus();
+}
+
+document.getElementById("otpVerify").onclick = async () => {
+  const msg = document.getElementById("otpMsg"); msg.textContent = "";
+  try {
+    const data = await fetch(`/api/orders/${PENDING_ORDER.order._id}/verify-otp`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: document.getElementById("otpInput").value.trim() }) }).then(r => r.json());
+    if (!data.ok) { msg.textContent = data.error || "Wrong code"; return; }
+    document.getElementById("orderCode").textContent = PENDING_ORDER.order.code;
+    document.getElementById("waLink").href = PENDING_ORDER.whatsapp_url;
+    const eftEl = document.getElementById("eftInstructions");
+    if (PENDING_ORDER.eft_instructions) { eftEl.textContent = PENDING_ORDER.eft_instructions; eftEl.classList.remove("hidden"); }
+    else eftEl.classList.add("hidden");
+    showStep("checkoutStep2");
+  } catch (e) { msg.textContent = "Network error — please try again."; }
+};
+
+document.getElementById("otpResend").onclick = async () => {
+  const data = await fetch(`/api/orders/${PENDING_ORDER.order._id}/resend-otp`, { method: "POST" }).then(r => r.json());
+  if (data.ok) toast("Code sent again");
+};
+
+// ---------- wallet ----------
+async function refreshWallet(phone) {
+  const data = await fetch(`/api/wallet?phone=${encodeURIComponent(phone)}`).then(r => r.json());
+  if (!data.ok) return;
+  document.getElementById("walletBox").classList.remove("hidden");
+  document.getElementById("walletAvailable").textContent = R(data.available);
+  document.getElementById("walletHeldWrap").classList.toggle("hidden", !data.held);
+  document.getElementById("walletHeld").textContent = R(data.held);
+  const owed = document.getElementById("walletOwed");
+  owed.classList.toggle("hidden", !data.owed);
+  if (data.owed) owed.textContent = `You owe ${R(data.owed)} from a failed delivery. Top up to clear it and order again.`;
+  document.getElementById("walletHistory").innerHTML = (data.history || []).map(h =>
+    `<div class="flex justify-between"><span>${esc(h.kind.replace(/_/g, " "))} <span class="text-slate-400">${esc(h.ref)}</span></span><b class="${h.amount >= 0 ? "text-emerald-700" : "text-slate-600"}">${h.amount >= 0 ? "+" : ""}${R(h.amount)}</b></div>`).join("");
+}
+
+document.getElementById("walletCheck").onclick = () => {
+  const phone = document.getElementById("walletPhone").value.trim();
+  if (phone) refreshWallet(phone);
+};
+
+document.getElementById("topupBtn").onclick = async () => {
+  const phone = document.getElementById("walletPhone").value.trim();
+  const amount = Number(document.getElementById("topupAmount").value || 0);
+  const msg = document.getElementById("walletMsg"); msg.textContent = "";
+  if (!phone || amount <= 0) { msg.textContent = "Enter your number and an amount."; return; }
+  const data = await fetch("/api/wallet/topup", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, amount }) }).then(r => r.json());
+  if (!data.ok) { msg.textContent = data.error; return; }
+  if (data.checkout_url) window.location.href = data.checkout_url;
+};
+
+// Coming back from the payment page: verify, then show the new balance.
+(async function handleReturn() {
+  const ref = new URLSearchParams(location.search).get("reference");
+  if (!ref) return;
+  await fetch("/api/wallet/topup/verify", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reference: ref }) });
+  toast("Wallet topped up");
+  history.replaceState({}, "", location.pathname);
+})();
+
+// ---------- tracking ----------
+const STATUS_LABELS = { awaiting_otp: "Waiting for your code", pending: "Pending", confirmed: "Confirmed",
+  assigned: "Runner assigned", picked_up: "On the way", in_transit: "With the courier",
+  at_point: "Ready to collect", delivered: "Delivered", collected: "Collected", cancelled: "Cancelled" };
+
+document.getElementById("trackBtn").onclick = async () => {
+  const v = document.getElementById("trackInput").value.trim();
+  if (!v) return;
+  const key = v.toUpperCase().startsWith("YT-") ? "code" : "phone";
+  const box = document.getElementById("trackResults");
+  box.innerHTML = `<div class="text-sm text-slate-500">Searching…</div>`;
+  try {
+    const data = await fetch(`/api/orders/track?${key}=${encodeURIComponent(v)}`).then(r => r.json());
+    if (!data.ok || !data.orders.length) { box.innerHTML = `<div class="text-sm text-slate-500">No orders found.</div>`; return; }
+    box.innerHTML = data.orders.map(o => `
+      <div class="rounded-2xl border bg-white p-5">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <b>${esc(o.code)}</b>
+          <span class="badge bg-emerald-100 text-emerald-700">${esc(STATUS_LABELS[o.status] || o.status)}</span>
+        </div>
+        <div class="text-xs text-slate-500 mt-1">${o.items.map(i => `${i.qty} x ${esc(i.name)}`).join(", ")} — ${R(o.total)}${o.runner_name ? " — Runner: " + esc(o.runner_name) : ""}</div>
+        ${o.delivery_pin ? `<div class="mt-2 text-sm rounded-xl bg-amber-50 text-amber-800 p-3">Your delivery PIN is <b>${esc(o.delivery_pin)}</b>. Only give it once you have your goods — it releases the payment.</div>` : ""}
+        <div class="mt-3 flex flex-wrap gap-2 text-xs">${(o.timeline || []).map(t => `<span class="px-2 py-1 rounded-lg bg-slate-100">${esc(STATUS_LABELS[t.status] || t.status)} <span class="text-slate-400">${new Date(t.at).toLocaleString()}</span></span>`).join("")}</div>
+      </div>`).join("");
+  } catch (e) { box.innerHTML = `<div class="text-sm text-red-600">Could not reach the server.</div>`; }
+};
+
+// ---------- seller application ----------
+document.getElementById("sellerForm").onsubmit = async (ev) => {
+  ev.preventDefault();
+  const form = ev.target;
+  const data = Object.fromEntries(new FormData(form).entries());
+  data.marketplace = SLUG;
+  const msgEl = form.querySelector(".form-msg");
+  const res = await fetch("/api/apply/seller", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json());
+  msgEl.textContent = res.ok ? res.message : (res.error || "Something went wrong");
+  msgEl.className = "form-msg sm:col-span-2 text-xs " + (res.ok ? "text-emerald-700 font-medium" : "text-red-600");
+  if (res.ok) form.reset();
+};
+
+document.getElementById("searchBox").oninput = renderGrid;
+
+(async function init() {
+  await loadMarket();
+  await loadConfig();
+  await Promise.all([loadProducts(), loadPoints()]);
+  renderCart();
+})();
+</script>
+</body>
+</html>
