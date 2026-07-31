@@ -54,7 +54,10 @@
       <button data-tab="sellers" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Sellers</button>
       <button data-tab="runners" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Runners</button>
       <button data-tab="nodes" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Nodes</button>
-      <button data-tab="marketplaces" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Marketplaces</button>
+      <button data-tab="pickup_points" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Pickup points</button>
+      <button data-tab="carriers" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Carriers</button>
+      <button data-tab="tenants" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Marketplaces</button>
+      <button data-tab="money" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Money</button>
       <button data-tab="settings" class="tab-btn px-3.5 py-1.5 rounded-xl text-sm font-medium bg-slate-200 whitespace-nowrap">Settings</button>
     </nav>
   </header>
@@ -137,7 +140,49 @@
     <section id="tab-sellers" class="hidden"></section>
     <section id="tab-runners" class="hidden"></section>
     <section id="tab-nodes" class="hidden"></section>
-    <section id="tab-marketplaces" class="hidden"></section>
+    <section id="tab-pickup_points" class="hidden"></section>
+    <section id="tab-carriers" class="hidden"></section>
+
+    <!-- Marketplaces = tenants -->
+    <section id="tab-tenants" class="hidden">
+      <div class="rounded-2xl bg-white border p-5 overflow-x-auto">
+        <b class="text-sm">Marketplaces on the network</b>
+        <div class="text-xs text-slate-500 mt-1">Every tenant, live or suspended. Suspending one closes its storefront immediately.</div>
+        <table class="w-full mt-3"><thead><tr><th>Name</th><th>Slug</th><th>Areas</th><th>Owner</th><th>Tier</th><th>Deliveries</th><th>Orders</th><th>Status</th><th></th></tr></thead>
+        <tbody id="tenantsBody"></tbody></table>
+      </div>
+    </section>
+
+    <!-- Money: rail, ledger, top-ups, withdrawals, disputes -->
+    <section id="tab-money" class="hidden">
+      <div class="grid md:grid-cols-4 gap-3 mb-6" id="railCards"></div>
+      <div class="rounded-2xl bg-white border p-5 overflow-x-auto">
+        <div class="flex items-center justify-between">
+          <div>
+            <b class="text-sm">Withdrawals</b>
+            <div class="text-xs text-slate-500 mt-1">Approving one calls the Transfers API and pays the bank account. This is where fraud cashes out — check before you approve.</div>
+          </div>
+        </div>
+        <table class="w-full mt-3"><thead><tr><th>When</th><th>Marketplace</th><th>Amount</th><th>Bank</th><th>Status</th><th>Note</th><th></th></tr></thead>
+        <tbody id="withdrawalsBody"></tbody></table>
+      </div>
+      <div class="mt-6 rounded-2xl bg-white border p-5 overflow-x-auto">
+        <b class="text-sm">Disputes</b>
+        <div class="text-xs text-slate-500 mt-1">An open dispute freezes the money. Resolving for the buyer refunds them.</div>
+        <table class="w-full mt-3"><thead><tr><th>Order</th><th>Raised by</th><th>Reason</th><th>Status</th><th></th></tr></thead>
+        <tbody id="disputesBody"></tbody></table>
+      </div>
+      <div class="mt-6 rounded-2xl bg-white border p-5 overflow-x-auto">
+        <div class="flex items-center justify-between">
+          <div><b class="text-sm">Ledger audit</b>
+          <div class="text-xs text-slate-500 mt-1">Every balance recomputed from the journal. Drift is a bug or a fraud.</div></div>
+          <button onclick="loadAudit()" class="px-3 py-1.5 rounded-lg border text-xs hover:bg-slate-100">Re-run</button>
+        </div>
+        <div id="auditSummary" class="mt-3 text-sm"></div>
+        <table class="w-full mt-3"><thead><tr><th>Account</th><th>Owner</th><th>Stored</th><th>From journal</th><th>Held</th><th></th></tr></thead>
+        <tbody id="auditBody"></tbody></table>
+      </div>
+    </section>
 
     <!-- Settings -->
     <section id="tab-settings" class="hidden">
@@ -258,17 +303,22 @@ document.querySelectorAll("#tabs .tab-btn").forEach(b => b.onclick = () => {
   b.classList.add("active");
   document.querySelectorAll("main > section").forEach(s => s.classList.add("hidden"));
   document.getElementById("tab-" + b.dataset.tab).classList.remove("hidden");
+  const tab = b.dataset.tab;
+  if (tab === "tenants") loadTenants();
+  else if (tab === "money") loadMoney();
+  else if (ENTITIES[tab]) loadEntity(tab);
 });
 
 // ---------- overview ----------
 async function loadOverview() {
   const { stats } = await api("/api/stats");
   const cards = [
-    ["GMV", R(stats.gmv)], ["Platform revenue", R(stats.platform_revenue)],
-    ["Orders", stats.orders_total], ["Pending orders", stats.orders_by_status.pending || 0],
-    ["Cash with runners", R(stats.cash_with_runners)], ["Payouts owed", R(stats.payouts_owed)],
+    ["GMV", R(stats.gmv)], ["Network revenue", R(stats.network_revenue)],
+    ["Marketplaces live", `${stats.marketplaces_live}/${stats.marketplaces}`],
+    ["Orders", stats.orders_total],
+    ["Held in escrow", R(stats.in_escrow)], ["We owe", R(stats.liabilities)],
     ["Runners online", `${stats.runners_online}/${stats.runners}`],
-    ["Deposits to confirm", stats.remittances_pending],
+    ["Withdrawals to approve", stats.withdrawals_pending],
   ];
   document.getElementById("statCards").innerHTML = cards.map(([k, v]) =>
     `<div class="rounded-2xl bg-white border p-4"><div class="text-xs text-slate-500">${k}</div><div class="text-xl font-bold mt-1">${v}</div></div>`).join("");
@@ -500,16 +550,123 @@ document.getElementById("productForm").onsubmit = async (ev) => {
 async function toggleProduct(id, active) { await api(`/api/products/${id}`, { method: "PATCH", body: JSON.stringify({ active }) }); loadProducts(); }
 async function deleteProduct(id) { if (!confirm("Delete this product?")) return; await api(`/api/products/${id}`, { method: "DELETE" }); toast("Product deleted"); loadProducts(); }
 
+// ---------- marketplaces (tenants) ----------
+const TIER_TONE = { trusted: "bg-emerald-100 text-emerald-700", verified: "bg-sky-100 text-sky-700", unverified: "bg-amber-100 text-amber-700" };
+
+async function loadTenants() {
+  const data = await api("/api/marketplaces");
+  const rows = data.marketplaces || [];
+  CACHE.tenants = rows;
+  document.getElementById("tenantsBody").innerHTML = rows.map(m => {
+    const t = (m.trust || {});
+    return `<tr>
+      <td class="font-medium">${esc(m.name)}</td>
+      <td><a href="/m/${esc(m.slug)}" target="_blank" class="text-emerald-700 hover:underline">${esc(m.slug)}</a></td>
+      <td class="text-xs">${esc((m.areas || []).join(", "))}</td>
+      <td class="text-xs">${esc(m.owner_name || "")}<div class="text-slate-400">${esc(m.phone || "")}</div></td>
+      <td><span class="status-pill ${TIER_TONE[t.tier] || TIER_TONE.unverified}">${esc(t.tier || "unverified")}</span></td>
+      <td>${t.deliveries || 0}</td><td>${m.orders || 0}</td>
+      <td><span class="status-pill ${m.status === "live" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}">${esc(m.status)}</span></td>
+      <td><button onclick="suspendTenant('${m._id}',${m.status !== "live"})" class="px-2.5 py-1 rounded-lg border text-xs ${m.status === "live" ? "text-red-600 hover:bg-red-50" : "text-emerald-700 hover:bg-emerald-50"}">${m.status === "live" ? "Suspend" : "Restore"}</button></td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="9" class="text-slate-400">No marketplaces yet.</td></tr>`;
+}
+
+async function suspendTenant(id, live) {
+  if (!confirm(live ? "Restore this marketplace?" : "Suspend it? Its storefront closes immediately.")) return;
+  await api(`/api/marketplaces/${id}/suspend`, { method: "POST", body: JSON.stringify({ live }) });
+  toast(live ? "Restored" : "Suspended"); loadTenants();
+}
+
+// ---------- money: rail, withdrawals, disputes, audit ----------
+async function loadMoney() {
+  const [status, withdrawals, disputes] = await Promise.all([
+    api("/api/rail/status"), api("/api/withdrawals"), api("/api/disputes")]);
+  const s = status.status || {};
+  const card = (k, v, tone = "") => `<div class="rounded-2xl bg-white border p-4"><div class="text-xs text-slate-500">${k}</div><div class="text-xl font-bold mt-1 ${tone}">${v}</div></div>`;
+  document.getElementById("railCards").innerHTML =
+    card("Rail", `${esc(s.rail || "—")} <span class="text-xs font-normal text-slate-400">${esc(s.mode || "")}</span>`) +
+    card("Rail balance", s.balance === null ? "—" : R(s.balance), s.low ? "text-red-600" : "") +
+    card("We owe users", R(s.liabilities)) +
+    card("Pending withdrawals", R(s.pending_withdrawals));
+  if (s.error) {
+    document.getElementById("railCards").innerHTML +=
+      `<div class="md:col-span-4 rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">Rail not reachable: ${esc(s.error)}</div>`;
+  } else if (s.low) {
+    document.getElementById("railCards").innerHTML +=
+      `<div class="md:col-span-4 rounded-2xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">Float is low — top up the Paystack balance before approving more withdrawals.</div>`;
+  }
+
+  document.getElementById("withdrawalsBody").innerHTML = (withdrawals.withdrawals || []).map(w => {
+    const m = (CACHE.tenants || []).find(t => t._id === w.marketplace_id);
+    const acts = ["requested", "held"].includes(w.status)
+      ? `<button onclick="approveWithdrawal('${w._id}')" class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs">Approve &amp; pay</button>
+         <button onclick="rejectWithdrawal('${w._id}')" class="px-2.5 py-1 rounded-lg border text-xs text-red-600 hover:bg-red-50">Reject</button>` : "";
+    return `<tr><td class="text-xs">${new Date(w.created_at).toLocaleString()}</td>
+      <td>${esc(m ? m.name : w.marketplace_id || "—")}</td>
+      <td class="font-medium">${R(w.amount)}</td>
+      <td class="text-xs">${esc((w.bank || {}).holder || "")}<div class="text-slate-400">${esc((w.bank || {}).account_no || "")}</div></td>
+      <td><span class="status-pill ${w.status === "paid" ? "bg-emerald-100 text-emerald-700" : w.status === "rejected" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}">${esc(w.status)}</span></td>
+      <td class="text-xs text-slate-500">${esc(w.hold_reason || "")}</td>
+      <td class="whitespace-nowrap"><div class="flex gap-1">${acts}</div></td></tr>`;
+  }).join("") || `<tr><td colspan="7" class="text-slate-400">No withdrawal requests.</td></tr>`;
+
+  document.getElementById("disputesBody").innerHTML = (disputes.disputes || []).map(d => `
+    <tr><td class="font-medium">${esc(d.order_code)}</td><td>${esc(d.raiser)}</td>
+    <td class="text-xs">${esc(d.reason)}</td>
+    <td><span class="status-pill ${d.status === "open" ? "bg-amber-100 text-amber-700" : "bg-slate-200 text-slate-500"}">${esc(d.status)}</span></td>
+    <td class="whitespace-nowrap">${d.status === "open" ? `
+      <div class="flex gap-1">
+        <button onclick="resolveDispute('${d._id}',true)" class="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs">Refund buyer</button>
+        <button onclick="resolveDispute('${d._id}',false)" class="px-2.5 py-1 rounded-lg border text-xs">For seller</button>
+      </div>` : ""}</td></tr>`).join("")
+    || `<tr><td colspan="5" class="text-slate-400">No disputes.</td></tr>`;
+
+  loadAudit();
+}
+
+async function approveWithdrawal(id) {
+  if (!confirm("Approve and pay this withdrawal? The money leaves the rail immediately.")) return;
+  const res = await api(`/api/withdrawals/${id}/approve`, { method: "POST" });
+  toast(res.ok ? "Paid" : (res.error || "Could not pay"), res.ok);
+  loadMoney();
+}
+async function rejectWithdrawal(id) {
+  const reason = prompt("Why are you rejecting it?") || "rejected by admin";
+  await api(`/api/withdrawals/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
+  toast("Rejected"); loadMoney();
+}
+async function resolveDispute(id, forBuyer) {
+  if (!confirm(forBuyer ? "Refund the buyer?" : "Resolve in the seller's favour?")) return;
+  await api(`/api/disputes/${id}/resolve`, { method: "POST", body: JSON.stringify({ for_buyer: forBuyer }) });
+  toast("Resolved"); loadMoney();
+}
+
+async function loadAudit() {
+  const { audit } = await api("/api/ledger/audit");
+  const ok = audit.balanced && !audit.drift.length;
+  document.getElementById("auditSummary").innerHTML = ok
+    ? `<span class="status-pill bg-emerald-100 text-emerald-700">balanced</span> <span class="text-slate-500">Journal nets to ${audit.net} across ${audit.accounts.length} accounts, no drift.</span>`
+    : `<span class="status-pill bg-red-100 text-red-700">drift</span> <span class="text-red-600">Journal nets to ${audit.net}; ${audit.drift.length} account(s) disagree with the ledger.</span>`;
+  const rows = audit.drift.length ? audit.drift : audit.accounts;
+  document.getElementById("auditBody").innerHTML = rows.map(a => `
+    <tr><td class="text-xs">${esc(a.owner_type)}</td><td class="text-xs">${esc(a.owner_key)}</td>
+    <td>${R(a.stored_balance)}</td><td>${R(a.ledger_balance)}</td><td>${R(a.stored_held)}</td>
+    <td>${a.ok ? `<span class="status-pill bg-emerald-100 text-emerald-700">ok</span>` : `<span class="status-pill bg-red-100 text-red-700">drift</span>`}</td></tr>`).join("");
+}
+
 // ---------- generic entities ----------
 const ENTITIES = {
   sellers: { title: "Sellers", cols: [["shop_name", "Shop"], ["owner_name", "Owner"], ["phone", "Phone"], ["area", "Area"], ["approved", "Approved"]],
     fields: [["shop_name", "Shop name", "text"], ["owner_name", "Owner name", "text"], ["phone", "Phone", "text"], ["area", "Area", "text"]] },
-  runners: { title: "Runners", cols: [["name", "Name"], ["phone", "Phone"], ["area", "Area"], ["vehicle", "Vehicle"], ["deliveries_done", "Drops"], ["cash_in_hand", "Cash in hand"], ["status", "Status"], ["approved", "Approved"]],
+  runners: { title: "Runners", cols: [["name", "Name"], ["phone", "Phone"], ["area", "Area"], ["marketplace_id", "Pool"], ["vehicle", "Vehicle"], ["deliveries_done", "Drops"], ["cash_in_hand", "Cash in hand"], ["status", "Status"], ["approved", "Approved"]],
     fields: [["name", "Name", "text"], ["phone", "Phone", "text"], ["area", "Area", "text"], ["vehicle", "Vehicle", "text"]] },
   nodes: { title: "Delivery nodes", cols: [["name", "Node"], ["operator_name", "Operator"], ["phone", "Phone"], ["territory", "Territory"], ["commission_rate", "Commission"], ["runners_count", "Runners"]],
     fields: [["name", "Node name", "text"], ["operator_name", "Operator", "text"], ["phone", "Phone", "text"], ["territory", "Territory", "text"], ["commission_rate", "Commission rate (e.g. 0.05)", "number"], ["runners_count", "Runners", "number"]] },
-  marketplaces: { title: "Connected marketplaces", cols: [["name", "Market"], ["town", "Town"], ["contact_name", "Contact"], ["phone", "Phone"], ["status", "Status"]],
-    fields: [["name", "Market name", "text"], ["town", "Town", "text"], ["contact_name", "Contact person", "text"], ["phone", "Phone", "text"]] },
+  pickup_points: { title: "Pickup points", cols: [["name", "Point"], ["type", "Type"], ["area", "Area"], ["address", "Address"], ["contact_name", "Contact"], ["phone", "Phone"], ["hours", "Hours"], ["active", "Active"]],
+    fields: [["name", "Point name", "text"], ["type", "Type (kiosk / locker / shop / depot)", "text"], ["area", "Area", "text"], ["address", "Address", "text"], ["contact_name", "Contact", "text"], ["phone", "Phone (this is their login)", "text"], ["hours", "Opening hours", "text"], ["capacity", "Capacity", "number"]] },
+  carriers: { title: "Carriers", cols: [["name", "Carrier"], ["mode", "Mode"], ["areas", "Areas"], ["services", "Services"], ["active", "Active"]],
+    fields: [["name", "Carrier name", "text"], ["slug", "Slug", "text"], ["mode", "Mode (manual)", "text"], ["areas", "Areas, comma separated", "text"], ["services", "Services, comma separated", "text"]] },
 };
 
 async function loadEntity(entity) {
@@ -520,7 +677,14 @@ async function loadEntity(entity) {
   const cell = (item, key) => {
     if (key === "approved") return `<button onclick="patchEntity('${entity}','${item._id}',{approved:${!item.approved}})" class="status-pill ${item.approved ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}">${item.approved ? "approved" : "pending"}</button>`;
     if (key === "status" && entity === "runners") return `<button onclick="patchEntity('runners','${item._id}',{status:'${item.status === "online" ? "offline" : "online"}'})" class="status-pill ${item.status === "online" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}">${item.status}</button>`;
-    if (key === "status" && entity === "marketplaces") return `<button onclick="patchEntity('marketplaces','${item._id}',{status:'${item.status === "connected" ? "pending" : "connected"}'})" class="status-pill ${item.status === "connected" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}">${item.status}</button>`;
+    if (key === "active") return `<button onclick="patchEntity('${entity}','${item._id}',{active:${!item.active}})" class="status-pill ${item.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}">${item.active ? "active" : "off"}</button>`;
+    if (key === "marketplace_id") {
+      const m = (CACHE.tenants || []).find(t => t._id === item.marketplace_id);
+      return item.marketplace_id
+        ? `<span class="status-pill bg-sky-100 text-sky-700">${esc(m ? m.name : "own")}</span>`
+        : `<span class="status-pill bg-emerald-100 text-emerald-700">shared</span>`;
+    }
+    if (Array.isArray(item[key])) return esc(item[key].join(", ")) || "—";
     if (key === "commission_rate") return (Number(item[key] || 0) * 100).toFixed(0) + "%";
     if (key === "cash_in_hand") return R(item[key]);
     return esc(item[key]) || "—";
@@ -569,7 +733,9 @@ function closeEntityModal() { const m = document.getElementById("entityModal"); 
 
 // ---------- boot ----------
 async function loadAll() {
-  await Promise.all([loadEntity("sellers"), loadEntity("runners"), loadEntity("nodes"), loadEntity("marketplaces")]);
+  await loadTenants();
+  await Promise.all([loadEntity("sellers"), loadEntity("runners"), loadEntity("nodes"),
+                     loadEntity("pickup_points"), loadEntity("carriers")]);
   await Promise.all([loadOverview(), loadOrders(), loadProducts(), loadSettlement(), loadPayouts(), loadSettings()]);
 }
 if (PIN) tryUnlock(PIN);

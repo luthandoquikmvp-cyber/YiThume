@@ -15,20 +15,29 @@ MAX_LIST = 8
 class Deps:
     """Injected backend capabilities so this module stays import-free."""
 
-    def __init__(self, col, settings, place_order, clean_phone, now, new_id):
+    def __init__(self, col, settings, place_order, clean_phone, now, new_id,
+                 wallet_balance):
         self.col = col
         self.settings = settings
         self.place_order = place_order
         self.clean_phone = clean_phone
         self.now = now
         self.new_id = new_id
+        self.wallet_balance = wallet_balance
 
 
 def _menu():
     return ("CON YiThume — every market, any phone\n"
-            "1. Shop\n"
+            "1. Shop a market\n"
             "2. Track order\n"
+            "3. My wallet\n"
             "0. Exit")
+
+
+def _markets(deps):
+    rows = [m for m in deps.col("marketplaces").find({"status": "live"})]
+    rows.sort(key=lambda m: m.get("name", ""))
+    return rows[:MAX_LIST]
 
 
 def _log_session(deps, session_id, phone):
@@ -39,13 +48,15 @@ def _log_session(deps, session_id, phone):
             {"_id": deps.new_id(), "session_id": session_id, "phone": phone, "created_at": deps.now()})
 
 
-def _categories(deps):
-    cats = sorted({p.get("category", "") for p in deps.col("products").find({"active": True})} - {""})
+def _categories(deps, marketplace_id):
+    cats = sorted({p.get("category", "") for p in deps.col("products").find(
+        {"active": True, "marketplace_id": marketplace_id})} - {""})
     return cats[:MAX_LIST]
 
 
-def _items(deps, category):
-    items = [p for p in deps.col("products").find({"active": True, "category": category})]
+def _items(deps, marketplace_id, category):
+    items = [p for p in deps.col("products").find(
+        {"active": True, "marketplace_id": marketplace_id, "category": category})]
     items.sort(key=lambda p: p.get("name", ""))
     return items[:MAX_LIST]
 
@@ -85,72 +96,106 @@ def handle(deps, session_id, phone, text):
             line += f" Runner: {runner}."
         return "END " + line
 
+    # ---- wallet ----
+    if steps[0] == "3":
+        bal = deps.wallet_balance(phone)
+        line = f"Wallet: R{bal['available']:.2f} available"
+        if bal["held"]:
+            line += f", R{bal['held']:.2f} held for orders"
+        if bal.get("owed"):
+            line += f".\nYou owe R{bal['owed']:.2f} from a failed delivery"
+        return "END " + line + ".\nTop up at yithume.app"
+
     # ---- shop ----
     if steps[0] == "1":
         # Lists are recomputed deterministically each request (USSD resends the
         # full step history), so no per-session menu state is needed.
-        cats = _categories(deps)
-
+        markets = _markets(deps)
         if len(steps) == 1:
+            if not markets:
+                return "END No markets are open right now. Please try later."
+            lines = [f"{i + 1}. {m['name']}" for i, m in enumerate(markets)]
+            return "CON Choose a market:\n" + "\n".join(lines)
+
+        market = _pick(markets, steps[1])
+        if not market:
+            return "END Invalid option. Please dial again."
+        mid = market["_id"]
+        cats = _categories(deps, mid)
+
+        if len(steps) == 2:
             if not cats:
-                return "END No products available right now. Please try later."
+                return "END That market has nothing for sale yet."
             lines = [f"{i + 1}. {c}" for i, c in enumerate(cats)]
             return "CON Choose a category:\n" + "\n".join(lines)
 
-        cat = _pick(cats, steps[1])
+        cat = _pick(cats, steps[2])
         if not cat:
             return "END Invalid option. Please dial again."
 
         products = [{"id": p["_id"], "name": p["name"], "price": float(p["price"])}
-                    for p in _items(deps, cat)]
+                    for p in _items(deps, mid, cat)]
 
-        if len(steps) == 2:
+        if len(steps) == 3:
             if not products:
                 return "END No items in that category yet."
             lines = [f"{i + 1}. {it['name']} R{it['price']:.0f}" for i, it in enumerate(products)]
             return "CON Pick an item:\n" + "\n".join(lines)
 
-        item = _pick(products, steps[2])
+        item = _pick(products, steps[3])
         if not item:
             return "END Invalid choice. Please dial again."
 
-        if len(steps) == 3:
+        if len(steps) == 4:
             return f"CON {item['name']} — R{item['price']:.2f}\nEnter quantity:"
 
         try:
-            qty = max(1, int(steps[3]))
+            qty = max(1, int(steps[4]))
         except ValueError:
             return "END Quantity must be a number. Please dial again."
 
-        if len(steps) == 4:
-            return "CON Enter your town or area:"
-        area = steps[4].strip()[:40]
-
         if len(steps) == 5:
-            return "CON Enter delivery address or nearest landmark:"
-        address = steps[5].strip()[:60]
+            return "CON Enter your town or area:"
+        area = steps[5].strip()[:40]
 
         if len(steps) == 6:
-            settings = deps.settings()
-            total = item["price"] * qty + float(settings["delivery_fee"])
+            return "CON Enter delivery address or nearest landmark:"
+        address = steps[6].strip()[:60]
+
+        settings = deps.settings(mid)
+        # Prefer the wallet when there is enough in it — it is cheaper for the
+        # buyer and safer for everyone.
+        wallet = deps.wallet_balance(phone)
+        goods = item["price"] * qty
+        wallet_total = goods + float(settings["delivery_fee"])
+        use_wallet = wallet["available"] >= wallet_total
+        total = wallet_total if use_wallet else goods + float(settings["delivery_fee"]) + float(
+            settings["cod_surcharge"])
+
+        if len(steps) == 7:
+            how = "from your wallet" if use_wallet else "cash on delivery"
             return ("CON Confirm order:\n"
                     f"{qty} x {item['name']}\n"
-                    f"Delivery R{float(settings['delivery_fee']):.0f}\n"
-                    f"Total R{total:.2f} (cash on delivery)\n"
+                    f"{market['name']}\n"
+                    f"Total R{total:.2f} ({how})\n"
                     "1. Confirm\n2. Cancel")
 
-        if steps[6] != "1":
+        if steps[7] != "1":
             return "END Order cancelled. Thank you for using YiThume."
 
         buyer = {"name": phone or "USSD customer", "phone": phone, "area": area, "address": address}
         # Phone identity comes from the network, so the OTP step is skipped.
         order, extras, err, _code = deps.place_order(
             buyer, [{"product_id": item["id"], "qty": qty}],
-            channel="ussd", payment_method="cod", skip_otp=True)
+            channel="ussd", payment_method="wallet" if use_wallet else "cod",
+            skip_otp=True, marketplace_id=mid)
+        if err == "wallet_short":
+            return f"END Your wallet is R{(extras or {}).get('shortfall', 0):.2f} short. Top up and dial again."
         if err:
             return "END " + str(err)
+        paid = "paid from your wallet" if use_wallet else "cash on delivery"
         return ("END Order placed: " + order["code"] + "\n"
-                f"Total R{order['total']:.2f} cash on delivery.\n"
+                f"Total R{order['total']:.2f} {paid}.\n"
                 "We will confirm on WhatsApp or SMS.")
 
     return "END Invalid option. Please dial again."

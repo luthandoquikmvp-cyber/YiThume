@@ -2,4 +2,3 @@ flask
 flask-cors
 pymongo
 dnspython
-stripe

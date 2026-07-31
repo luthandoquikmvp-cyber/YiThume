@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YiThume — Kiosk</title>
+<link rel="icon" href="/favicon.ico" />
+<script src="/static/tailwind.js"></script>
+<style>
+  .badge{display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .55rem;border-radius:999px;font-size:.7rem;font-weight:600}
+  .toast{animation:pop .2s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-900 antialiased">
+
+<div id="gate" class="fixed inset-0 z-50 bg-slate-900 flex items-center justify-center p-4">
+  <div class="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-2xl">
+    <span class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-600 text-white text-xl font-bold">Y</span>
+    <div class="mt-3 text-lg font-semibold">Pickup point</div>
+    <div class="text-sm text-slate-500">Enter the number this point is registered on</div>
+    <input id="phoneInput" inputmode="tel" placeholder="e.g. 27750000001"
+           class="mt-4 w-full px-4 py-3 rounded-xl border border-slate-300 text-center text-sm" />
+    <button id="enterBtn" class="mt-3 w-full px-5 py-3 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Open</button>
+    <div id="gateMsg" class="mt-2 text-xs text-red-600"></div>
+  </div>
+</div>
+
+<div id="shell" class="hidden max-w-2xl mx-auto px-4 py-6 pb-24">
+  <header class="flex items-center justify-between gap-3">
+    <div>
+      <div id="pointName" class="text-xl font-bold">—</div>
+      <div id="pointArea" class="text-sm text-slate-500"></div>
+    </div>
+    <button id="signOut" class="text-sm px-3 py-1.5 rounded-lg border bg-white hover:bg-slate-100">Sign out</button>
+  </header>
+
+  <section class="mt-6">
+    <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide">On the way here</h2>
+    <div id="incoming" class="mt-3 space-y-3"></div>
+  </section>
+
+  <section class="mt-8">
+    <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Waiting for collection</h2>
+    <div id="waiting" class="mt-3 space-y-3"></div>
+  </section>
+
+  <section class="mt-8">
+    <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Recently collected</h2>
+    <div id="collected" class="mt-3 space-y-2"></div>
+  </section>
+</div>
+
+<div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 hidden"></div>
+
+<script>
+const R = v => "R" + Number(v || 0).toFixed(2);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let PHONE = localStorage.getItem("yithume_kiosk_phone") || "";
+
+function toast(msg, ok = true) {
+  const t = document.getElementById("toast");
+  t.innerHTML = `<div class="toast px-4 py-2.5 rounded-xl text-sm text-white shadow-lg ${ok ? "bg-slate-900" : "bg-red-600"}">${esc(msg)}</div>`;
+  t.classList.remove("hidden");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.add("hidden"), 2800);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", ...(opts.headers || {}) } });
+  return res.json();
+}
+
+document.getElementById("enterBtn").onclick = async () => {
+  const phone = document.getElementById("phoneInput").value.trim();
+  const data = await api(`/api/kiosk/parcels?phone=${encodeURIComponent(phone)}`);
+  if (!data.ok) { document.getElementById("gateMsg").textContent = data.error; return; }
+  PHONE = phone;
+  localStorage.setItem("yithume_kiosk_phone", phone);
+  document.getElementById("gate").classList.add("hidden");
+  document.getElementById("shell").classList.remove("hidden");
+  render(data);
+};
+document.getElementById("phoneInput").onkeydown = e => { if (e.key === "Enter") document.getElementById("enterBtn").click(); };
+
+document.getElementById("signOut").onclick = () => {
+  localStorage.removeItem("yithume_kiosk_phone");
+  location.reload();
+};
+
+async function load() {
+  const data = await api(`/api/kiosk/parcels?phone=${encodeURIComponent(PHONE)}`);
+  if (data.ok) render(data);
+}
+
+function parcelCard(p, actions) {
+  return `<div class="rounded-2xl bg-white border p-4">
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <div class="font-semibold">${esc(p.code)}</div>
+        <div class="text-xs text-slate-500">${esc(p.marketplace_name)}</div>
+      </div>
+      <span class="badge bg-slate-100 text-slate-600">${esc(String(p.status).replace(/_/g, " "))}</span>
+    </div>
+    <div class="mt-2 text-sm">${p.items.map(i => `${i.qty}× ${esc(i.name)}`).join(", ")}</div>
+    <div class="mt-1 text-xs text-slate-500">For ${esc(p.buyer_name)} · ${esc(p.buyer_phone)}${p.waybill ? ` · waybill ${esc(p.waybill)}` : ""}</div>
+    <div class="mt-3">${actions}</div>
+  </div>`;
+}
+
+function render(data) {
+  document.getElementById("pointName").textContent = data.point.name;
+  document.getElementById("pointArea").textContent = data.point.area;
+
+  document.getElementById("incoming").innerHTML = data.incoming.map(p => parcelCard(p, `
+    <div class="flex gap-2">
+      <input id="wb_${p._id}" placeholder="Waybill number (optional)" class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-sm" />
+      <button onclick="arrived('${p._id}')" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium">Arrived</button>
+    </div>`)).join("") || `<div class="text-sm text-slate-500">Nothing on the way.</div>`;
+
+  document.getElementById("waiting").innerHTML = data.waiting.map(p => parcelCard(p, `
+    <div class="flex gap-2">
+      <input id="pin_${p._id}" inputmode="numeric" maxlength="4" placeholder="Buyer's 4-digit PIN"
+             class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-center tracking-widest text-sm" />
+      <button onclick="collect('${p._id}')" class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium">Hand over</button>
+    </div>
+    <p class="mt-2 text-xs text-slate-500">Only hand the parcel over once the PIN matches — it releases the payment.</p>`)).join("")
+    || `<div class="text-sm text-slate-500">Nothing waiting.</div>`;
+
+  document.getElementById("collected").innerHTML = data.collected.map(p =>
+    `<div class="rounded-xl bg-white border p-3 text-sm flex justify-between">
+      <span>${esc(p.code)} — ${esc(p.buyer_name)}</span><span class="text-slate-400">${R(p.total)}</span></div>`).join("")
+    || `<div class="text-sm text-slate-500">Nothing yet.</div>`;
+}
+
+window.arrived = async (id) => {
+  const waybill = document.getElementById("wb_" + id).value.trim();
+  const res = await api(`/api/kiosk/orders/${id}/arrived`, {
+    method: "POST", body: JSON.stringify({ phone: PHONE, waybill }) });
+  toast(res.ok ? "Marked arrived — buyer notified" : res.error, res.ok);
+  load();
+};
+
+window.collect = async (id) => {
+  const pin = document.getElementById("pin_" + id).value.trim();
+  const res = await api(`/api/kiosk/orders/${id}/collect`, {
+    method: "POST", body: JSON.stringify({ phone: PHONE, pin }) });
+  toast(res.ok ? "Handed over — payment released" : res.error, res.ok);
+  load();
+};
+
+if (PHONE) {
+  document.getElementById("phoneInput").value = PHONE;
+  document.getElementById("enterBtn").click();
+}
+setInterval(() => { if (PHONE) load(); }, 20000);
+</script>
+</body>
+</html>

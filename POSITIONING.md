@@ -1,115 +1,155 @@
-# YiThume — Unicorn Positioning
+# YiThume — Positioning
 
-> **One-liner:** YiThume is the commerce network that reaches every market — a marketplace of marketplaces, powered by local runners, where anyone can sell and anyone can buy, online or straight from WhatsApp.
+> **One-liner:** YiThume is the layer between hard-to-reach markets and their
+> customers — software that lets anyone create their own marketplace, with a
+> courier network already underneath it.
 
 ---
 
-## 1. The Category We Own
+## 1. What we are, and what we are not
 
-We are not "another marketplace" and not "another delivery app." Those categories are crowded and capped.
+**We are not a delivery company.** We don't compete with couriers, and we don't
+want to own trucks.
 
-**YiThume creates a new category: the Connected Commerce Network.**
+**We are not a marketplace.** We don't compete with the markets we serve, and we
+don't want to own their customers.
 
-- A **marketplace** where sellers launch storefronts in minutes.
-- A **network of marketplaces** — we plug existing marketplaces, spaza shops, town markets, and independent sellers into one liquidity pool, so a buyer in a village can order from a seller three towns away.
-- A **runner network** that physically reaches places couriers won't go: townships, rural roads, informal settlements, market stalls with no street address.
-- A **channel-agnostic storefront**: buyers shop on the web, confirm on WhatsApp, or order with a basic phone via USSD. No app. No smartphone required. No data plan required.
+**We are the runners app**: the infrastructure layer that makes a marketplace
+possible in places where logistics stop at the townline. Someone local runs the
+market. We run the road, the money, and the software.
 
-The category claim in one sentence:
+The claim in one sentence:
 
-> **"Amazon built warehouses. We built a network of people. Warehouses can't reach our markets — runners can."**
+> **"Anyone can start a market. Almost nobody can deliver to it. We already can."**
 
-## 2. Why This Is a Unicorn (Not a Lifestyle Business)
+## 2. Why this shape
 
-### The market
-- Africa's informal retail economy is estimated at **$1 trillion+**, and the majority of it is invisible to e-commerce because logistics stop at the townline.
-- South Africa alone: millions of buyers with WhatsApp and USSD access but no delivery coverage, and hundreds of thousands of sellers with stock but no reach.
-- The unlock isn't demand — it's **reach**. Whoever solves reach owns the transaction layer for the informal economy.
+Three observations set the design.
 
-### The three-sided network effect
-1. **More runners** → more coverage → more addressable buyers.
-2. **More buyers** → more order density → better runner earnings per trip (batching is already built: batch bonuses per extra drop).
-3. **More sellers & connected marketplaces** → more selection → more buyers → more runners apply.
+### The long leg isn't ours to build
 
-Each side strengthens the other two. A courier company has to buy growth; a network compounds it.
+The Courier Guy's app isn't very good, and people use it happily anyway — because
+the *infrastructure* behind it works. Depots, kiosks, pickup points, a prepaid habit
+people already trust. Rebuilding that is a waste of money and years.
 
-### The moat stack
-| Moat | How YiThume builds it |
-|---|---|
-| **Coverage no one can copy** | Delivery Nodes: local operators recruit runners, own a territory, and earn commission per drop. Franchise economics, zero fleet capex. |
-| **Channel lock-in** | WhatsApp + USSD ordering meets customers where they already are. Competitors need an app install; we need a phone number. |
-| **Liquidity aggregation** | Connecting *other* marketplaces makes us the settlement and delivery layer beneath them — infrastructure, not just a storefront. |
-| **Trust layer** | Verification/validator layer, PIN-secured driver auth, deposit + COD for returning customers — trust primitives built for low-trust markets. |
-| **Data** | Every order maps demand in places no dataset covers. That map is the product roadmap for lending, inventory financing, and B2B restocking. |
+What existing couriers cannot do is the last five kilometres down a dirt road to a
+house with no street address. That is the leg we own. So a courier is a **leg in a
+YiThume order**, not a competitor: they carry the parcel into the town, a runner
+takes it from the kiosk to the door — or the customer collects at the kiosk for
+less, which is the cheapest option and the one people already like.
 
-### The revenue stack (already in the product)
-1. **Take rate** — platform fee (10%) + item margin (12%) on marketplace orders.
-2. **Delivery economics** — per-drop fees with batching bonuses that improve unit economics as density grows.
-3. **Retail OS SaaS** — sellers start free, then unlock modules (subscriptions + one-time), with AI features behind a paywall of monthly credits.
-4. **Node commissions** — operators pay for territory tools; we take a share of node economics.
-5. **Future layers** (data-enabled): working-capital lending to sellers, B2B restocking for spaza shops, ad placement inside the network.
+### Prepaid is a trust mechanism, not a payment method
 
-A unicorn needs layered revenue on one distribution spine. We have five layers on one spine.
+People pay up front happily when they can see the money is held until they get the
+goods. That single property does a lot of work at once: sellers get paid instantly
+instead of waiting on a payout run, refunds become possible, and scamming someone
+stops being profitable — the seller is not paid until the buyer's PIN proves
+handover.
 
-## 3. Positioning Statements by Audience
+So the wallet isn't a convenience feature. It's the trust layer, and the ledger
+under it is a core asset.
+
+### Self-serve creation is an attack surface
+
+"Anyone can create a marketplace in minutes" plus "there is money in the system"
+means fake tenants and seller scams are a day-one design problem. Trust tiers,
+escrow caps, payout holds and disputes are part of the product, not a later
+hardening pass.
+
+## 3. The runner network comes first
+
+The order matters. We market and build the runner network **before** the
+marketplaces, because it is the only part that can't be conjured on demand and the
+only reason a brand-new market can deliver on its first day.
+
+A new operator picks their areas and immediately sees how many runners already
+cover them. They can recruit their own later — and those runners get first pick of
+their jobs — but they never start from zero.
+
+That is also why runners get treated properly:
+
+- **They are paid for a wasted trip.** A buyer no-show used to mean the runner
+  worked for free. Now a reserve, funded by a small levy on every order, pays them
+  an attempt fee — and the cost falls on the buyer who caused it, or on the
+  marketplace, or on us. Never on the runner.
+- **Prepaid jobs reach them first.** Guaranteed money sorts above cash.
+- **One pool, many markets.** A runner in the shared pool gets work from every
+  marketplace in their area, not just one.
+
+A network that leaks runners isn't a network.
+
+## 4. Positioning by audience
+
+**For people who want to start a market:**
+> "Create your marketplace in minutes. You bring the sellers; the runners, the
+> checkout and the payouts are already there."
 
 **For buyers:**
-> "Shop from any market, get it delivered to your door — even if your door has no address. Order online or on WhatsApp."
+> "Shop your local market and get it delivered — even if your door has no address.
+> Your money is held until you have your goods."
 
 **For sellers:**
-> "Launch your store in minutes. Sell to the whole network, not just foot traffic. We handle delivery — even to places couriers won't go."
+> "Sell to your whole town, not just the people who walk past. You're paid the
+> moment it's delivered, not next month."
 
-**For marketplaces & retailers:**
-> "Plug into YiThume and your catalogue reaches markets you can't ship to today. We are the last-mile layer for the markets that don't have one."
+**For runners:**
+> "Deliver in the streets you know, for every market in your area. You get paid for
+> the trip, even when the customer doesn't show."
 
-**For runners & node operators:**
-> "Turn local knowledge into income. Deliver in the streets you know, or run your own delivery territory and earn on every drop."
+**For couriers and kiosk operators:**
+> "Your trucks stop where the tar stops. Hand the parcel to us there and we finish
+> the job — or hold it at your counter and we send you the customers."
 
 **For investors:**
-> "The transaction and logistics layer for the trillion-dollar informal economy — three-sided network effects, asset-light coverage, five revenue layers on one distribution spine."
+> "The transaction and logistics layer for commerce in places logistics don't
+> reach. Asset-light: no fleet, no warehouses, no inventory."
 
-## 4. The Six Systems (Operating Framework)
+## 5. Where the money comes from
 
-*Product, Positioning, Distribution, Retention, Team, Systems — mastered together, not one at a time.*
+Five layers on one distribution spine:
 
-### Product
-- **What exists:** marketplace + storefronts, WhatsApp order confirmation, USSD ordering for feature phones, driver portal with PIN auth, auto-assignment within a 12 km radius, batching with bonus caps, same-day delivery windows, Yoco/Ozow/card/EFT/deposit+COD payments, admin + node dashboards, verification layer.
-- **Principle:** ship the version that works on the worst phone on the worst network in the hardest-to-reach town. If it works there, it works everywhere.
+1. **Network commission** — 2% of goods sold on every marketplace.
+2. **Delivery economics** — our share of the delivery fee, better as density grows.
+3. **Node commissions** — local operators run territories; we take a share.
+4. **Float and payments** — money that lives in the wallet between top-up and
+   payout.
+5. **Later, data-enabled** — working capital for sellers, B2B restocking, ads.
 
-### Positioning
-- **Category:** Connected Commerce Network (this document).
-- **Never say:** "delivery app," "e-commerce site," "courier."
-- **Always say:** "the network that reaches every market."
+Operators set their own commission on their own sellers. We deliberately don't
+compete with them for it — our cut sits underneath, on volume.
 
-### Distribution
-- **Buyers:** WhatsApp-first = zero-install, near-zero CAC; USSD = the only channel that reaches feature phones.
-- **Sellers:** referral commissions for introducing merchants (already live) — sellers recruit sellers.
-- **Coverage:** Delivery Nodes replicate territories without fleet capex — expansion is a playbook, not a budget line.
-- **Speed × Feedback = Product-Market Fit.** Launch a town, measure order density, improve the playbook, repeat in the next town.
+## 6. What actually exists today
 
-### Retention
-- **Buyers:** saved baskets → WhatsApp re-order; deposit + COD unlocked for returning customers (loyalty as a feature).
-- **Sellers:** the Retail OS modules make YiThume the seller's operating system — churn means losing your back office, not just a listing.
-- **Runners:** batching bonuses reward density; nodes give top runners a promotion path (runner → node operator).
+Being honest about this is more useful than a roadmap that reads as if it shipped.
 
-### Team
-- **Hire people who raise the standard:** every early hire must have lived context in the markets we serve — network operators, not office managers.
-- **A-Players × Culture = Performance:** small team, one mission — *reach every market*.
+**Built and tested:**
+- Multi-tenant marketplaces: self-serve signup with phone OTP, per-tenant
+  storefronts at `/m/<slug>`, operator console, platform admin.
+- Shared runner pool with per-marketplace runners taking priority.
+- Double-entry ledger with escrow, refunds, reserve accounts and an audit that
+  recomputes every balance from the journal.
+- Paystack rail for card/EFT in and bank transfers out, admin-approved.
+- Failed-delivery waterfall that always pays the runner.
+- Two-leg fulfilment with pickup points; The Courier Guy works today as a manual
+  carrier.
+- Trust tiers, disputes, seller strikes, withdrawal holds.
+- WhatsApp notifications and a USSD flow for feature phones.
 
-### Systems
-- Idempotent order writes, rate limiting, webhook allowlists, token TTLs — the boring reliability work is already in the codebase. Systems are what let one team run a hundred towns.
-- **Revenue − Burn = Runway.** Asset-light by design: no fleet, no warehouses, no inventory. Burn goes to software and playbooks; nodes carry the physical world.
+**Not built:**
+- No live carrier API — waybills are entered by hand.
+- Paystack is written to spec but has never run against real keys.
+- Runner authentication is still phone-number-only.
+- The regulatory question of who legally holds customer balances is open, and it
+  needs answering before real money accumulates at scale.
 
-## 5. Milestones on the Path to $1B
+## 7. The pitch (30 seconds)
 
-| Stage | Proof | Valuation narrative |
-|---|---|---|
-| **Now** | Eastern Cape live: marketplace + runners + WhatsApp/USSD orders | "It works where nothing else does" |
-| **Density** | 3–5 towns at profitable order density; node playbook validated | "The playbook replicates" |
-| **Network** | First external marketplaces plugged in; B2B restocking pilots | "We are infrastructure, not a storefront" |
-| **Layer expansion** | Seller lending + Retail OS SaaS revenue > 25% of GMV take | "Five revenue layers, one spine" |
-| **Continental** | Node playbook in second country (USSD travels everywhere) | "The transaction layer of the informal economy" |
-
-## 6. The Pitch (30 seconds)
-
-> A trillion dollars of commerce happens in markets that Amazon, Takealot, and every courier ignore — because trucks and warehouses can't reach them. YiThume can. We're a marketplace, a network that connects other marketplaces, and an army of local runners who deliver where couriers won't go. Customers buy online or straight from WhatsApp — even from a feature phone via USSD. Sellers get a storefront, a delivery network, and a full retail operating system. Local operators build our coverage for us and earn on every drop. Three-sided network effects, asset-light, five revenue layers. We're not building a delivery company. We're building the commerce network for every market the internet forgot.
+A trillion rand of commerce happens in markets that Takealot, Amazon and every
+courier ignore — not because there's no demand, but because trucks stop where the
+tar stops. YiThume is the software that lets anyone in those places start their own
+marketplace, with the delivery network already underneath it: local runners who
+work the streets couriers won't drive down, kiosks for the long leg, and a wallet
+that holds the buyer's money until they hand over their PIN. The operator runs the
+market and keeps their own commission. We take two percent and run the road. We're
+not building a delivery company — we're building the layer that makes every one of
+those markets reachable.

@@ -218,12 +218,21 @@ function jobCard(j, kind) {
     actions = `<button data-act="deliver" data-id="${j._id}" class="w-full mt-3 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Delivered — enter buyer PIN</button>
       <button data-act="incident" data-id="${j._id}" class="w-full mt-2 px-4 py-2 rounded-xl border text-xs text-red-600 hover:bg-red-50">Report a problem</button>`;
   }
+  // A shared-pool runner works for several marketplaces, so say whose job it is.
+  const mine = ME && ME.marketplace_id && j.marketplace_id === ME.marketplace_id;
+  const market = j.marketplace_name
+    ? `<span class="pill ${mine ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}">${esc(j.marketplace_name)}${mine ? " • yours" : ""}</span>`
+    : "";
+  const point = j.pickup_point
+    ? `<div class="text-xs text-sky-700 mt-1">Collect from ${esc(j.pickup_point)}</div>` : "";
   return `<div class="rounded-2xl bg-white border p-4">
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between gap-2">
       <b class="font-mono">${j.code}</b>${pay}
     </div>
+    <div class="mt-1">${market}</div>
     <div class="mt-2 text-sm">${j.items.map(i => `${i.qty} x ${esc(i.name)}${i.seller_name ? ` <span class="text-slate-400">(${esc(i.seller_name)})</span>` : ""}`).join("<br>")}</div>
     <div class="mt-2 text-sm"><b>${esc(j.buyer_name)}</b> — ${esc(j.address)}, ${esc(j.area)}</div>
+    ${point}
     <div class="text-xs text-slate-500 mt-1">Buyer: <a class="underline" href="tel:${j.buyer_phone}">${j.buyer_phone}</a> • You earn ${R(j.runner_earning)}</div>
     ${actions}</div>`;
 }

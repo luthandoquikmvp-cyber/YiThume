@@ -64,8 +64,9 @@ DEFAULT_SETTINGS = {
     "marketplace_rate": float(os.environ.get("MARKETPLACE_FEE_RATE", "0.10")),
     # network_rate: YiThume's cut of the subtotal (platform-only)
     "network_rate": float(os.environ.get("NETWORK_FEE_RATE", "0.02")),
-    "runner_rate": float(os.environ.get("RUNNER_FEE_RATE", "0.80")),       # of delivery fee
-    "node_rate": float(os.environ.get("NODE_FEE_RATE", "0.20")),           # of delivery fee
+    # These three are shares of the delivery fee and must sum to at most 1.0.
+    "runner_rate": float(os.environ.get("RUNNER_FEE_RATE", "0.80")),
+    "node_rate": float(os.environ.get("NODE_FEE_RATE", "0.19")),
     "cod_cap": float(os.environ.get("COD_CAP", "400.0")),                  # above this: no COD
     "cod_surcharge": float(os.environ.get("COD_SURCHARGE", "10.0")),       # COD costs more to serve
     "strike_limit": int(os.environ.get("STRIKE_LIMIT", "2")),              # strikes → prepay only
@@ -1987,6 +1988,7 @@ def runner_me():
     earned = round(sum(o.get("fees", {}).get("runner_earning", 0) for o in delivered), 2)
     return jsonify({"ok": True, "runner": {
         "_id": runner["_id"], "name": runner["name"], "phone": runner["phone"],
+        "marketplace_id": runner.get("marketplace_id", ""),
         "area": runner.get("area", ""), "status": runner.get("status", "offline"),
         "deliveries_done": runner.get("deliveries_done", 0),
         "cash_in_hand": cash, "cash_limit": float(settings["runner_cash_limit"]),
@@ -2378,6 +2380,16 @@ def mark_payout_paid():
 
 
 # ---------------- wallet: money in, around, out ----------------
+def _wallet_snapshot(phone):
+    """Wallet view for channels with no session — USSD identifies by number."""
+    phone = clean_phone(phone)
+    if not phone:
+        return {"balance": 0.0, "held": 0.0, "available": 0.0, "owed": 0.0}
+    acct = ledger.buyer_account(LD(), phone)
+    return {**ledger.balances(LD(), acct["_id"]),
+            "owed": round(float(get_buyer(phone).get("owed", 0)), 2)}
+
+
 def _actor_account(actor=None, phone=""):
     """Resolve whose wallet a request is about."""
     if phone:
@@ -2776,8 +2788,8 @@ def update_settings():
     if float(merged["marketplace_rate"]) + float(merged["network_rate"]) >= 0.9:
         return jsonify({"ok": False,
                         "error": "commission rates must leave the seller at least 10%"}), 400
-    if (float(merged["runner_rate"]) + float(merged["node_rate"])
-            + float(merged["reserve_rate"])) > 1.0:
+    if round(float(merged["runner_rate"]) + float(merged["node_rate"])
+             + float(merged["reserve_rate"]), 6) > 1.0:
         return jsonify({"ok": False,
                         "error": "runner, node and reserve shares cannot exceed the delivery fee"}), 400
 
@@ -2798,7 +2810,8 @@ def ussd_entry():
     phone = clean_phone(request.values.get("phoneNumber") or "")
     text = (request.values.get("text") or "").strip()
     reply = ussd.handle(ussd.Deps(col=col, settings=get_settings, place_order=place_order,
-                                  clean_phone=clean_phone, now=_now, new_id=_new_id),
+                                  clean_phone=clean_phone, now=_now, new_id=_new_id,
+                                  wallet_balance=_wallet_snapshot),
                         session_id, phone, text)
     return reply, 200, {"Content-Type": "text/plain; charset=utf-8"}
 
@@ -2878,4 +2891,7 @@ def stats():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)
+    # Debug is opt-in: Werkzeug's debugger registers its own /console route,
+    # which shadows the operator console, and it exposes a remote Python shell.
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")),
+            debug=os.environ.get("FLASK_DEBUG") == "1")

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Markets on YiThume</title>
+<meta name="description" content="Every marketplace running on YiThume — browse by town and shop from local sellers, delivered by local runners." />
+<link rel="icon" href="/favicon.ico" />
+<script src="/static/tailwind.js"></script>
+<style>
+  .badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .6rem;border-radius:999px;font-size:.7rem;font-weight:600}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased">
+
+<header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-slate-200">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+    <a href="/" class="flex items-center gap-2">
+      <span class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white font-bold">Y</span>
+      <span class="text-xl font-semibold tracking-tight">YiThume</span>
+    </a>
+    <a href="/#create" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">Create yours</a>
+  </div>
+</header>
+
+<section class="bg-white border-b border-slate-200">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+    <h1 class="text-3xl font-bold">Markets on YiThume</h1>
+    <p class="mt-2 text-slate-600 text-sm max-w-2xl">
+      Each of these is run by someone local, with their own sellers and their own prices. Delivery comes
+      from the shared runner network.
+    </p>
+    <input id="search" type="search" placeholder="Search by market or town"
+           class="mt-5 w-full sm:w-96 px-4 py-2.5 rounded-xl border border-slate-300 text-sm" />
+  </div>
+</section>
+
+<section class="py-10">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6">
+    <div id="grid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    <div id="empty" class="hidden text-center text-slate-500 text-sm py-16">
+      No markets here yet. <a href="/#create" class="underline">Create the first one.</a>
+    </div>
+  </div>
+</section>
+
+<footer class="border-t border-slate-200 py-10 text-center text-sm text-slate-500">
+  <a href="/" class="underline hover:text-slate-700">YiThume</a> — create your marketplace, the runners are already there
+</footer>
+
+<script>
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const initial = s => esc((s || "?").trim().charAt(0).toUpperCase());
+const ACCENT = { emerald: "bg-emerald-600", amber: "bg-amber-500", sky: "bg-sky-600", rose: "bg-rose-600", violet: "bg-violet-600" };
+const TIER = {
+  trusted: ["bg-emerald-100 text-emerald-700", "Trusted"],
+  verified: ["bg-sky-100 text-sky-700", "Verified"],
+  unverified: ["bg-amber-100 text-amber-800", "New"],
+};
+let MARKETS = [];
+
+function render() {
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const rows = MARKETS.filter(m => !q ||
+    m.name.toLowerCase().includes(q) || (m.areas || []).join(" ").toLowerCase().includes(q));
+  document.getElementById("empty").classList.toggle("hidden", rows.length > 0);
+  document.getElementById("grid").innerHTML = rows.map(m => {
+    const [cls, label] = TIER[m.trust_tier] || TIER.unverified;
+    return `<a href="/m/${encodeURIComponent(m.slug)}" class="rounded-2xl border bg-white p-5 hover:shadow-md transition block">
+      <div class="flex items-start justify-between gap-3">
+        <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl ${ACCENT[m.accent] || ACCENT.emerald} text-white font-bold">${initial(m.name)}</span>
+        <span class="badge ${cls}">${label}</span>
+      </div>
+      <div class="mt-3 font-semibold">${esc(m.name)}</div>
+      <div class="text-xs text-slate-500 mt-0.5">${esc((m.areas || []).join(" · "))}</div>
+      <div class="text-sm text-slate-600 mt-2 min-h-[2.5rem]">${esc(m.tagline || "")}</div>
+      <div class="mt-3 pt-3 border-t text-xs text-slate-500 flex justify-between">
+        <span>${m.deliveries} deliveries</span>
+        <span>Delivery from R${Number(m.delivery_fee).toFixed(0)}</span>
+      </div>
+    </a>`;
+  }).join("");
+}
+
+document.getElementById("search").oninput = render;
+
+fetch("/api/marketplaces").then(r => r.json()).then(d => {
+  MARKETS = d.marketplaces || [];
+  render();
+});
+</script>
+</body>
+</html>
